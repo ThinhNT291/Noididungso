@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="vi-VN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thẩm Định Hồ Sơ Tuyển Sinh (Workspace)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <!-- KẾT NỐI DATA_CONFIG ĐỂ LẤY TỪ ĐIỂN TÍNH ĐIỂM -->
+    <script src="data_config.js"></script>
+    <style>
+        :root {
+            --primary: #008080;
+            --primary-dark: #006666;
+            --bg: #f0f4f4;
+            --text: #2c3e50;
+        }
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px; }
+        .container { max-width: 1600px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        h1 { color: var(--primary); margin-top: 0; font-size: 20px; border-bottom: 2px solid var(--primary); padding-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        
+        /* KPI & LỌC ĐƯỢC THU GỌN LẠI */
+        .top-panel { display: flex; gap: 15px; margin-bottom: 15px; align-items: flex-end; }
+        .kpi-card { background: #eef7f6; border-left: 4px solid var(--primary); border-radius: 6px; padding: 10px 15px; flex: 1; min-width: 150px; }
+        .kpi-title { font-size: 11px; color: #555; font-weight: 700; text-transform: uppercase; }
+        .kpi-value { font-size: 20px; font-weight: bold; color: var(--primary-dark); }
+        
+        .filter-box { background: #f8fbfb; border: 1px solid #d0e8e6; border-radius: 6px; padding: 10px; display: flex; flex-wrap: wrap; gap: 8px; flex: 4; align-items: flex-end;}
+        .filter-group { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 120px; }
+        .filter-group label { font-size: 10px; font-weight: bold; color: #444; text-transform: uppercase; }
+        .filter-group input, .filter-group select { padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; }
+        .btn-filter, .btn-reset, .btn-export { background: var(--primary); color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; }
+        .btn-reset { background: #95a5a6; }
+        .btn-export { background: #27ae60; }
+
+        /* BẢNG DỮ LIỆU CUỘN */
+        .table-wrapper { max-height: 550px; overflow-y: auto; overflow-x: auto; border: 1px solid #e0e0e0; border-radius: 4px; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 1200px; }
+        th { position: sticky; top: 0; background: #e0f2f1; color: #006666; font-weight: 700; padding: 8px; text-align: left; border-bottom: 2px solid #b2ebf2; z-index: 10; }
+        td { padding: 6px 8px; border-bottom: 1px solid #eee; vertical-align: middle; }
+        tr:hover { background: #f1f8f8; }
+        .badge { padding: 3px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; }
+        .badge-success { background: #d4edda; color: #155724; }
+        .badge-warning { background: #fff3e0; color: #e65100; }
+        
+        .btn-review { background: #f57c00; color: white; padding: 5px 10px; border-radius: 4px; font-weight: bold; font-size: 11px; border: none; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2);}
+        .btn-review:hover { background: #e65100; }
+
+        /* MODAL WORKSPACE (SIÊU CÔNG CỤ THẨM ĐỊNH) */
+        .workspace-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 9999; }
+        .workspace-modal { background: #fff; width: 95%; max-width: 1400px; height: 90vh; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; }
+        .ws-header { background: #004d40; color: white; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; font-weight: bold; }
+        .ws-body { display: flex; flex: 1; overflow: hidden; }
+        
+        .ws-left { width: 35%; border-right: 2px solid #eee; padding: 20px; overflow-y: auto; background: #fafafa; }
+        .ws-right { width: 65%; display: flex; flex-direction: column; background: #eceff1; }
+        
+        .ws-section-title { font-size: 14px; color: var(--primary-dark); border-bottom: 2px solid #b2ebf2; padding-bottom: 5px; margin-bottom: 10px; font-weight: bold; }
+        .info-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 8px; border-bottom: 1px dashed #ddd; padding-bottom: 4px; }
+        .info-label { font-weight: bold; color: #555; }
+        .info-val { color: #000; font-weight: 500; text-align: right; }
+        
+        .action-buttons { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+        .btn-action { padding: 10px; font-weight: bold; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; display: flex; justify-content: center; gap: 8px;}
+        .btn-action.pass { background: #2e7d32; }
+        .btn-action.missing { background: #d84315; }
+        .btn-action.save { background: #1565c0; }
+        .btn-action:disabled { opacity: 0.5; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>
+        <span>🎯 WORKSPACE THẨM ĐỊNH TUYỂN SINH</span>
+        <span style="font-size: 12px; color: #666;" id="last-updated">⏳ Đang đồng bộ...</span>
+    </h1>
+
+    <div class="top-panel">
+        <div class="kpi-card">
+            <div class="kpi-title">Tổng hồ sơ lọc</div>
+            <div class="kpi-value" id="kpi-total">0</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Đủ hồ sơ hợp lệ</div>
+            <div class="kpi-value" style="color: #27ae60;" id="kpi-docs">0</div>
+        </div>
+
+        <div class="filter-box">
+            <div class="filter-group"><label>Trạng thái HS</label>
+                <select id="filter-hoso">
+                    <option value="">-- Tất cả --</option>
+                    <option value="Đủ">Đủ hồ sơ</option>
+                    <option value="Thiếu">Thiếu hồ sơ</option>
+                </select>
+            </div>
+            <div class="filter-group"><label>Ngành</label><select id="filter-nganh"><option value="">-- Tất cả --</option></select></div>
+            <div class="filter-group"><label>Đối tượng</label><select id="filter-doituong"><option value="">-- Tất cả --</option></select></div>
+            <button class="btn-filter" onclick="applyFilters()">Lọc</button>
+            <button class="btn-reset" onclick="resetFilters()">Xóa</button>
+            <button class="btn-export" onclick="exportExcel()">Xuất Excel</button>
+        </div>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 40px; text-align: center;">STT</th>
+                    <th style="width: 80px;">NGÀY NHẬP</th>
+                    <th>CCCD</th>
+                    <th>HỌ VÀ TÊN</th>
+                    <th>NGÀNH</th>
+                    <th>ĐỐI TƯỢNG</th>
+                    <th style="text-align: center;">HỒ SƠ</th>
+                    <th style="text-align: center;">THAO TÁC</th>
+                </tr>
+            </thead>
+            <tbody id="table-body">
+                <tr><td colspan="8" style="text-align:center; padding: 20px;">Đang tải dữ liệu...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- WORKSPACE THẨM ĐỊNH CHI TIẾT -->
+<div id="workspaceModal" class="workspace-overlay">
+    <div class="workspace-modal">
+        <div class="ws-header">
+            <span>HỒ SƠ: <span id="ws-fullname" style="color: #ffd54f;"></span></span>
+            <span style="cursor: pointer; font-size: 20px;" onclick="closeWorkspace()">✖</span>
+        </div>
+        <div class="ws-body">
+            <!-- CỘT TRÁI: DỮ LIỆU TÍNH TOÁN (Thay thế Excel) -->
+            <div class="ws-left">
+                <div class="ws-section-title">THÔNG TIN CHUNG</div>
+                <div class="info-row"><span class="info-label">Số CCCD</span><span class="info-val" id="ws-cccd"></span></div>
+                <div class="info-row"><span class="info-label">Mã SV đề xuất</span><span class="info-val" id="ws-masv" style="color:#d84315; font-weight:bold;"></span></div>
+                <div class="info-row"><span class="info-label">Ngành học</span><span class="info-val" id="ws-nganh"></span></div>
+                <div class="info-row"><span class="info-label">Khu vực / Đối tượng</span><span class="info-val" id="ws-kvdt"></span></div>
+
+                <div class="ws-section-title" style="margin-top:20px;">KẾT QUẢ ĐIỂM SỐ</div>
+                <div id="ws-score-box"></div> <!-- Sinh giao diện bằng JS -->
+
+                <div class="ws-section-title" style="margin-top:20px;">CHECKLIST HỒ SƠ TỪ WEB1</div>
+                <div id="ws-checklist" style="font-size:12px; color:#444;"></div>
+
+                <div class="action-buttons">
+                    <button class="btn-action pass" id="btnApprove" onclick="triggerApprove()">✅ DUYỆT TRÚNG TUYỂN & GỬI BIÊN NHẬN</button>
+                    <button class="btn-action missing" id="btnMissing" onclick="triggerMissing()">⚠️ BÁO THIẾU HỒ SƠ & GỬI BIÊN NHẬN</button>
+                    <button class="btn-action save" id="btnSaveToResult" onclick="triggerSaveToSheet()">💾 CHỐT KẾT QUẢ VÀO SHEET "KETQUA"</button>
+                </div>
+            </div>
+            
+            <!-- CỘT PHẢI: XEM TRƯỚC HỌC BẠ / CCCD -->
+            <div class="ws-right">
+                <div style="padding: 10px; background: #cfd8dc; font-size: 13px; font-weight: bold; text-align: center;">
+                    📂 KHUNG XEM TRƯỚC MINH CHỨNG (DRIVE EMBED)
+                </div>
+                <iframe id="ws-iframe" style="width:100%; height:100%; border:none;" src=""></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // URL CSV TRUNG GIAN TỪ WEB 1 (Nơi nhân viên đẩy dữ liệu lên)
+    const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vROXqNm5RRMIZs7K_ZwykQh1BQPl6nv_gqV7CfejRdJuNoqNA9hW3Mgs-nqr4R7m9WGEcxGJBSS6hGw/pub?gid=0&single=true&output=csv";
+    
+    // CÁC ENDPOINT API CỦA ANH
+    const API_TRUNG_TUYEN = "https://script.google.com/macros/s/AKfycbxENuP4trkPcG24rnZEyHDFAk3FyNaaWA3NCBOyxfV-HB1Wv7t3JDlRg54JD9qNb_XtXg/exec";
+    const API_BAO_THIEU = "https://script.google.com/macros/s/AKfycbye3sn6obd4jGD746BsP4Lc0TORJSLVv7pRen9itwzmj4C16bge-ek36EsU6jOr97h_/exec";
+    const API_LUU_KETQUA = "URL_CỦA_SCRIPT_SỐ_14_CỦA_ANH"; // <-- ĐIỀN LINK WEB APP SỐ 14 VÀO ĐÂY
+
+    let rawData = []; let filteredData = []; let currentCandidate = null;
+
+    window.onload = () => { fetchCSVData(); };
+
+    function fetchCSVData() {
+        Papa.parse(CSV_URL, {
+            download: true, header: true, skipEmptyLines: true,
+            complete: function(results) {
+                rawData = results.data; filteredData = [...rawData];
+                populateFilters(); applyFilters();
+                document.getElementById('last-updated').innerText = `✔ Cập nhật: ${new Date().toLocaleTimeString('vi-VN')}`;
+            }
+        });
+    }
+
+    function getVal(row, keys) {
+        for (let k of keys) { for (let rowKey in row) { if (rowKey.trim().toUpperCase() === k.trim().toUpperCase()) return (row[rowKey] || "").trim(); } } return "";
+    }
+
+    function populateFilters() {
+        const nSet = new Set(); const dSet = new Set();
+        rawData.forEach(r => {
+            const ng = getVal(r, ["NGÀNH", "NGÀNH ĐÀO TẠO"]); if(ng) nSet.add(ng);
+            const dt = getVal(r, ["ĐỐI TƯỢNG ĐẦU VÀO"]); if(dt) dSet.add(dt);
+        });
+        const sn = document.getElementById('filter-nganh'); nSet.forEach(ng => sn.appendChild(new Option(ng, ng)));
+        const sd = document.getElementById('filter-doituong'); dSet.forEach(dt => sd.appendChild(new Option(dt, dt)));
+    }
+
+    function applyFilters() {
+        const nVal = document.getElementById('filter-nganh').value;
+        const dVal = document.getElementById('filter-doituong').value;
+        const hVal = document.getElementById('filter-hoso').value.toLowerCase();
+
+        filteredData = rawData.filter(r => {
+            if (nVal && getVal(r, ["NGÀNH"]) !== nVal) return false;
+            if (dVal && getVal(r, ["ĐỐI TƯỢNG ĐẦU VÀO"]) !== dVal) return false;
+            const hs = getVal(r, ["HỒ SƠ"]).toLowerCase();
+            if (hVal === "đủ" && !hs.includes("đủ")) return false;
+            if (hVal === "thiếu" && !hs.includes("thiếu")) return false;
+            return true;
+        });
+        
+        document.getElementById('kpi-total').innerText = filteredData.length;
+        document.getElementById('kpi-docs').innerText = filteredData.filter(r => getVal(r, ["HỒ SƠ"]).toLowerCase().includes("đủ")).length;
+        renderTable();
+    }
+    
+    function resetFilters() { document.querySelectorAll('.filter-box select').forEach(s => s.value = ''); applyFilters(); }
+
+    function getHoSoBadge(val) {
+        if (val.toLowerCase().includes("đủ") || val.toLowerCase().includes("hợp lệ")) return `<span class="badge badge-success">${val}</span>`;
+        return `<span class="badge badge-warning">${val}</span>`;
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('table-body'); tbody.innerHTML = '';
+        if(filteredData.length === 0) return tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;">Không có dữ liệu</td></tr>`;
+
+        filteredData.forEach((row, i) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="text-align: center;">${i + 1}</td>
+                <td>${getVal(row, ["TIME"]).split(' ')[0]}</td>
+                <td><b>${getVal(row, ["SỐ CCCD"])}</b></td>
+                <td><b>${getVal(row, ["TÊN SINH VIÊN"])}</b></td>
+                <td>${getVal(row, ["NGÀNH"])}</td>
+                <td>${getVal(row, ["ĐỐI TƯỢNG ĐẦU VÀO"])}</td>
+                <td style="text-align: center;">${getHoSoBadge(getVal(row, ["HỒ SƠ"]))}</td>
+                <td style="text-align: center;">
+                    <button class="btn-review" onclick="openWorkspace(${i})">🔍 Thẩm định</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    // =========================================================================
+    // LOGIC CỦA WORKSPACE (THAY THẾ EXCEL VÀ VBA)
+    // =========================================================================
+    
+    // Hàm bóc tách ID của Folder Drive để ép iframe nhúng xem trước minh chứng
+    function getDriveEmbedUrl(link) {
+        if (!link) return "";
+        let cleanLink = link.replace(/^['"]+|['"]+$/g, '').trim();
+        const folderMatch = cleanLink.match(/folders\/([a-zA-Z0-9-_]+)/);
+        if (folderMatch && folderMatch[1]) {
+            return `https://drive.google.com/embeddedfolderview?id=${folderMatch[1]}#grid`;
+        }
+        return cleanLink; 
+    }
+
+    function openWorkspace(index) {
+        currentCandidate = filteredData[index];
+        const row = currentCandidate;
+
+        document.getElementById('ws-fullname').innerText = getVal(row, ["TÊN SINH VIÊN"]);
+        document.getElementById('ws-cccd').innerText = getVal(row, ["SỐ CCCD"]);
+        document.getElementById('ws-nganh').innerText = getVal(row, ["NGÀNH"]);
+        document.getElementById('ws-kvdt').innerText = `${getVal(row, ["KHU VỰC ƯU TIÊN"])} / ${getVal(row, ["ĐỐI TƯỢNG ƯU TIÊN"])}`;
+
+        // Tự động sinh MÃ SINH VIÊN (Ví dụ: Năm + Khóa + CCCD 4 số cuối)
+        const namTuyen = getVal(row, ["NĂM XÉT TUYỂN"]) || new Date().getFullYear();
+        const khoa = getVal(row, ["KHÓA"]) || "01";
+        const cccdTail = getVal(row, ["SỐ CCCD"]).slice(-4);
+        document.getElementById('ws-masv').innerText = `${namTuyen}K${khoa}-${cccdTail}`;
+
+        // -------------------------------------------------------------
+        // TRANSLATE TỪ APP.JS SANG WEB2: TÍNH LẠI ĐIỂM NGAY TRÊN TRÌNH DUYỆT
+        // -------------------------------------------------------------
+        let diemHTML = "";
+        const dtDauVao = getVal(row, ["ĐỐI TƯỢNG ĐẦU VÀO"]);
+        
+        if (dtDauVao === "Tốt nghiệp THPT") {
+            const nganh = getVal(row, ["NGÀNH"]);
+            const kvVal = getVal(row, ["KHU VỰC ƯU TIÊN"]);
+            const dtVal = getVal(row, ["ĐỐI TƯỢNG ƯU TIÊN"]);
+            
+            // Dùng TỪ ĐIỂN TỪ DATA_CONFIG.JS
+            let uTienBanDau = (DICT_KHU_VUC[kvVal] || 0) + (DICT_DOI_TUONG[dtVal] || 0);
+            let combos = DICT_NGANH[nganh] || [];
+            let maxScore = 0; let bestCombo = "";
+
+            combos.forEach(maToHop => {
+                let subjects = DICT_TO_HOP[maToHop];
+                // Lấy điểm trực tiếp từ dữ liệu CSV đã lưu
+                let s1 = parseFloat(getVal(row, [subjects[0].replace('diem_','').toUpperCase()]).replace(',','.')) || 0;
+                let s2 = parseFloat(getVal(row, [subjects[1].replace('diem_','').toUpperCase()]).replace(',','.')) || 0;
+                let s3 = parseFloat(getVal(row, [subjects[2].replace('diem_','').toUpperCase()]).replace(',','.')) || 0;
+                if(s1>0 && s2>0 && s3>0){
+                    let total = s1+s2+s3;
+                    if(total > maxScore) { maxScore = total; bestCombo = maToHop; }
+                }
+            });
+
+            if (maxScore > 0) {
+                let uTien = maxScore >= 22.5 ? ((30 - maxScore) / 7.5) * uTienBanDau : uTienBanDau;
+                let finalScore = (maxScore + uTien).toFixed(2);
+                let status = finalScore >= 15.0 ? "<span style='color:green'>TRÚNG TUYỂN</span>" : "<span style='color:red'>TRƯỢT</span>";
+                
+                diemHTML = `
+                    <div class="info-row"><span class="info-label">Tổ hợp cao nhất</span><span class="info-val">${bestCombo} (${maxScore}đ)</span></div>
+                    <div class="info-row"><span class="info-label">Điểm ưu tiên</span><span class="info-val">${uTien.toFixed(2)}đ</span></div>
+                    <div class="info-row"><span class="info-label" style="color:var(--primary-dark)">ĐIỂM XÉT TUYỂN TỔNG</span><span class="info-val" style="font-size:16px; font-weight:bold; color:var(--primary-dark)">${finalScore}</span></div>
+                    <div class="info-row"><span class="info-label">Kết luận Điểm</span><span class="info-val">${status} (Chuẩn: 15đ)</span></div>
+                `;
+            } else { diemHTML = "<i>Chưa đủ dữ liệu điểm để xét tổ hợp.</i>"; }
+        } else {
+            let h4 = getVal(row, ["ĐIỂM TB TOÀN KHÓA HỆ 4"]); let h10 = getVal(row, ["ĐIỂM TB TOÀN KHÓA HỆ 10"]);
+            diemHTML = `
+                <div class="info-row"><span class="info-label">ĐTB Hệ 4</span><span class="info-val">${h4 || '-'}</span></div>
+                <div class="info-row"><span class="info-label">ĐTB Hệ 10</span><span class="info-val">${h10 || '-'}</span></div>
+            `;
+        }
+        document.getElementById('ws-score-box').innerHTML = diemHTML;
+
+        // Quét hồ sơ thiếu
+        const dsTienQuyet = DICT_HO_SO.tien_quyet[dtDauVao] || [];
+        let missing = [];
+        dsTienQuyet.forEach(doc => { if (getVal(row, [doc.name.toUpperCase()]) !== "TRUE") missing.push(doc.name); });
+        
+        let hsStatus = getVal(row, ["HỒ SƠ"]);
+        document.getElementById('ws-checklist').innerHTML = `<p>Trạng thái trên form: <b>${hsStatus}</b></p>` + 
+            (missing.length > 0 ? `<p style="color:#d84315;">Đang thiếu: ${missing.join(', ')}</p>` : `<p style="color:#2e7d32;">Đã nộp đủ hồ sơ tiên quyết.</p>`);
+        
+        // Nhúng iFrame Drive
+        const link = getVal(row, ["LINK HỒ SƠ", "Link hồ sơ"]);
+        const embedUrl = getDriveEmbedUrl(link);
+        document.getElementById('ws-iframe')
