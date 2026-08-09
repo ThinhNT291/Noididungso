@@ -6,7 +6,6 @@ const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxWpuLpICy8Y0cJ
 const skillSelect = document.getElementById('skill-select');
 const langSelect = document.getElementById('language-select');
 const levelSelect = document.getElementById('level-select');
-
 const btnToggleCustom = document.getElementById('btn-toggle-custom');
 const customPromptArea = document.getElementById('custom-prompt-area');
 const customPromptText = document.getElementById('custom-prompt-text');
@@ -19,7 +18,9 @@ const assessmentBox = document.getElementById('assessment-box');
 const btnSave = document.getElementById('btn-save');
 const countdownDisplay = document.getElementById('countdown-display');
 
-// Dành cho Speaking
+// Speaking DOM
+const speakingQuestionGrid = document.getElementById('speaking-question-grid');
+const activeSpeakingPromptBox = document.getElementById('active-speaking-prompt-box');
 const speakingPromptText = document.getElementById('speaking-prompt-text');
 const btnRecord = document.getElementById('btn-record');
 const btnStop = document.getElementById('btn-stop');
@@ -27,8 +28,8 @@ const audioPlayback = document.getElementById('audio-playback');
 const canvas = document.getElementById('audio-visualizer');
 const canvasCtx = canvas.getContext('2d');
 
-// Dành cho Writing
-const questionGrid = document.getElementById('question-grid');
+// Writing DOM
+const writingQuestionGrid = document.getElementById('writing-question-grid');
 const activeWritingPromptBox = document.getElementById('active-writing-prompt-box');
 const writingPromptText = document.getElementById('writing-prompt-text');
 const writingPromptImage = document.getElementById('writing-prompt-image');
@@ -47,16 +48,16 @@ const hintsModalBody = document.getElementById('hints-modal-body');
 // Biến toàn cục
 let currentSkill = 'speaking'; 
 let customImageBase64 = null; 
-let activePromptData = { text: "", image: null }; // Lưu đề đang được chọn
+let activePromptData = { text: "", image: null }; 
 let cachedWritingHints = null;
 let isPreloadingHints = false;
-let systemQuestions = []; 
+let systemQuestions = { speaking: [], writing: [] }; 
 let timerInterval;
 let timeRemaining = 0;
 let mediaRecorder, audioChunks = [], audioCtx, analyser, animationId;
 
 // ==========================================
-// 2. KHỞI TẠO & CHUYỂN ĐỔI KỸ NĂNG (Fix Bug 2)
+// 2. KHỞI TẠO & CHUYỂN ĐỔI KỸ NĂNG
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
     skillSelect.value = 'speaking';
@@ -66,8 +67,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 skillSelect.addEventListener('change', (e) => {
     currentSkill = e.target.value;
-    
-    // Xóa sạch dấu tích của kỹ năng cũ
     assessmentBox.innerHTML = '<span class="placeholder-text">Đợi một tý, kết quả phân tích chi tiết sẽ có ngay...</span>';
     if (btnSave) btnSave.classList.add('hidden');
     clearInterval(timerInterval);
@@ -82,16 +81,12 @@ skillSelect.addEventListener('change', (e) => {
     }
 });
 
-// Toggle Sidebar
+// Nút tắt mở cột 2 bên
 document.getElementById('toggle-left')?.addEventListener('click', () => document.getElementById('sidebar-left').classList.toggle('collapsed'));
 document.getElementById('toggle-right')?.addEventListener('click', () => document.getElementById('sidebar-right').classList.toggle('collapsed'));
 
-// Toggle Khung nhập đề tự do
-btnToggleCustom.addEventListener('click', () => {
-    customPromptArea.classList.toggle('hidden');
-});
+btnToggleCustom.addEventListener('click', () => customPromptArea.classList.toggle('hidden'));
 
-// Chuyển ảnh Upload sang Base64
 customPromptImage.addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (file) {
@@ -101,13 +96,11 @@ customPromptImage.addEventListener('change', function(e) {
     } else customImageBase64 = null;
 });
 
-// Áp dụng Đề Tự Nhập
 btnApplyCustom.addEventListener('click', () => {
     const text = customPromptText.value.trim();
     if (!text && !customImageBase64) return alert("Vui lòng nhập chữ hoặc up ảnh!");
     
     activePromptData = { text: text, image: customImageBase64 };
-    currentPrompt.innerHTML = `<strong>Đề bài đã chọn:</strong> (Đề tự nhập)`;
     
     if(currentSkill === 'speaking') {
         speakingQuestionGrid.querySelectorAll('.q-btn').forEach(b => b.classList.remove('active'));
@@ -127,14 +120,11 @@ btnApplyCustom.addEventListener('click', () => {
         preloadHintsLogic();
     }
     customPromptArea.classList.add('hidden');
+    startTimer();
 });
 
-const speakingQuestionGrid = document.getElementById('speaking-question-grid');
-const writingQuestionGrid = document.getElementById('question-grid'); // Của writing
-const activeSpeakingPromptBox = document.getElementById('active-speaking-prompt-box');
-
 // ==========================================
-// 3. LOAD GRID ĐỀ BÀI (SPEAKING & WRITING)
+// 3. LOAD GRID ĐỀ BÀI TỪ GAS
 // ==========================================
 async function fetchQuestionsFromGAS() {
     try {
@@ -145,10 +135,10 @@ async function fetchQuestionsFromGAS() {
         writingQuestionGrid.innerHTML = '';
 
         if(result.success) {
-            systemQuestions = result.data; // Lưu lại { speaking: [], writing: [] }
+            systemQuestions = result.data; 
             
-            // Render Speaking Grid
-            if (systemQuestions.speaking.length > 0) {
+            // Speaking Grid
+            if (systemQuestions.speaking && systemQuestions.speaking.length > 0) {
                 systemQuestions.speaking.forEach((q, index) => {
                     let btn = document.createElement('button');
                     btn.className = 'q-btn';
@@ -157,11 +147,11 @@ async function fetchQuestionsFromGAS() {
                     speakingQuestionGrid.appendChild(btn);
                 });
             } else {
-                speakingQuestionGrid.innerHTML = '<span style="color:#7f8c8d;">Chưa có đề Speaking.</span>';
+                speakingQuestionGrid.innerHTML = '<span style="color:#7f8c8d;">Chưa có đề Speaking trong Google Sheets.</span>';
             }
 
-            // Render Writing Grid
-            if (systemQuestions.writing.length > 0) {
+            // Writing Grid
+            if (systemQuestions.writing && systemQuestions.writing.length > 0) {
                 systemQuestions.writing.forEach((q, index) => {
                     let btn = document.createElement('button');
                     btn.className = 'q-btn';
@@ -170,27 +160,24 @@ async function fetchQuestionsFromGAS() {
                     writingQuestionGrid.appendChild(btn);
                 });
             } else {
-                writingQuestionGrid.innerHTML = '<span style="color:#7f8c8d;">Chưa có đề Writing.</span>';
+                writingQuestionGrid.innerHTML = '<span style="color:#7f8c8d;">Chưa có đề Writing trong Google Sheets.</span>';
             }
         } else {
             throw new Error(result.error);
         }
     } catch(e) {
-        speakingQuestionGrid.innerHTML = '<span style="color:#e74c3c;">Lỗi tải dữ liệu. Hãy duyệt quyền cho GAS.</span>';
-        writingQuestionGrid.innerHTML = '<span style="color:#e74c3c;">Lỗi tải dữ liệu. Hãy duyệt quyền cho GAS.</span>';
+        speakingQuestionGrid.innerHTML = '<span style="color:#e74c3c;">Lỗi tải dữ liệu. Xin hãy kiểm tra lại kết nối hoặc phân quyền GAS.</span>';
+        writingQuestionGrid.innerHTML = '<span style="color:#e74c3c;">Lỗi tải dữ liệu. Xin hãy kiểm tra lại kết nối hoặc phân quyền GAS.</span>';
     }
 }
 
-// Hàm xử lý chọn đề chung cho cả 2 kỹ năng
 function selectQuestion(skillType, index, btnElem) {
-    // Xóa highlight nút cũ
     const grid = skillType === 'speaking' ? speakingQuestionGrid : writingQuestionGrid;
     grid.querySelectorAll('.q-btn').forEach(b => b.classList.remove('active'));
     btnElem.classList.add('active');
 
     const q = systemQuestions[skillType][index];
     activePromptData = { text: q.content, image: null };
-    currentPrompt.innerHTML = `<strong>Đề bài đã chọn:</strong> ${q.title}`; // Đổi thông báo chung
     
     if (skillType === 'speaking') {
         activeSpeakingPromptBox.classList.remove('hidden');
@@ -199,9 +186,8 @@ function selectQuestion(skillType, index, btnElem) {
         activeWritingPromptBox.classList.remove('hidden');
         writingPromptText.innerHTML = q.content.replace(/\n/g, '<br>');
         writingPromptImage.classList.add('hidden');
-        preloadHintsLogic(); // Preload gợi ý
+        preloadHintsLogic();
     }
-    
     startTimer();
 }
 
@@ -235,8 +221,6 @@ async function preloadHintsLogic() {
     } finally {
         isPreloadingHints = false;
         btnShowHints.innerHTML = '<i class="fas fa-lightbulb"></i> Phân tích & Gợi ý (Popup)';
-        
-        // Nếu người dùng đang mở sẵn Modal chờ đợi
         if (!hintsModal.classList.contains('hidden') && cachedWritingHints) {
             renderHintsToModal(cachedWritingHints);
         }
@@ -281,6 +265,7 @@ btnShowMindmap.addEventListener('click', () => {
 });
 
 closeModal.addEventListener('click', () => hintsModal.classList.add('hidden'));
+window.addEventListener('click', (e) => { if (e.target === hintsModal) hintsModal.classList.add('hidden'); });
 
 function drawMindmap(markdownText) {
     mindmapSvg.innerHTML = ''; 
@@ -346,7 +331,7 @@ btnSubmitWriting.addEventListener('click', async () => {
 // 6. MODULE SPEAKING & AUDIO VISUALIZER
 // ==========================================
 btnRecord.addEventListener('click', async () => {
-    if (!activePromptData.text) return alert("Hãy tự nhập đề trước khi ghi âm!");
+    if (!activePromptData.text) return alert("Hãy chọn đề bài trước khi ghi âm!");
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         mediaRecorder = new MediaRecorder(stream);
