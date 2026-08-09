@@ -15,6 +15,11 @@ const assessmentBox = document.getElementById('assessment-box');
 const btnStartSession = document.getElementById('btn-start-session');
 const currentPrompt = document.getElementById('current-prompt');
 const btnSave = document.getElementById('btn-save');
+// - Nhóm Toggle Sidebar
+const toggleLeft = document.getElementById('toggle-left');
+const toggleRight = document.getElementById('toggle-right');
+const sidebarLeft = document.getElementById('sidebar-left');
+const sidebarRight = document.getElementById('sidebar-right');
 
 // - Nhóm Cài đặt (Hệ thống)
 const langSelect = document.getElementById('language-select');
@@ -75,6 +80,18 @@ document.addEventListener('DOMContentLoaded', loadHistory);
 // ==========================================
 // 5. LOGIC THIẾT LẬP GIAO DIỆN & NGÂN HÀNG ĐỀ
 // ==========================================
+// --- LOGIC THU GỌN / PHÓNG TO SIDEBAR (DESKTOP) ---
+if (toggleLeft && sidebarLeft) {
+    toggleLeft.addEventListener('click', () => {
+        sidebarLeft.classList.toggle('collapsed');
+    });
+}
+
+if (toggleRight && sidebarRight) {
+    toggleRight.addEventListener('click', () => {
+        sidebarRight.classList.toggle('collapsed');
+    });
+}
 promptMode.addEventListener('change', (e) => {
     if (e.target.value === 'custom') {
         sysPromptArea.classList.add('hidden');
