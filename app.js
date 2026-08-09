@@ -213,3 +213,124 @@ function renderAssessment(data) {
     
     // (Tùy chọn) Có thể code thêm logic lưu vào Cột Lịch Sử ở đây...
 }
+
+// --- LOGIC ẨN/HIỆN SIDEBAR ---
+document.getElementById('toggle-left').addEventListener('click', () => {
+    document.getElementById('sidebar-left').classList.toggle('collapsed');
+});
+document.getElementById('toggle-right').addEventListener('click', () => {
+    document.getElementById('sidebar-right').classList.toggle('collapsed');
+});
+// Mobile Toggle
+document.getElementById('mobile-toggle-left').addEventListener('click', () => {
+    document.getElementById('sidebar-left').classList.toggle('show');
+});
+document.getElementById('mobile-toggle-right').addEventListener('click', () => {
+    document.getElementById('sidebar-right').classList.toggle('show');
+});
+
+// --- LOGIC LƯU VÀ QUẢN LÝ LỊCH SỬ ---
+let currentSessionData = null; // Biến lưu tạm dữ liệu bài test hiện tại
+
+// Gọi hàm này bên trong renderAssessment(data) khi nhận kết quả từ API thành công
+// currentSessionData = data; 
+// document.getElementById('btn-save').classList.remove('hidden');
+
+document.getElementById('btn-save').addEventListener('click', () => {
+    if (!currentSessionData) return;
+    let history = JSON.parse(localStorage.getItem('speakingHistory')) || [];
+    
+    const newItem = {
+        id: Date.now(),
+        date: new Date().toLocaleString('vi-VN'),
+        data: currentSessionData
+    };
+    history.push(newItem);
+    localStorage.setItem('speakingHistory', JSON.stringify(history));
+    alert("Đã lưu bài!");
+    document.getElementById('btn-save').classList.add('hidden');
+    loadHistory();
+});
+
+function loadHistory() {
+    const historyList = document.getElementById('history-list');
+    let history = JSON.parse(localStorage.getItem('speakingHistory')) || [];
+    
+    if (history.length === 0) {
+        historyList.innerHTML = '<li class="history-item empty-history">Chưa có bài lưu nào.</li>';
+        return;
+    }
+    
+    historyList.innerHTML = '';
+    // Xếp bài mới nhất lên trên
+    history.reverse().forEach(item => {
+        const li = document.createElement('li');
+        li.className = 'history-item';
+        li.innerHTML = `
+            <div class="history-title">Bài lưu: ${item.date}</div>
+            <i class="fas fa-ellipsis-v history-actions" onclick="toggleMenu(${item.id})"></i>
+            <div class="action-menu" id="menu-${item.id}">
+                <button onclick="downloadItem(${item.id})"><i class="fas fa-download"></i> Tải Text</button>
+                <button onclick="shareItem(${item.id})"><i class="fas fa-share"></i> Chia sẻ</button>
+                <button onclick="deleteItem(${item.id})" style="color:red;"><i class="fas fa-trash"></i> Xóa</button>
+            </div>
+        `;
+        historyList.appendChild(li);
+    });
+}
+
+// Ẩn/Hiện Menu 3 chấm
+window.toggleMenu = (id) => {
+    const menu = document.getElementById(`menu-${id}`);
+    menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+}
+
+// Chức năng Xóa
+window.deleteItem = (id) => {
+    if(confirm("Bạn có chắc muốn xóa?")) {
+        let history = JSON.parse(localStorage.getItem('speakingHistory')) || [];
+        history = history.filter(item => item.id !== id);
+        localStorage.setItem('speakingHistory', JSON.stringify(history));
+        loadHistory();
+    }
+}
+
+// Chức năng Tải về (.txt)
+window.downloadItem = (id) => {
+    let history = JSON.parse(localStorage.getItem('speakingHistory')) || [];
+    const item = history.find(i => i.id === id);
+    if (!item) return;
+    
+    // Format nội dung tải về
+    const content = `BÀI TEST NGÀY: ${item.date}\n\n`
+                  + `TRANSCRIPT:\n${item.data.transcript}\n\n`
+                  + `ĐIỂM SỐ:\nPhát âm: ${item.data.scores.pronunciation} | Trôi chảy: ${item.data.scores.fluency} | Từ vựng: ${item.data.scores.vocabulary} | Ngữ pháp: ${item.data.scores.grammar}\n\n`
+                  + `NHẬN XÉT: ${item.data.feedback}`;
+                  
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Speaking_Test_${item.id}.txt`;
+    a.click();
+}
+
+// Chức năng Chia sẻ (Dùng Web Share API nếu đt hỗ trợ, hoặc Copy Clipboard)
+window.shareItem = (id) => {
+    let history = JSON.parse(localStorage.getItem('speakingHistory')) || [];
+    const item = history.find(i => i.id === id);
+    if (!item) return;
+    
+    const shareText = `Tôi vừa đạt điểm Speaking: Ngữ pháp ${item.data.scores.grammar}/10, Từ vựng ${item.data.scores.vocabulary}/10 trên AI Speaking Test!`;
+    
+    if (navigator.share) {
+        navigator.share({ title: 'Kết quả Speaking', text: shareText })
+            .catch(console.error);
+    } else {
+        navigator.clipboard.writeText(shareText);
+        alert("Đã copy kết quả vào Clipboard!");
+    }
+}
+
+// Khởi chạy load lịch sử khi mở web
+document.addEventListener('DOMContentLoaded', loadHistory);
