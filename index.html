@@ -6,7 +6,6 @@
     <title>AI EdTech Platform - Speaking & Writing</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Tích hợp thư viện vẽ Mindmap -->
     <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
     <script src="https://cdn.jsdelivr.net/npm/markmap-view"></script>
     <script src="https://cdn.jsdelivr.net/npm/markmap-lib"></script>
@@ -44,57 +43,41 @@
                     </select>
                 </div>
 
+                <!-- NÚT MỞ KHUNG TỰ NHẬP ĐỀ -->
                 <div class="setting-group">
-                    <label style="color: var(--primary-color);">Nguồn đề:</label>
-                    <select id="prompt-mode">
-                        <option value="system">Đề hệ thống (Google Sheets)</option>
-                        <option value="custom">Đề tự tạo (Custom)</option>
-                    </select>
+                    <button id="btn-toggle-custom" class="btn" style="width: 100%; background: #7f8c8d; color: white;"><i class="fas fa-edit"></i> Tự nhập đề mới</button>
                 </div>
 
-                <!-- Khu vực: Đề hệ thống -->
-                <div id="system-prompt-area" class="setting-group">
-                    <label>Chọn đề:</label>
-                    <select id="topic-select">
-                        <option value="">Đang tải ngân hàng đề...</option>
-                    </select>
-                </div>
-
-                <!-- Khu vực: Đề tự tạo -->
                 <div id="custom-prompt-area" class="hidden" style="background: #f9f9f9; padding: 10px; border-radius: 6px; border: 1px dashed #ccc; margin-bottom: 15px;">
-                    <label style="font-size: 13px;">Đề đã lưu của bạn:</label>
-                    <select id="custom-bank-select" style="margin-bottom: 10px;">
-                        <option value="">-- Chọn đề đã lưu --</option>
-                    </select>
                     <textarea id="custom-prompt-text" placeholder="Nhập text đề bài vào đây..." rows="4" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc; margin-bottom: 10px;"></textarea>
                     <label style="font-size: 13px;">Upload ảnh đề (nếu có):</label>
                     <input type="file" id="custom-prompt-image" accept="image/*" style="margin-bottom: 10px;">
-                    <button id="btn-save-bank" class="btn" style="background:#f39c12; color:white; width:100%; font-size:13px;"><i class="fas fa-bookmark"></i> Lưu đề tự tạo</button>
+                    <button id="btn-apply-custom" class="btn" style="background:var(--primary-color); color:white; width:100%; font-size:13px;"><i class="fas fa-check"></i> Áp dụng đề này</button>
                 </div>
 
                 <div class="setting-group">
                     <label>Thời gian thi (Phút):</label>
-                    <input type="number" id="time-limit" value="2" min="0" max="60">
+                    <input type="number" id="time-limit" value="20" min="0" max="60">
                 </div>
-                
-                <button id="btn-start-session" class="btn primary-btn">Bắt đầu bài thi</button>
             </div>
         </aside>
 
         <!-- CỘT GIỮA: KHÔNG GIAN LÀM VIỆC -->
         <main class="main-content">
-            <!-- Khu vực thông tin đề -->
             <div class="prompt-section">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <h3>Đề bài:</h3>
-                    <span id="countdown-display" style="font-size: 1.5em; font-weight: bold; color: #e74c3c; font-family: monospace;">02:00</span>
+                    <h3>Không gian Luyện tập</h3>
+                    <span id="countdown-display" style="font-size: 1.5em; font-weight: bold; color: #e74c3c; font-family: monospace;">00:00</span>
                 </div>
-                <p id="current-prompt">Vui lòng chọn đề hoặc nhập đề tự chọn và bấm "Bắt đầu bài thi".</p>
-                <img id="display-custom-image" src="" alt="Đề bài hình ảnh" class="hidden" style="max-width: 100%; border-radius: 8px; margin-top: 10px;">
             </div>
 
             <!-- MODULE 1: SPEAKING WORKSPACE -->
             <div id="speaking-workspace" class="workspace">
+                <div class="content-box" style="border-left: 4px solid var(--primary-color);">
+                    <h4 style="color: var(--primary-color); margin-bottom: 10px;">Đề bài Speaking hiện tại:</h4>
+                    <p id="speaking-prompt-text" style="font-size: 1.1em; line-height: 1.5;">Vui lòng dùng nút "Tự nhập đề mới" bên trái để tạo đề Speaking.</p>
+                </div>
+                
                 <div class="controls-section" style="margin-top: 15px;">
                     <button id="btn-record" class="btn record-btn"><i class="fas fa-microphone"></i> Ghi âm</button>
                     <button id="btn-stop" class="btn stop-btn" disabled><i class="fas fa-stop"></i> Dừng</button>
@@ -105,9 +88,26 @@
 
             <!-- MODULE 2: WRITING WORKSPACE -->
             <div id="writing-workspace" class="workspace hidden">
+                
+                <!-- BẢNG GRID CHỌN ĐỀ -->
+                <div id="question-grid-container" class="content-box" style="background: #f4f7f6; border: none;">
+                    <h4 style="margin-bottom: 5px; color: #2c3e50;"><i class="fas fa-th"></i> Ngân hàng đề Writing</h4>
+                    <p style="font-size: 0.9em; color: #7f8c8d; margin-bottom: 10px;">Bấm vào một đề để bắt đầu. Hệ thống sẽ tự động tải trước các gợi ý làm bài.</p>
+                    <div id="question-grid" class="question-grid">
+                        <span class="placeholder-text"><i class="fas fa-spinner fa-spin"></i> Đang tải dữ liệu từ Google Sheets...</span>
+                    </div>
+                </div>
+
+                <!-- HIỂN THỊ ĐỀ BÀI ĐANG CHỌN -->
+                <div id="active-writing-prompt-box" class="content-box hidden" style="border-left: 4px solid #8e44ad;">
+                    <h4 style="color: #8e44ad; margin-bottom: 10px;"><i class="fas fa-file-alt"></i> Đề bài hiện tại:</h4>
+                    <p id="writing-prompt-text" style="font-size: 1.1em; line-height: 1.5;"></p>
+                    <img id="writing-prompt-image" src="" class="hidden" style="max-width: 100%; border-radius: 8px; margin-top: 10px;">
+                </div>
+
                 <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                    <button id="btn-show-hints" class="btn" style="background-color: #f39c12; color: white; flex: 1;"><i class="fas fa-lightbulb"></i> Phân tích & Gợi ý (Popup)</button>
-                    <button id="btn-show-mindmap" class="btn" style="background-color: #8e44ad; color: white; flex: 1;"><i class="fas fa-project-diagram"></i> Vẽ Sơ đồ tư duy</button>
+                    <button id="btn-show-hints" class="btn" style="background-color: #f39c12; color: white; flex: 1;" disabled><i class="fas fa-lightbulb"></i> Phân tích & Gợi ý (Popup)</button>
+                    <button id="btn-show-mindmap" class="btn" style="background-color: #8e44ad; color: white; flex: 1;" disabled><i class="fas fa-project-diagram"></i> Vẽ Sơ đồ tư duy</button>
                 </div>
                 
                 <div id="pre-writing-area" class="hidden content-box" style="border-left: 4px solid #8e44ad;">
@@ -121,7 +121,7 @@
                     <span id="word-count" style="font-weight: bold; color: #7f8c8d;"><i class="fas fa-pen-nib"></i> Số từ: 0</span>
                     <div style="display: flex; gap: 10px;">
                         <button id="btn-clear-writing" class="btn" style="background-color: #95a5a6; color: white;"><i class="fas fa-undo"></i> Làm lại</button>
-                        <button id="btn-submit-writing" class="btn primary-btn" style="width: auto;"><i class="fas fa-paper-plane"></i> Nộp bài chấm điểm</button>
+                        <button id="btn-submit-writing" class="btn primary-btn" style="width: auto;"><i class="fas fa-paper-plane"></i> Nộp bài</button>
                     </div>
                 </div>
             </div>
@@ -133,7 +133,7 @@
                     <button id="btn-save" class="btn btn-save hidden"><i class="fas fa-save"></i> Lưu bài</button>
                 </div>
                 <div id="assessment-box" class="content-box">
-                    <span class="placeholder-text">Kết quả phân tích chi tiết sẽ có ngay sau khi AI xử lý...</span>
+                    <span class="placeholder-text">Đợi một tý, kết quả phân tích chi tiết sẽ có ngay...</span>
                 </div>
             </div>
         </main>
