@@ -45,6 +45,11 @@ const preWritingArea = document.getElementById('pre-writing-area');
 const mindmapSvg = document.getElementById('mindmap-svg');
 const writingStrategyText = document.getElementById('writing-strategy-text');
 const btnSubmitWriting = document.getElementById('btn-submit-writing');
+const btnShowHints = document.getElementById('btn-show-hints');
+const btnShowMindmap = document.getElementById('btn-show-mindmap');
+const hintsModal = document.getElementById('hints-modal');
+const closeModal = document.getElementById('close-modal');
+const hintsModalBody = document.getElementById('hints-modal-body');
 
 // - Nhóm Toggle Sidebar
 const toggleLeft = document.getElementById('toggle-left');
@@ -141,7 +146,7 @@ customBankSelect.addEventListener('change', (e) => {
 btnStartSession.addEventListener('click', () => {
     if(btnSave) btnSave.classList.add('hidden');
     currentSessionData = null;
-
+    cachedWritingHints = null;
     if (promptMode.value === 'custom') {
         currentPrompt.innerHTML = `<strong>Đề bài:</strong> ${customPromptText.value || "Không có nội dung"}`;
         if (customImageBase64) {
@@ -198,26 +203,69 @@ function drawMindmap(markdownText) {
     }
 }
 
-// Bấm nút "Xin Gợi ý" (Gọi API)
-btnGetHints.addEventListener('click', async () => {
-    preWritingArea.classList.remove('hidden');
-    writingStrategyText.innerHTML = '<i class="fas fa-spinner fa-spin"></i>Đang phân tích...';
-    mindmapSvg.innerHTML = '';
+// Biến lưu trữ tạm dữ liệu gợi ý để không gọi API 2 lần
+let cachedWritingHints = null;
+
+async function fetchWritingHints() {
+    if (cachedWritingHints) return cachedWritingHints; // Nếu có rồi thì dùng luôn
     
     const payload = {
-        action: 'get_writing_hints', // Action cờ báo cho Backend
+        action: 'get_writing_hints',
         language: langSelect.options[langSelect.selectedIndex].text,
-        level: levelSelect.options[levelSelect.selectedIndex].text,
         promptText: currentPrompt.innerText.replace('Đề bài: ', ''),
         promptImage: customImageBase64
     };
+    
+    const data = await callBackendAPI(payload, "", false); 
+    if (data) cachedWritingHints = data;
+    return data;
+}
 
-    // Tạm thời gọi API mô phỏng (Chờ ráp Backend)
-    // Thực tế sẽ gọi: callBackendAPI(payload)
-    setTimeout(() => {
-        writingStrategyText.innerHTML = `<strong>Dạng bài:</strong> Argumentative Essay (Nghị luận).<br>
-        <strong>Chiến lược:</strong> Mở bài đi thẳng vào vấn đề. Sử dụng từ vựng nâng cao như <i>'controversial issue', 'prominent impact'</i>.`;
-        
+// Xử lý nút: XEM GỢI Ý (POPUP)
+btnShowHints.addEventListener('click', async () => {
+    hintsModal.classList.remove('hidden');
+    hintsModalBody.innerHTML = '<div style="text-align:center; padding: 30px; color:#f39c12;"><i class="fas fa-spinner fa-spin fa-2x"></i><br>AI đang phân tích chiến thuật...</div>';
+    
+    const data = await fetchWritingHints();
+    if (!data) {
+        hintsModalBody.innerHTML = '<span style="color:red;">Lỗi tải dữ liệu.</span>';
+        return;
+    }
+    
+    // Render format xịn sò vào Popup
+    hintsModalBody.innerHTML = `
+        <div class="hint-section"><h4><i class="fas fa-search"></i> 1. Phân tích đề bài</h4><p>${data.analysis.replace(/\n/g, '<br>')}</p></div>
+        <div class="hint-section"><h4><i class="fas fa-sitemap"></i> 2. Bố cục logic</h4><p>${data.organization.replace(/\n/g, '<br>')}</p></div>
+        <div class="hint-section"><h4><i class="fas fa-chess-knight"></i> 3. Chiến lược đạt điểm cao</h4><p>${data.strategy.advice.replace(/\n/g, '<br>')}</p>
+            <div style="margin-top:10px;"><strong>Từ vựng "ăn điểm":</strong><br> ${data.strategy.vocabulary.map(v => `<span class="hint-pill">${v}</span>`).join('')}</div>
+            <div style="margin-top:10px;"><strong>Từ nối mạch lạc:</strong><br> ${data.strategy.linking_words.map(l => `<span class="hint-pill">${l}</span>`).join('')}</div>
+            <div style="margin-top:10px;"><strong>Mẫu câu hay:</strong><br> ${data.strategy.expressions.map(e => `<span class="hint-pill">${e}</span>`).join('')}</div>
+        </div>
+        <div class="hint-section" style="background: #fdf2e9; padding: 15px; border-radius: 8px;"><h4><i class="fas fa-exclamation-triangle" style="color:#e74c3c;"></i> 4. Lỗi thường gặp</h4><p>${data.common_mistakes.replace(/\n/g, '<br>')}</p></div>
+        <div class="hint-section"><h4><i class="fas fa-stopwatch"></i> 5. Kiểm tra 2 phút cuối</h4><p>${data.last_minute_check.replace(/\n/g, '<br>')}</p></div>
+        <div class="hint-section"><h4><i class="fas fa-brain"></i> 6. Tư duy làm bài</h4><p>${data.mindset.replace(/\n/g, '<br>')}</p></div>
+    `;
+});
+
+// Xử lý nút: VẼ MINDMAP (INLINE)
+btnShowMindmap.addEventListener('click', async () => {
+    preWritingArea.classList.remove('hidden');
+    mindmapSvg.innerHTML = '<text x="20" y="30" fill="#f39c12">Đang nạp dữ liệu Mindmap...</text>';
+    
+    const data = await fetchWritingHints();
+    if (data && data.mindmap_markdown) {
+        drawMindmap(data.mindmap_markdown);
+    } else {
+        mindmapSvg.innerHTML = '<text x="20" y="30" fill="red">Không thể tạo Mindmap.</text>';
+    }
+});
+
+// Đóng Popup
+closeModal.addEventListener('click', () => hintsModal.classList.add('hidden'));
+window.addEventListener('click', (e) => { if (e.target === hintsModal) hintsModal.classList.add('hidden'); });
+
+// Reset Cache khi bắt đầu bài mới (Thêm dòng này vào trong sự kiện btnStartSession.addEventListener)
+// cachedWritingHints = null;
         // Mẫu Markdown Mindmap trả về từ AI
         const mockMarkdown = `
 # Bố cục Bài Viết
