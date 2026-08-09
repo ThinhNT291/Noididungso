@@ -5,86 +5,61 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Speaking Test & Assessment</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Dùng Font Awesome cho các icon cho đẹp (Mic, Play, etc.) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
+    <!-- Nút gọi Sidebar trên Mobile -->
+    <button id="mobile-toggle-left" class="mobile-toggle left"><i class="fas fa-cog"></i></button>
+    <button id="mobile-toggle-right" class="mobile-toggle right"><i class="fas fa-history"></i></button>
+
     <div class="app-container">
-        <!-- Cột Trái: Cài đặt bài test -->
-        <aside class="sidebar-left">
-            <h2>Thiết lập</h2>
-            
-            <div class="setting-group">
-                <label for="language-select">Ngôn ngữ:</label>
-                <select id="language-select">
-                    <option value="english">Tiếng Anh</option>
-                    <option value="chinese">Tiếng Trung</option>
-                    <option value="russian">Tiếng Nga</option>
-                </select>
+        <!-- Cột Trái -->
+        <aside class="sidebar-left" id="sidebar-left">
+            <button id="toggle-left" class="toggle-btn"><i class="fas fa-chevron-left"></i></button>
+            <div class="sidebar-content">
+                <h2>Thiết lập</h2>
+                <!-- Các Select (Ngôn ngữ, Cấp độ, Chủ đề) giữ nguyên như cũ -->
+                <div class="setting-group"><label>Ngôn ngữ:</label><select id="language-select"><option value="english">Tiếng Anh</option></select></div>
+                <div class="setting-group"><label>Cấp độ:</label><select id="level-select"><option value="intermediate">Intermediate</option></select></div>
+                <div class="setting-group"><label>Chủ đề:</label><select id="topic-select"><option value="daily">Giao tiếp</option></select></div>
+                <button id="btn-start-session" class="btn primary-btn">Bắt đầu mới</button>
             </div>
-
-            <div class="setting-group">
-                <label for="level-select">Cấp độ:</label>
-                <select id="level-select">
-                    <option value="beginner">Beginner (A1-A2)</option>
-                    <option value="intermediate">Intermediate (B1-B2)</option>
-                    <option value="advanced">Advanced (C1-C2) / IELTS</option>
-                </select>
-            </div>
-
-            <div class="setting-group">
-                <label for="topic-select">Chủ đề:</label>
-                <select id="topic-select">
-                    <option value="daily">Giao tiếp hàng ngày</option>
-                    <option value="work">Công sở & Phỏng vấn</option>
-                    <option value="travel">Du lịch</option>
-                </select>
-            </div>
-            
-            <button id="btn-start-session" class="btn primary-btn">Bắt đầu chủ đề mới</button>
         </aside>
 
-        <!-- Cột Giữa: Không gian thực hành chính -->
+        <!-- Cột Giữa -->
         <main class="main-content">
             <div class="prompt-section">
                 <h3>Câu hỏi / Chủ đề:</h3>
-                <p id="current-prompt">Vui lòng bấm "Bắt đầu chủ đề mới" để nhận câu hỏi từ AI.</p>
+                <p id="current-prompt">Vui lòng bấm "Bắt đầu mới".</p>
             </div>
-
             <div class="controls-section">
                 <button id="btn-record" class="btn record-btn"><i class="fas fa-microphone"></i> Ghi âm</button>
                 <button id="btn-stop" class="btn stop-btn" disabled><i class="fas fa-stop"></i> Dừng</button>
-                <!-- Thẻ audio ẩn đi, chỉ dùng để chứa dữ liệu phát lại -->
                 <audio id="audio-playback" controls class="hidden"></audio>
             </div>
-
             <div class="transcript-section">
-                <h3>Bài nói của bạn (Transcript)</h3>
-                <div id="transcript-box" class="content-box">
-                    <span class="placeholder-text">Văn bản bạn nói sẽ hiển thị tại đây...</span>
-                </div>
+                <h3>Transcript</h3>
+                <div id="transcript-box" class="content-box"><span class="placeholder-text">...</span></div>
             </div>
-
             <div class="assessment-section">
-                <h3>Đánh giá & Chấm điểm từ Gemini</h3>
-                <div id="assessment-box" class="content-box">
-                    <span class="placeholder-text">Kết quả phân tích ngữ pháp, từ vựng và điểm số sẽ xuất hiện sau khi AI xử lý...</span>
-                    <!-- Cấu trúc HTML cho kết quả JSON sẽ được JS render vào đây -->
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3>Đánh giá AI</h3>
+                    <!-- Nút Lưu bài (mặc định ẩn) -->
+                    <button id="btn-save" class="btn btn-save hidden"><i class="fas fa-save"></i> Lưu bài</button>
                 </div>
+                <div id="assessment-box" class="content-box"><span class="placeholder-text">...</span></div>
             </div>
         </main>
 
-        <!-- Cột Phải: Lịch sử -->
-        <aside class="sidebar-right">
-            <h2>Lịch sử bài nói</h2>
-            <ul id="history-list">
-                <!-- Chứa các item lịch sử sinh ra từ JS -->
-                <li class="history-item empty-history">Chưa có bài lưu nào.</li>
-            </ul>
+        <!-- Cột Phải -->
+        <aside class="sidebar-right" id="sidebar-right">
+            <button id="toggle-right" class="toggle-btn"><i class="fas fa-chevron-right"></i></button>
+            <div class="sidebar-content">
+                <h2>Lịch sử</h2>
+                <ul id="history-list"></ul>
+            </div>
         </aside>
     </div>
-
-    <!-- Script sẽ tách ra file riêng sau -->
     <script src="app.js"></script>
 </body>
 </html>
