@@ -1,11 +1,10 @@
 // ==========================================
 // 1. CẤU HÌNH HỆ THỐNG
 // ==========================================
-// Dán Web App URL của GAS Router (Phương án 1) vào đây
 const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxWpuLpICy8Y0cJIQ32JcBuPCjpPdEdDplCOy273XXz-abSr2NijCSVq5r3LpE6iTI2/exec"; 
 
 // ==========================================
-// 2. KHAI BÁO CÁC PHẦN TỬ DOM
+// 2. KHAI BÁO DOM
 // ==========================================
 const skillSelect = document.getElementById('skill-select');
 const langSelect = document.getElementById('language-select');
@@ -24,31 +23,31 @@ const currentPrompt = document.getElementById('current-prompt');
 const displayCustomImage = document.getElementById('display-custom-image');
 const countdownDisplay = document.getElementById('countdown-display');
 const assessmentBox = document.getElementById('assessment-box');
-const resultSection = document.getElementById('result-section');
 const btnSave = document.getElementById('btn-save');
+
 const speakingWorkspace = document.getElementById('speaking-workspace');
 const writingWorkspace = document.getElementById('writing-workspace');
 
+// Speaking DOM
 const btnRecord = document.getElementById('btn-record');
 const btnStop = document.getElementById('btn-stop');
 const audioPlayback = document.getElementById('audio-playback');
 const canvas = document.getElementById('audio-visualizer');
 const canvasCtx = canvas.getContext('2d');
 
+// Writing DOM
 const writingInput = document.getElementById('writing-input');
 const wordCountDisplay = document.getElementById('word-count');
 const btnGetHints = document.getElementById('btn-get-hints');
 const preWritingArea = document.getElementById('pre-writing-area');
 const mindmapSvg = document.getElementById('mindmap-svg');
-const writingStrategyText = document.getElementById('writing-strategy-text');
 const btnSubmitWriting = document.getElementById('btn-submit-writing');
-
+const btnClearWriting = document.getElementById('btn-clear-writing');
 const btnShowHints = document.getElementById('btn-show-hints');
 const btnShowMindmap = document.getElementById('btn-show-mindmap');
 const hintsModal = document.getElementById('hints-modal');
 const closeModal = document.getElementById('close-modal');
 const hintsModalBody = document.getElementById('hints-modal-body');
-
 
 const toggleLeft = document.getElementById('toggle-left');
 const toggleRight = document.getElementById('toggle-right');
@@ -56,27 +55,88 @@ const sidebarLeft = document.getElementById('sidebar-left');
 const sidebarRight = document.getElementById('sidebar-right');
 
 // ==========================================
-// 3. BIẾN TOÀN CỤC
+// 3. BIẾN TOÀN CỤC & INIT
 // ==========================================
 let mediaRecorder;
 let audioChunks = [];
 let currentBlob = null;
 let currentSessionData = null; 
-let currentSkill = 'speaking'; // 'speaking' hoặc 'writing'
+let currentSkill = 'speaking'; 
 let customImageBase64 = null; 
+let cachedWritingHints = null;
 let timerInterval;
 let timeRemaining = 0;
 let audioCtx, analyser, animationId;
+let systemQuestions = []; // Lưu trữ mảng đề bài từ Google Sheets
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Đảm bảo UI khớp với giá trị mặc định
+    skillSelect.value = 'speaking';
+    speakingWorkspace.classList.remove('hidden');
+    writingWorkspace.classList.add('hidden');
+    currentPrompt.innerHTML = 'Vui lòng chọn đề hoặc nhập đề tự chọn.';
+    
+    loadHistory();
+    fetchQuestionsFromGAS(); // Load đề hệ thống
+});
 
 // ==========================================
-// 4. LOGIC GIAO DIỆN CHUNG & API CORE
+// 4. LẤY DỮ LIỆU TỪ GOOGLE SHEETS
+// ==========================================
+async function fetchQuestionsFromGAS() {
+    try {
+        const response = await fetch(GAS_WEB_APP_URL + "?action=get_questions");
+        const result = await response.json();
+        if(result.success) {
+            systemQuestions = result.data;
+            topicSelect.innerHTML = '';
+            if (systemQuestions.length === 0) {
+                topicSelect.innerHTML = '<option value="">Chưa có dữ liệu trong Sheet</option>';
+            } else {
+                systemQuestions.forEach((q, index) => {
+                    let opt = document.createElement('option');
+                    opt.value = index;
+                    opt.text = `Đề ${index + 1}: ${q.title}`;
+                    topicSelect.appendChild(opt);
+                });
+            }
+        }
+    } catch(e) {
+        topicSelect.innerHTML = '<option value="">Lỗi kết nối CSDL</option>';
+        console.error("Lỗi tải đề thi:", e);
+    }
+}
+
+async function callBackendAPI(payload, loadingMessage, isMainAssessment = true) {
+    if (isMainAssessment) {
+        assessmentBox.innerHTML = `<span class="placeholder-text" style="color:#f39c12;"><i class="fas fa-spinner fa-spin"></i> ${loadingMessage}</span>`;
+        if (btnSave) btnSave.classList.add('hidden');
+    }
+    try {
+        const response = await fetch(GAS_WEB_APP_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error);
+        return result.data;
+    } catch (err) {
+        if (isMainAssessment) assessmentBox.innerHTML = `<span style="color:red;"><i class="fas fa-exclamation-triangle"></i> Lỗi kết nối: ${err.message}</span>`;
+        console.error(err);
+        return null;
+    }
+}
+
+// ==========================================
+// 5. THIẾT LẬP ĐỀ & GIAO DIỆN
 // ==========================================
 if (toggleLeft && sidebarLeft) toggleLeft.addEventListener('click', () => sidebarLeft.classList.toggle('collapsed'));
 if (toggleRight && sidebarRight) toggleRight.addEventListener('click', () => sidebarRight.classList.toggle('collapsed'));
 
-// Chuyển đổi giữa Speaking và Writing
 skillSelect.addEventListener('change', (e) => {
     currentSkill = e.target.value;
+    currentPrompt.innerHTML = 'Vui lòng chọn đề hoặc nhập đề tự chọn.';
     if (currentSkill === 'writing') {
         speakingWorkspace.classList.add('hidden');
         writingWorkspace.classList.remove('hidden');
@@ -86,35 +146,6 @@ skillSelect.addEventListener('change', (e) => {
     }
 });
 
-// Hàm lõi gọi API Backend
-async function callBackendAPI(payload, loadingMessage, isMainAssessment = true) {
-    if (isMainAssessment) {
-        assessmentBox.innerHTML = `<span class="placeholder-text" style="color:#f39c12;"><i class="fas fa-spinner fa-spin"></i> ${loadingMessage}</span>`;
-        if (btnSave) btnSave.classList.add('hidden');
-    }
-    
-    try {
-        const response = await fetch(GAS_WEB_APP_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify(payload)
-        });
-        const result = await response.json();
-        
-        if (!result.success) throw new Error(result.error);
-        return result.data;
-    } catch (err) {
-        if (isMainAssessment) {
-            assessmentBox.innerHTML = `<span style="color:red;"><i class="fas fa-exclamation-triangle"></i> Lỗi kết nối: ${err.message}</span>`;
-        }
-        console.error(err);
-        return null;
-    }
-}
-
-// ==========================================
-// 5. THIẾT LẬP ĐỀ & BẮT ĐẦU
-// ==========================================
 promptMode.addEventListener('change', (e) => {
     if (e.target.value === 'custom') {
         sysPromptArea.classList.add('hidden');
@@ -167,18 +198,22 @@ customBankSelect.addEventListener('change', (e) => {
 btnStartSession.addEventListener('click', () => {
     if(btnSave) btnSave.classList.add('hidden');
     currentSessionData = null;
+    cachedWritingHints = null; // Xóa cache gợi ý cũ
     assessmentBox.innerHTML = '<span class="placeholder-text">Kết quả phân tích sẽ xuất hiện sau khi bạn nộp bài...</span>';
-    cachedWritingHints = null;
 
     if (promptMode.value === 'custom') {
-        currentPrompt.innerHTML = `<strong>Đề bài:</strong> ${customPromptText.value || "Không có nội dung"}`;
+        currentPrompt.innerHTML = `<strong>Đề bài:</strong><br>${customPromptText.value.replace(/\n/g, '<br>') || "Không có nội dung"}`;
         if (customImageBase64) {
             displayCustomImage.src = customImageBase64;
             displayCustomImage.classList.remove('hidden');
         } else displayCustomImage.classList.add('hidden');
     } else {
-        const topic = topicSelect.options[topicSelect.selectedIndex].text;
-        currentPrompt.innerHTML = `<strong>Đề bài:</strong> Hãy bàn luận về chủ đề: ${topic}`;
+        const selectedIndex = topicSelect.value;
+        if (selectedIndex !== "" && systemQuestions[selectedIndex]) {
+            currentPrompt.innerHTML = `<strong>Đề bài:</strong><br>${systemQuestions[selectedIndex].content.replace(/\n/g, '<br>')}`;
+        } else {
+            currentPrompt.innerHTML = `<strong>Đề bài:</strong> Vui lòng chọn một đề hợp lệ.`;
+        }
         displayCustomImage.classList.add('hidden');
     }
     
@@ -191,7 +226,7 @@ btnStartSession.addEventListener('click', () => {
 });
 
 // ==========================================
-// 6. MODULE: LÀM BÀI WRITING
+// 6. MODULE: WRITING & HINTS POPUP
 // ==========================================
 writingInput.addEventListener('input', () => {
     const text = writingInput.value.trim();
@@ -200,11 +235,15 @@ writingInput.addEventListener('input', () => {
     wordCountDisplay.className = words < 120 ? 'word-count-warning' : 'word-count-good';
 });
 
-// Biến lưu trữ tạm dữ liệu gợi ý để không gọi API 2 lần
-let cachedWritingHints = null;
+btnClearWriting.addEventListener('click', () => {
+    if(confirm("Bạn có chắc muốn xóa toàn bộ bài viết hiện tại?")) {
+        writingInput.value = '';
+        writingInput.dispatchEvent(new Event('input'));
+    }
+});
 
 async function fetchWritingHints() {
-    if (cachedWritingHints) return cachedWritingHints; // Nếu có rồi thì dùng luôn
+    if (cachedWritingHints) return cachedWritingHints; 
     
     const payload = {
         action: 'get_writing_hints',
@@ -218,7 +257,6 @@ async function fetchWritingHints() {
     return data;
 }
 
-// Xử lý nút: XEM GỢI Ý (POPUP)
 btnShowHints.addEventListener('click', async () => {
     hintsModal.classList.remove('hidden');
     hintsModalBody.innerHTML = '<div style="text-align:center; padding: 30px; color:#f39c12;"><i class="fas fa-spinner fa-spin fa-2x"></i><br>AI đang phân tích chiến thuật...</div>';
@@ -229,7 +267,6 @@ btnShowHints.addEventListener('click', async () => {
         return;
     }
     
-    // Render format xịn sò vào Popup
     hintsModalBody.innerHTML = `
         <div class="hint-section"><h4><i class="fas fa-search"></i> 1. Phân tích đề bài</h4><p>${data.analysis.replace(/\n/g, '<br>')}</p></div>
         <div class="hint-section"><h4><i class="fas fa-sitemap"></i> 2. Bố cục logic</h4><p>${data.organization.replace(/\n/g, '<br>')}</p></div>
@@ -244,7 +281,6 @@ btnShowHints.addEventListener('click', async () => {
     `;
 });
 
-// Xử lý nút: VẼ MINDMAP (INLINE)
 btnShowMindmap.addEventListener('click', async () => {
     preWritingArea.classList.remove('hidden');
     mindmapSvg.innerHTML = '<text x="20" y="30" fill="#f39c12">Đang nạp dữ liệu Mindmap...</text>';
@@ -257,12 +293,8 @@ btnShowMindmap.addEventListener('click', async () => {
     }
 });
 
-// Đóng Popup
 closeModal.addEventListener('click', () => hintsModal.classList.add('hidden'));
 window.addEventListener('click', (e) => { if (e.target === hintsModal) hintsModal.classList.add('hidden'); });
-
-// Reset Cache khi bắt đầu bài mới (Thêm dòng này vào trong sự kiện btnStartSession.addEventListener)
-// cachedWritingHints = null;
 
 function drawMindmap(markdownText) {
     mindmapSvg.innerHTML = ''; 
@@ -277,13 +309,10 @@ function drawMindmap(markdownText) {
     }
 }
 
-// Xử lý nộp bài Writing
 btnSubmitWriting.addEventListener('click', async () => {
     const text = writingInput.value.trim();
     if (text.length < 10) return alert("Bài viết quá ngắn!");
-    
     clearInterval(timerInterval); 
-    
     const payload = {
         action: 'evaluate_writing',
         text: text,
@@ -292,13 +321,12 @@ btnSubmitWriting.addEventListener('click', async () => {
         promptText: currentPrompt.innerText.replace('Đề bài: ', ''),
         promptImage: customImageBase64
     };
-
     const data = await callBackendAPI(payload, "Giám khảo AI đang chấm điểm bài Viết của bạn...");
     if (data) renderWritingAssessment(data);
 });
 
 // ==========================================
-// 7. MODULE: LÀM BÀI SPEAKING
+// 7. MODULE: SPEAKING
 // ==========================================
 btnRecord.addEventListener('click', async () => {
     try {
@@ -355,7 +383,7 @@ async function processAudioAndSend(blob) {
 }
 
 // ==========================================
-// 8. HÀM HIỂN THỊ KẾT QUẢ (RENDERERS)
+// 8. RENDER KẾT QUẢ ĐÁNH GIÁ (GIỮ NGUYÊN)
 // ==========================================
 function renderSpeakingAssessment(data) {
     let html = `
@@ -368,10 +396,8 @@ function renderSpeakingAssessment(data) {
                 <div style="flex:1; background:rgba(255,255,255,0.2); padding: 10px; border-radius:8px; text-align:center;"><small>Ngữ pháp</small><br><strong>${data.scores.grammar}/10</strong></div>
             </div>
         </div>
-        
         <h4><i class="fas fa-quote-left"></i> Bản Transcript:</h4>
         <p style="background: #f8f9fa; padding: 15px; border-radius: 6px; font-style: italic; margin-bottom: 20px;">${data.transcript}</p>
-
         <div style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
             <div style="flex: 1; min-width: 200px; border-left: 4px solid #27ae60; padding-left: 10px;">
                 <h4 style="color:#27ae60; margin-bottom: 5px;"><i class="fas fa-check-circle"></i> Điểm mạnh</h4>
@@ -382,7 +408,6 @@ function renderSpeakingAssessment(data) {
                 <ul style="padding-left: 15px; font-size: 0.95em;">${data.analysis.weaknesses.map(w => `<li>${w}</li>`).join('')}</ul>
             </div>
         </div>
-
         <h4 style="color:#d35400; border-bottom: 1px solid #ccc; padding-bottom: 5px;"><i class="fas fa-search"></i> Phân tích lỗi</h4>
         <ul style="padding-left: 0; list-style: none; margin-bottom: 20px;">
             ${data.errors.length > 0 ? data.errors.map(err => `<li style="margin-bottom: 10px; background: #fdf2e9; padding: 10px; border-radius: 6px;">
@@ -390,15 +415,12 @@ function renderSpeakingAssessment(data) {
                 <small style="color:#555;">${err.reason}</small>
             </li>`).join('') : '<li style="color:green; padding: 10px;">Tuyệt vời! Không phát hiện lỗi nghiêm trọng.</li>'}
         </ul>
-
         <h4 style="color:#8e44ad;"><i class="fas fa-route"></i> Lộ trình thăng cấp</h4>
         <ul style="padding-left: 20px; font-size: 0.95em; margin-bottom: 20px;">${data.how_to_improve.map(step => `<li>${step}</li>`).join('')}</ul>
-
         <h4 style="color:#2980b9;"><i class="fas fa-magic"></i> Câu trả lời mẫu</h4>
         <p style="background:#eafaf1; padding: 15px; border-left: 4px solid #2980b9; border-radius: 4px; margin-bottom: 20px;">${data.better_version}</p>
         <p><strong>Nhận xét chung:</strong> ${data.feedback}</p>
     `;
-    
     assessmentBox.innerHTML = html;
     currentSessionData = { type: 'speaking', ...data };
     if (btnSave) btnSave.classList.remove('hidden');
@@ -415,7 +437,6 @@ function renderWritingAssessment(data) {
                 <div style="flex:1; background:rgba(255,255,255,0.2); padding: 10px; border-radius:8px; text-align:center;"><small>Grammar</small><br><strong>${data.scores.grammar}/10</strong></div>
             </div>
         </div>
-
         <div style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
             <div style="flex: 1; border-left: 4px solid #27ae60; padding-left: 10px;">
                 <h4 style="color:#27ae60; margin-bottom: 5px;"><i class="fas fa-check-circle"></i> Điểm mạnh</h4>
@@ -426,7 +447,6 @@ function renderWritingAssessment(data) {
                 <ul style="padding-left: 15px; font-size: 0.95em;">${data.analysis.weaknesses.map(w => `<li>${w}</li>`).join('')}</ul>
             </div>
         </div>
-
         <h4 style="color:#d35400; border-bottom: 1px solid #ccc; padding-bottom: 5px;"><i class="fas fa-search"></i> Lỗi chi tiết (Writing)</h4>
         <ul style="padding-left: 0; list-style: none; margin-bottom: 20px;">
             ${data.errors.length > 0 ? data.errors.map(err => `<li style="margin-bottom: 10px; background: #fdf2e9; padding: 10px; border-radius: 6px;">
@@ -434,22 +454,17 @@ function renderWritingAssessment(data) {
                 <small style="color:#555;">${err.reason}</small>
             </li>`).join('') : '<li style="color:green; padding: 10px;">Tuyệt vời! Không phát hiện lỗi sai.</li>'}
         </ul>
-
         <h4 style="color:#8e44ad;"><i class="fas fa-route"></i> Hướng dẫn thăng hạng</h4>
         <ul style="padding-left: 20px; font-size: 0.95em; margin-bottom: 20px;">${data.how_to_improve.map(step => `<li>${step}</li>`).join('')}</ul>
-
-        <h4 style="color:#2980b9;"><i class="fas fa-copy"></i> Bản nâng cấp (Giữ văn phong của bạn)</h4>
+        <h4 style="color:#2980b9;"><i class="fas fa-copy"></i> Bản nâng cấp (Giữ văn phong)</h4>
         <p style="background:#eafaf1; padding: 15px; border-left: 4px solid #2980b9; border-radius: 4px; margin-bottom: 20px;">${data.better_versions.upgraded}</p>
-
-        <h4 style="color:#f39c12;"><i class="fas fa-crown"></i> Bản Chuyên gia (Band điểm tuyệt đối)</h4>
+        <h4 style="color:#f39c12;"><i class="fas fa-crown"></i> Bản Chuyên gia</h4>
         <p style="background:#fdf2e9; padding: 15px; border-left: 4px solid #f39c12; border-radius: 4px; margin-bottom: 20px;">${data.better_versions.expert}</p>
-
         <h4 style="color:#2c3e50;"><i class="fas fa-link"></i> Nguồn tham khảo hữu ích</h4>
         <ul style="padding-left: 20px; margin-bottom: 20px;">
             ${data.reference_links.map(link => `<li><a href="${link.url}" target="_blank" style="color: #2980b9; text-decoration: none; font-weight: bold;">${link.title}</a></li>`).join('')}
         </ul>
     `;
-    
     assessmentBox.innerHTML = html;
     currentSessionData = { type: 'writing', ...data };
     if (btnSave) btnSave.classList.remove('hidden');
@@ -496,7 +511,6 @@ function startVisualizer(stream) {
     analyser.fftSize = 256;
     const bufferLength = analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
-
     function draw() {
         animationId = requestAnimationFrame(draw);
         analyser.getByteFrequencyData(dataArray);
@@ -523,8 +537,6 @@ function stopVisualizer() {
 // ==========================================
 // 10. LỊCH SỬ BÀI LÀM
 // ==========================================
-document.addEventListener('DOMContentLoaded', loadHistory);
-
 if (btnSave) {
     btnSave.addEventListener('click', () => {
         if (!currentSessionData) return;
@@ -547,12 +559,10 @@ if (btnSave) {
 function loadHistory() {
     const historyList = document.getElementById('history-list');
     let history = JSON.parse(localStorage.getItem('aiTestHistory')) || [];
-    
     if (history.length === 0) {
         historyList.innerHTML = '<li class="history-item empty-history">Chưa có bài lưu nào.</li>';
         return;
     }
-    
     historyList.innerHTML = '';
     history.reverse().forEach(item => {
         const li = document.createElement('li');
