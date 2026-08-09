@@ -149,3 +149,47 @@ h2, h3 {
     border: none;
     cursor: default;
 }
+
+/* Nút đóng mở trên Desktop */
+.toggle-btn {
+    background: none; border: none; font-size: 20px; cursor: pointer;
+    color: var(--text-color); margin-bottom: 10px;
+}
+.sidebar-left, .sidebar-right { transition: all 0.3s ease; position: relative; }
+.sidebar-left.collapsed { width: 40px; overflow: hidden; padding: 20px 10px; }
+.sidebar-right.collapsed { width: 40px; overflow: hidden; padding: 20px 10px; }
+.collapsed .sidebar-content { display: none; }
+.collapsed .toggle-btn i { transform: rotate(180deg); } /* Quay mũi tên */
+
+/* Nút Lưu và Menu 3 chấm */
+.btn-save { background-color: #27ae60; color: white; padding: 5px 10px; font-size: 14px;}
+.history-item { position: relative; padding: 15px 10px; border-bottom: 1px solid var(--border-color); }
+.history-title { font-weight: bold; font-size: 14px; margin-bottom: 5px; width: 80%; display: inline-block;}
+.history-actions { position: absolute; right: 10px; top: 15px; cursor: pointer; color: #7f8c8d; }
+.action-menu {
+    display: none; position: absolute; right: 0; top: 25px; background: white;
+    border: 1px solid #ccc; box-shadow: 0 2px 5px rgba(0,0,0,0.2); border-radius: 4px; z-index: 10;
+}
+.action-menu button { display: block; width: 100%; text-align: left; padding: 8px 12px; background: none; border: none; cursor: pointer;}
+.action-menu button:hover { background: #f1f2f6; }
+
+/* Responsive Mobile (Dưới 768px) */
+.mobile-toggle { display: none; position: fixed; top: 10px; z-index: 100; background: var(--primary-color); color: white; border: none; padding: 10px; border-radius: 50%; cursor: pointer;}
+.mobile-toggle.left { left: 10px; }
+.mobile-toggle.right { right: 10px; }
+
+@media (max-width: 768px) {
+    .app-container { grid-template-columns: 1fr; /* Chỉ hiện cột giữa */ padding-top: 60px; }
+    .mobile-toggle { display: block; }
+    
+    /* Biến 2 cột thành Menu trượt */
+    .sidebar-left, .sidebar-right {
+        position: fixed; top: 0; bottom: 0; width: 280px; z-index: 99;
+        transform: translateX(-100%); /* Giấu đi */
+    }
+    .sidebar-right { right: 0; left: auto; transform: translateX(100%); }
+    
+    .sidebar-left.show { transform: translateX(0); }
+    .sidebar-right.show { transform: translateX(0); }
+    .toggle-btn { display: none; } /* Ẩn nút mũi tên desktop */
+}
