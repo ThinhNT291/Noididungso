@@ -107,11 +107,14 @@ btnApplyCustom.addEventListener('click', () => {
     if (!text && !customImageBase64) return alert("Vui lòng nhập chữ hoặc up ảnh!");
     
     activePromptData = { text: text, image: customImageBase64 };
+    currentPrompt.innerHTML = `<strong>Đề bài đã chọn:</strong> (Đề tự nhập)`;
     
     if(currentSkill === 'speaking') {
+        speakingQuestionGrid.querySelectorAll('.q-btn').forEach(b => b.classList.remove('active'));
+        activeSpeakingPromptBox.classList.remove('hidden');
         speakingPromptText.innerHTML = text.replace(/\n/g, '<br>');
     } else {
-        document.querySelectorAll('.q-btn').forEach(b => b.classList.remove('active')); // Tắt highlight grid
+        writingQuestionGrid.querySelectorAll('.q-btn').forEach(b => b.classList.remove('active')); 
         activeWritingPromptBox.classList.remove('hidden');
         writingPromptText.innerHTML = text.replace(/\n/g, '<br>');
         
@@ -126,46 +129,79 @@ btnApplyCustom.addEventListener('click', () => {
     customPromptArea.classList.add('hidden');
 });
 
+const speakingQuestionGrid = document.getElementById('speaking-question-grid');
+const writingQuestionGrid = document.getElementById('question-grid'); // Của writing
+const activeSpeakingPromptBox = document.getElementById('active-speaking-prompt-box');
+
 // ==========================================
-// 3. LOAD GRID ĐỀ BÀI WRITING (Fix Bug 1)
+// 3. LOAD GRID ĐỀ BÀI (SPEAKING & WRITING)
 // ==========================================
 async function fetchQuestionsFromGAS() {
     try {
         const response = await fetch(GAS_WEB_APP_URL + "?action=get_questions");
         const result = await response.json();
         
-        questionGrid.innerHTML = ''; 
-        if(result.success && result.data.length > 0) {
-            systemQuestions = result.data;
-            systemQuestions.forEach((q, index) => {
-                let btn = document.createElement('button');
-                btn.className = 'q-btn';
-                btn.innerHTML = `Đề ${String(index + 1).padStart(2, '0')}`;
-                btn.onclick = () => selectWritingQuestion(index, btn);
-                questionGrid.appendChild(btn);
-            });
+        speakingQuestionGrid.innerHTML = ''; 
+        writingQuestionGrid.innerHTML = '';
+
+        if(result.success) {
+            systemQuestions = result.data; // Lưu lại { speaking: [], writing: [] }
+            
+            // Render Speaking Grid
+            if (systemQuestions.speaking.length > 0) {
+                systemQuestions.speaking.forEach((q, index) => {
+                    let btn = document.createElement('button');
+                    btn.className = 'q-btn';
+                    btn.innerHTML = q.title;
+                    btn.onclick = () => selectQuestion('speaking', index, btn);
+                    speakingQuestionGrid.appendChild(btn);
+                });
+            } else {
+                speakingQuestionGrid.innerHTML = '<span style="color:#7f8c8d;">Chưa có đề Speaking.</span>';
+            }
+
+            // Render Writing Grid
+            if (systemQuestions.writing.length > 0) {
+                systemQuestions.writing.forEach((q, index) => {
+                    let btn = document.createElement('button');
+                    btn.className = 'q-btn';
+                    btn.innerHTML = q.title;
+                    btn.onclick = () => selectQuestion('writing', index, btn);
+                    writingQuestionGrid.appendChild(btn);
+                });
+            } else {
+                writingQuestionGrid.innerHTML = '<span style="color:#7f8c8d;">Chưa có đề Writing.</span>';
+            }
         } else {
-            questionGrid.innerHTML = '<span style="color:#e74c3c;">Chưa có dữ liệu đề bài. Vui lòng tự nhập đề.</span>';
+            throw new Error(result.error);
         }
     } catch(e) {
-        questionGrid.innerHTML = '<span style="color:#e74c3c;">Lỗi tải dữ liệu. Hãy chắc chắn GAS App đã Deploy quyền "Anyone".</span>';
+        speakingQuestionGrid.innerHTML = '<span style="color:#e74c3c;">Lỗi tải dữ liệu. Hãy duyệt quyền cho GAS.</span>';
+        writingQuestionGrid.innerHTML = '<span style="color:#e74c3c;">Lỗi tải dữ liệu. Hãy duyệt quyền cho GAS.</span>';
     }
 }
 
-function selectWritingQuestion(index, btnElem) {
-    document.querySelectorAll('.q-btn').forEach(b => b.classList.remove('active'));
+// Hàm xử lý chọn đề chung cho cả 2 kỹ năng
+function selectQuestion(skillType, index, btnElem) {
+    // Xóa highlight nút cũ
+    const grid = skillType === 'speaking' ? speakingQuestionGrid : writingQuestionGrid;
+    grid.querySelectorAll('.q-btn').forEach(b => b.classList.remove('active'));
     btnElem.classList.add('active');
 
-    const q = systemQuestions[index];
+    const q = systemQuestions[skillType][index];
     activePromptData = { text: q.content, image: null };
+    currentPrompt.innerHTML = `<strong>Đề bài đã chọn:</strong> ${q.title}`; // Đổi thông báo chung
     
-    activeWritingPromptBox.classList.remove('hidden');
-    writingPromptText.innerHTML = q.content.replace(/\n/g, '<br>');
-    writingPromptImage.classList.add('hidden');
+    if (skillType === 'speaking') {
+        activeSpeakingPromptBox.classList.remove('hidden');
+        speakingPromptText.innerHTML = q.content.replace(/\n/g, '<br>');
+    } else {
+        activeWritingPromptBox.classList.remove('hidden');
+        writingPromptText.innerHTML = q.content.replace(/\n/g, '<br>');
+        writingPromptImage.classList.add('hidden');
+        preloadHintsLogic(); // Preload gợi ý
+    }
     
-    preloadHintsLogic();
-    
-    // Khởi động đồng hồ
     startTimer();
 }
 
