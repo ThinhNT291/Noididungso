@@ -126,9 +126,22 @@ btnApplyCustom.addEventListener('click', () => {
 // ==========================================
 // 3. LOAD GRID ĐỀ BÀI TỪ GAS
 // ==========================================
+// ==========================================
+// 3. LOAD GRID ĐỀ BÀI TỪ GAS (CÓ BẪY LỖI CHI TIẾT)
+// ==========================================
 async function fetchQuestionsFromGAS() {
     try {
-        const response = await fetch(GAS_WEB_APP_URL + "?action=get_questions");
+        const response = await fetch(GAS_WEB_APP_URL + "?action=get_questions", {
+            method: "GET",
+            redirect: "follow" // Ép trình duyệt đi theo redirect của Google
+        });
+        
+        // Kiểm tra nếu Google trả về một trang HTML (thường là trang báo lỗi bắt đăng nhập) thay vì JSON
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.indexOf("text/html") !== -1) {
+            throw new Error("Google trả về trang HTML. Lỗi Deploy GAS (Chưa chọn Who has access: Anyone) hoặc URL bị sai.");
+        }
+
         const result = await response.json();
         
         speakingQuestionGrid.innerHTML = ''; 
@@ -137,7 +150,7 @@ async function fetchQuestionsFromGAS() {
         if(result.success) {
             systemQuestions = result.data; 
             
-            // Speaking Grid
+            // Render Speaking Grid
             if (systemQuestions.speaking && systemQuestions.speaking.length > 0) {
                 systemQuestions.speaking.forEach((q, index) => {
                     let btn = document.createElement('button');
@@ -150,7 +163,7 @@ async function fetchQuestionsFromGAS() {
                 speakingQuestionGrid.innerHTML = '<span style="color:#7f8c8d;">Chưa có đề Speaking trong Google Sheets.</span>';
             }
 
-            // Writing Grid
+            // Render Writing Grid
             if (systemQuestions.writing && systemQuestions.writing.length > 0) {
                 systemQuestions.writing.forEach((q, index) => {
                     let btn = document.createElement('button');
@@ -163,11 +176,14 @@ async function fetchQuestionsFromGAS() {
                 writingQuestionGrid.innerHTML = '<span style="color:#7f8c8d;">Chưa có đề Writing trong Google Sheets.</span>';
             }
         } else {
+            // In ra chính xác lỗi mà GAS gửi về
             throw new Error(result.error);
         }
     } catch(e) {
-        speakingQuestionGrid.innerHTML = '<span style="color:#e74c3c;">Lỗi tải dữ liệu. Xin hãy kiểm tra lại kết nối hoặc phân quyền GAS.</span>';
-        writingQuestionGrid.innerHTML = '<span style="color:#e74c3c;">Lỗi tải dữ liệu. Xin hãy kiểm tra lại kết nối hoặc phân quyền GAS.</span>';
+        console.error("Lỗi chi tiết:", e);
+        // Hiển thị trực tiếp lỗi lên màn hình để dễ bắt mạch
+        speakingQuestionGrid.innerHTML = `<span style="color:#e74c3c;">Lỗi: ${e.message}</span>`;
+        writingQuestionGrid.innerHTML = `<span style="color:#e74c3c;">Lỗi: ${e.message}</span>`;
     }
 }
 
