@@ -50,6 +50,7 @@ btnStartSession.addEventListener('click', () => {
     const lang = langSelect.value;
     const topic = topicSelect.value;
     currentPrompt.innerHTML = `<strong>Đề bài:</strong> ${prompts[lang][topic] || "Hãy giới thiệu bản thân bạn."}`;
+    document.getElementById('btn-save').classList.add('hidden');
     
     // Reset UI
     transcriptBox.innerHTML = '<span class="placeholder-text">Sẵn sàng ghi âm...</span>';
@@ -159,7 +160,7 @@ function processAudioAndSend(blob) {
 }
 
 // ==========================================
-// HIỂN THỊ KẾT QUẢ TỪ AI
+// HIỂN THỊ KẾT QUẢ TỪ AI VÀ KÍCH HOẠT NÚT LƯU
 // ==========================================
 function renderAssessment(data) {
     // 1. Hiển thị Transcript
@@ -211,24 +212,16 @@ function renderAssessment(data) {
 
     assessmentBox.innerHTML = html;
     
-    // (Tùy chọn) Có thể code thêm logic lưu vào Cột Lịch Sử ở đây...
+    // --- FIX LOGIC LƯU BÀI TẠI ĐÂY ---
+    // Lưu trữ data vào biến toàn cục đã khai báo ở phần lịch sử
+    currentSessionData = data; 
+    
+    // Tìm và gỡ bỏ class 'hidden' để hiển thị nút Lưu bài
+    const btnSave = document.getElementById('btn-save');
+    if (btnSave) {
+        btnSave.classList.remove('hidden');
+    }
 }
-
-// --- LOGIC ẨN/HIỆN SIDEBAR ---
-document.getElementById('toggle-left').addEventListener('click', () => {
-    document.getElementById('sidebar-left').classList.toggle('collapsed');
-});
-document.getElementById('toggle-right').addEventListener('click', () => {
-    document.getElementById('sidebar-right').classList.toggle('collapsed');
-});
-// Mobile Toggle
-document.getElementById('mobile-toggle-left').addEventListener('click', () => {
-    document.getElementById('sidebar-left').classList.toggle('show');
-});
-document.getElementById('mobile-toggle-right').addEventListener('click', () => {
-    document.getElementById('sidebar-right').classList.toggle('show');
-});
-
 // --- LOGIC LƯU VÀ QUẢN LÝ LỊCH SỬ ---
 let currentSessionData = null; // Biến lưu tạm dữ liệu bài test hiện tại
 
