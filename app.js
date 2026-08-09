@@ -247,47 +247,83 @@ function processAudioAndSend(blob) {
     };
 }
 
+// ==========================================
+// HIỂN THỊ KẾT QUẢ ĐÁNH GIÁ SƯ PHẠM ĐA CHIỀU
+// ==========================================
 function renderAssessment(data) {
-    transcriptBox.innerHTML = `<p style="font-size: 1.1em; line-height: 1.5;">${data.transcript}</p>`;
+    // 1. Hiển thị Transcript
+    transcriptBox.innerHTML = `<p style="font-size: 1.1em; line-height: 1.6;">${data.transcript}</p>`;
 
+    // 2. Build HTML cho phần Assessment
     let html = `
-        <div style="display: flex; gap: 15px; margin-bottom: 20px;">
-            <div style="flex:1; background:#e8f4f8; padding: 10px; border-radius:8px; text-align:center;">
-                <strong>Phát âm</strong><br><span style="font-size:1.5em; color:#2980b9;">${data.scores.pronunciation}/10</span>
+        <!-- Trình độ và Điểm số -->
+        <div style="background: linear-gradient(135deg, #6dd5ed, #2193b0); padding: 15px; border-radius: 8px; color: white; margin-bottom: 20px;">
+            <h3 style="margin: 0 0 10px 0; color: white;"><i class="fas fa-award"></i> Trình độ ước tính: <span style="color: #ffeaa7;">${data.estimated_level}</span></h3>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <div style="flex:1; min-width: 80px; background:rgba(255,255,255,0.2); padding: 10px; border-radius:8px; text-align:center;">
+                    <small>Phát âm</small><br><strong style="font-size:1.3em;">${data.scores.pronunciation}/10</strong>
+                </div>
+                <div style="flex:1; min-width: 80px; background:rgba(255,255,255,0.2); padding: 10px; border-radius:8px; text-align:center;">
+                    <small>Trôi chảy</small><br><strong style="font-size:1.3em;">${data.scores.fluency}/10</strong>
+                </div>
+                <div style="flex:1; min-width: 80px; background:rgba(255,255,255,0.2); padding: 10px; border-radius:8px; text-align:center;">
+                    <small>Từ vựng</small><br><strong style="font-size:1.3em;">${data.scores.vocabulary}/10</strong>
+                </div>
+                <div style="flex:1; min-width: 80px; background:rgba(255,255,255,0.2); padding: 10px; border-radius:8px; text-align:center;">
+                    <small>Ngữ pháp</small><br><strong style="font-size:1.3em;">${data.scores.grammar}/10</strong>
+                </div>
             </div>
-            <div style="flex:1; background:#e8f4f8; padding: 10px; border-radius:8px; text-align:center;">
-                <strong>Trôi chảy</strong><br><span style="font-size:1.5em; color:#2980b9;">${data.scores.fluency}/10</span>
+        </div>
+
+        <!-- Điểm mạnh & Điểm yếu -->
+        <div style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 200px; border-left: 4px solid #27ae60; padding-left: 10px;">
+                <h4 style="color:#27ae60; margin-bottom: 5px;"><i class="fas fa-check-circle"></i> Điểm mạnh</h4>
+                <ul style="padding-left: 15px; font-size: 0.95em; color: #333;">
+                    ${data.analysis.strengths.map(s => `<li>${s}</li>`).join('')}
+                </ul>
             </div>
-            <div style="flex:1; background:#e8f4f8; padding: 10px; border-radius:8px; text-align:center;">
-                <strong>Từ vựng</strong><br><span style="font-size:1.5em; color:#2980b9;">${data.scores.vocabulary}/10</span>
-            </div>
-            <div style="flex:1; background:#e8f4f8; padding: 10px; border-radius:8px; text-align:center;">
-                <strong>Ngữ pháp</strong><br><span style="font-size:1.5em; color:#2980b9;">${data.scores.grammar}/10</span>
+            <div style="flex: 1; min-width: 200px; border-left: 4px solid #e74c3c; padding-left: 10px;">
+                <h4 style="color:#e74c3c; margin-bottom: 5px;"><i class="fas fa-times-circle"></i> Cần cải thiện</h4>
+                <ul style="padding-left: 15px; font-size: 0.95em; color: #333;">
+                    ${data.analysis.weaknesses.map(w => `<li>${w}</li>`).join('')}
+                </ul>
             </div>
         </div>
         
-        <h4 style="color:#d35400; margin-bottom:10px;"><i class="fas fa-exclamation-circle"></i> Lỗi cần khắc phục:</h4>
-        <ul style="padding-left: 20px; margin-bottom: 20px;">
+        <!-- Bảng phân tích lỗi chi tiết -->
+        <h4 style="color:#d35400; margin-bottom:10px; border-bottom: 1px solid #ccc; padding-bottom: 5px;">
+            <i class="fas fa-search"></i> Phân tích lỗi chi tiết
+        </h4>
+        <ul style="padding-left: 0; list-style: none; margin-bottom: 20px;">
     `;
 
     if (data.errors && data.errors.length > 0) {
         data.errors.forEach(err => {
-            html += `<li style="margin-bottom:8px;">
-                <del style="color:red;">${err.original_phrase}</del> 
-                &rarr; <strong style="color:green;">${err.correction}</strong> 
-                <br><small style="color:#7f8c8d;">(${err.reason})</small>
+            html += `<li style="margin-bottom: 15px; background: #fdf2e9; padding: 10px; border-radius: 6px;">
+                <div><del style="color:red; font-weight: bold;">${err.original_phrase}</del> &rarr; <strong style="color:green;">${err.correction}</strong></div>
+                <div style="font-size: 0.9em; color:#555; margin-top: 5px;"><i class="fas fa-info-circle text-muted"></i> ${err.reason}</div>
             </li>`;
         });
     } else {
-        html += `<li style="color:green;">Tuyệt vời! Không phát hiện lỗi đáng kể.</li>`;
+        html += `<li style="color:green; padding: 10px;">Tuyệt vời! AI không phát hiện lỗi ngữ pháp/phát âm nghiêm trọng nào.</li>`;
     }
-    html += `</ul>
-        <h4 style="color:#27ae60; margin-bottom:10px;"><i class="fas fa-magic"></i> Câu trả lời gợi ý:</h4>
-        <p style="background:#eaafc; padding: 15px; border-left: 4px solid #27ae60; border-radius: 4px; font-style: italic;">
+    html += `</ul>`;
+
+    // Lộ trình nâng cấp & Bài mẫu
+    html += `
+        <h4 style="color:#8e44ad; margin-bottom:10px;"><i class="fas fa-route"></i> Lộ trình thăng cấp</h4>
+        <ul style="padding-left: 20px; margin-bottom: 20px; font-size: 0.95em;">
+            ${data.how_to_improve.map(step => `<li>${step}</li>`).join('')}
+        </ul>
+
+        <h4 style="color:#27ae60; margin-bottom:10px;"><i class="fas fa-magic"></i> Câu trả lời gợi ý (Tự nhiên hơn)</h4>
+        <p style="background:#eafaf1; padding: 15px; border-left: 4px solid #27ae60; border-radius: 4px; font-style: italic; font-size: 1.05em; margin-bottom: 20px;">
             ${data.better_version}
         </p>
-        <h4 style="margin-top:20px;"><i class="fas fa-comment-dots"></i> Nhận xét từ AI:</h4>
-        <p>${data.feedback}</p>
+
+        <h4 style="margin-top:20px; color:#2c3e50;"><i class="fas fa-comment-dots"></i> Tổng kết Task Achievement</h4>
+        <p style="font-size: 0.95em; color: #444;">${data.feedback}</p>
     `;
 
     assessmentBox.innerHTML = html;
@@ -295,7 +331,6 @@ function renderAssessment(data) {
     currentSessionData = data; 
     if (btnSave) btnSave.classList.remove('hidden');
 }
-
 // ==========================================
 // 8. LOGIC LỊCH SỬ (HISTORY)
 // ==========================================
