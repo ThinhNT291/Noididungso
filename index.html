@@ -9,8 +9,7 @@
 </head>
 <body>
     <div class="app-container">
-        <!-- Cột Trái -->
-    <!-- CỘT TRÁI: Đã bổ sung Chế độ Tự tạo đề & Hẹn giờ -->
+        <!-- CỘT TRÁI: Đã bổ sung Chế độ Tự tạo đề & Hẹn giờ -->
         <aside class="sidebar-left" id="sidebar-left">
             <button id="toggle-left" class="toggle-btn"><i class="fas fa-chevron-left"></i></button>
             <div class="sidebar-content">
@@ -78,27 +77,44 @@
             </div>
         </aside>
 
-        <!-- CỘT GIỮA: Đã bổ sung Đồng hồ và Canvas Visualizer -->
+        <!-- CỘT GIỮA -->
         <main class="main-content">
             <div class="prompt-section">
                 <h3>Câu hỏi / Chủ đề:</h3>
                 <p id="current-prompt">Vui lòng bấm "Bắt đầu mới".</p>
-                <!-- Thẻ hiển thị ảnh đính kèm nếu có -->
                 <img id="display-custom-image" src="" alt="Đề bài hình ảnh" class="hidden" style="max-width: 100%; border-radius: 8px; margin-top: 10px;">
             </div>
 
             <div class="controls-section">
                 <button id="btn-record" class="btn record-btn"><i class="fas fa-microphone"></i> Ghi âm</button>
                 <button id="btn-stop" class="btn stop-btn" disabled><i class="fas fa-stop"></i> Dừng</button>
-                <!-- Đồng hồ -->
                 <span id="countdown-display" style="font-size: 1.8em; font-weight: bold; color: #e74c3c; font-family: monospace; margin-left: auto;">02:00</span>
                 <audio id="audio-playback" controls class="hidden"></audio>
             </div>
 
-            <!-- SÓNG ÂM THANH -->
             <canvas id="audio-visualizer" class="hidden" style="width: 100%; height: 60px; background-color: #2c3e50; border-radius: 8px; margin-bottom: 20px; box-shadow: inset 0 0 10px rgba(0,0,0,0.5);"></canvas>
             
-            <!-- Phần Transcript và Assessment ở dưới giữ nguyên như cũ -->
+            <!-- ĐÂY LÀ PHẦN BỊ THIẾU ĐÃ ĐƯỢC THÊM LẠI -->
+            <div class="transcript-section">
+                <h3>Bài nói của bạn (Transcript)</h3>
+                <div id="transcript-box" class="content-box">
+                    <span class="placeholder-text">Văn bản bạn nói sẽ hiển thị tại đây...</span>
+                </div>
+            </div>
+
+            <div class="assessment-section">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3>Đánh giá AI</h3>
+                    <button id="btn-save" class="btn btn-save hidden"><i class="fas fa-save"></i> Lưu bài</button>
+                </div>
+                <div id="assessment-box" class="content-box">
+                    <span class="placeholder-text">Kết quả phân tích ngữ pháp, từ vựng và điểm số sẽ xuất hiện sau khi AI xử lý...</span>
+                </div>
+            </div>
+            <!-- KẾT THÚC PHẦN BỊ THIẾU -->
+
+        </main>
+
         <!-- Cột Phải -->
         <aside class="sidebar-right" id="sidebar-right">
             <button id="toggle-right" class="toggle-btn"><i class="fas fa-chevron-right"></i></button>
