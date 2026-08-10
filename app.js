@@ -235,18 +235,26 @@ async function preloadHintsLogic() {
     }
 }
 
+// --- HÀM HỖ TRỢ BIẾN MẢNG THÀNH DANH SÁCH HTML ---
+const formatList = (data) => {
+    if (Array.isArray(data)) {
+        return `<ul class="hint-list">${data.map(item => `<li style="margin-bottom:6px;">${item}</li>`).join('')}</ul>`;
+    }
+    return `<p>${data.replace(/\n/g, '<br>')}</p>`;
+};
+
 function renderHintsToModal(data) {
     hintsModalBody.innerHTML = `
-        <div class="hint-section"><h4><i class="fas fa-search"></i> 1. Phân tích đề bài</h4><p>${data.analysis.replace(/\n/g, '<br>')}</p></div>
-        <div class="hint-section"><h4><i class="fas fa-sitemap"></i> 2. Bố cục logic</h4><p>${data.organization.replace(/\n/g, '<br>')}</p></div>
-        <div class="hint-section"><h4><i class="fas fa-chess-knight"></i> 3. Chiến lược đạt điểm cao</h4><p>${data.strategy.advice.replace(/\n/g, '<br>')}</p>
+        <div class="hint-section"><h4><i class="fas fa-search"></i> 1. Phân tích đề bài</h4>${formatList(data.analysis)}</div>
+        <div class="hint-section"><h4><i class="fas fa-sitemap"></i> 2. Bố cục logic</h4>${formatList(data.organization)}</div>
+        <div class="hint-section"><h4><i class="fas fa-chess-knight"></i> 3. Chiến lược đạt điểm cao</h4>${formatList(data.strategy.advice)}
             <div style="margin-top:10px;"><strong>Từ vựng "ăn điểm":</strong><br> ${data.strategy.vocabulary.map(v => `<span class="hint-pill">${v}</span>`).join('')}</div>
             <div style="margin-top:10px;"><strong>Từ nối mạch lạc:</strong><br> ${data.strategy.linking_words.map(l => `<span class="hint-pill">${l}</span>`).join('')}</div>
             <div style="margin-top:10px;"><strong>Mẫu câu hay:</strong><br> ${data.strategy.expressions.map(e => `<span class="hint-pill">${e}</span>`).join('')}</div>
         </div>
-        <div class="hint-section" style="background: #fdf2e9; padding: 15px; border-radius: 8px;"><h4><i class="fas fa-exclamation-triangle" style="color:#e74c3c;"></i> 4. Lỗi thường gặp</h4><p>${data.common_mistakes.replace(/\n/g, '<br>')}</p></div>
-        <div class="hint-section"><h4><i class="fas fa-stopwatch"></i> 5. Kiểm tra 2 phút cuối</h4><p>${data.last_minute_check.replace(/\n/g, '<br>')}</p></div>
-        <div class="hint-section"><h4><i class="fas fa-brain"></i> 6. Tư duy làm bài</h4><p>${data.mindset.replace(/\n/g, '<br>')}</p></div>
+        <div class="hint-section" style="background: #fdf2e9; padding: 15px; border-radius: 8px;"><h4><i class="fas fa-exclamation-triangle" style="color:#e74c3c;"></i> 4. Lỗi thường gặp</h4>${formatList(data.common_mistakes)}</div>
+        <div class="hint-section"><h4><i class="fas fa-stopwatch"></i> 5. Kiểm tra 2 phút cuối</h4>${formatList(data.last_minute_check)}</div>
+        <div class="hint-section"><h4><i class="fas fa-brain"></i> 6. Tư duy làm bài</h4>${formatList(data.mindset)}</div>
     `;
 }
 
@@ -477,8 +485,18 @@ function renderSpeakingAssessment(data) {
                 <div style="flex:1; background:rgba(255,255,255,0.2); padding: 10px; border-radius:8px; text-align:center;"><small>Ngữ pháp</small><br><strong>${data.scores.grammar}/10</strong></div>
             </div>
         </div>
+        
         <h4><i class="fas fa-quote-left"></i> Bản Transcript:</h4>
         <p style="background: #f8f9fa; padding: 15px; border-radius: 6px; font-style: italic; margin-bottom: 20px;">${data.transcript}</p>
+        
+        <!-- NEW: PHÂN TÍCH NGỮ ÂM & ÂM SẮC CHUYÊN SÂU -->
+        ${data.phonetic_analysis ? `
+        <h4 style="color:#8e44ad; border-bottom: 1px solid #ccc; padding-bottom: 5px;"><i class="fas fa-wave-square"></i> Phân tích Ngữ âm & Âm sắc</h4>
+        <div style="background: #f4f0fa; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+            <p style="margin-bottom: 10px;"><strong><i class="fas fa-align-left"></i> Ngữ đoạn & Ngữ điệu:</strong> ${data.phonetic_analysis.chunking_intonation}</p>
+            <p><strong><i class="fas fa-smile"></i> Âm sắc & Biểu cảm:</strong> ${data.phonetic_analysis.tone_timbre}</p>
+        </div>` : ''}
+
         <div style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
             <div style="flex: 1; min-width: 200px; border-left: 4px solid #27ae60; padding-left: 10px;">
                 <h4 style="color:#27ae60; margin-bottom: 5px;"><i class="fas fa-check-circle"></i> Điểm mạnh</h4>
@@ -489,6 +507,7 @@ function renderSpeakingAssessment(data) {
                 <ul style="padding-left: 15px; font-size: 0.95em;">${data.analysis.weaknesses.map(w => `<li>${w}</li>`).join('')}</ul>
             </div>
         </div>
+        
         <h4 style="color:#d35400; border-bottom: 1px solid #ccc; padding-bottom: 5px;"><i class="fas fa-search"></i> Phân tích lỗi</h4>
         <ul style="padding-left: 0; list-style: none; margin-bottom: 20px;">
             ${data.errors.length > 0 ? data.errors.map(err => `<li style="margin-bottom: 10px; background: #fdf2e9; padding: 10px; border-radius: 6px;">
@@ -496,6 +515,7 @@ function renderSpeakingAssessment(data) {
                 <small style="color:#555;">${err.reason}</small>
             </li>`).join('') : '<li style="color:green; padding: 10px;">Tuyệt vời! Không phát hiện lỗi nghiêm trọng.</li>'}
         </ul>
+        
         <h4 style="color:#8e44ad;"><i class="fas fa-route"></i> Lộ trình thăng cấp</h4>
         <ul style="padding-left: 20px; font-size: 0.95em; margin-bottom: 20px;">${data.how_to_improve.map(step => `<li>${step}</li>`).join('')}</ul>
         
