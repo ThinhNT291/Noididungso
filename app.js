@@ -61,10 +61,52 @@ let mediaRecorder, audioChunks = [], audioCtx, analyser, animationId;
 // ==========================================
 // 2. KHỞI TẠO & CHUYỂN ĐỔI KỸ NĂNG
 // ==========================================
+// Bảng quy đổi Cấp độ chuẩn cho từng Ngôn ngữ
+const LANGUAGE_LEVELS = {
+    english: [
+        { value: "A1-A2 (Beginner)", text: "A1-A2 (Sơ cấp / IELTS 3.0-4.0)" },
+        { value: "B1 (Intermediate)", text: "B1 (Trung cấp / IELTS 4.5-5.0)" },
+        { value: "B2 (Upper-Intermediate)", text: "B2 (Trung cao / IELTS 5.5-6.5)", selected: true },
+        { value: "C1 (Advanced)", text: "C1 (Cao cấp / IELTS 7.0-8.0)" },
+        { value: "C2 (Proficient)", text: "C2 (Thành thạo / IELTS 8.5+)" }
+    ],
+    chinese: [
+        { value: "HSK 1-2 (Sơ cấp)", text: "HSK 1 - HSK 2 (Sơ cấp)" },
+        { value: "HSK 3-4 (Trung cấp)", text: "HSK 3 - HSK 4 (Trung cấp)", selected: true },
+        { value: "HSK 5 (Cao cấp)", text: "HSK 5 (Cao cấp)" },
+        { value: "HSK 6 (Thành thạo)", text: "HSK 6 (Thành thạo)" }
+    ],
+    russian: [
+        { value: "TORFL A1-A2 (Elementary)", text: "Элементарный (A1-A2 / Sơ cấp)" },
+        { value: "TORFL B1 (TRKI-1)", text: "ТРКИ-1 (B1 / Trung cấp)", selected: true },
+        { value: "TORFL B2 (TRKI-2)", text: "ТРКИ-2 (B2 / Trung cao)" },
+        { value: "TORFL C1-C2 (TRKI-3/4)", text: "ТРКИ-3/4 (C1-C2 / Cao cấp)" }
+    ]
+};
+
+// Hàm cập nhật danh sách Cấp độ trên UI
+function updateLevelOptions(lang) {
+    levelSelect.innerHTML = '';
+    const levels = LANGUAGE_LEVELS[lang] || LANGUAGE_LEVELS.english;
+    levels.forEach(lvl => {
+        let opt = document.createElement('option');
+        opt.value = lvl.value;
+        opt.textContent = lvl.text;
+        if (lvl.selected) opt.selected = true;
+        levelSelect.appendChild(opt);
+    });
+}
 document.addEventListener('DOMContentLoaded', () => {
     skillSelect.value = 'speaking';
     loadHistory();
     fetchQuestionsFromGAS(); 
+    // Tự động đổi danh sách Cấp độ khi đổi Ngôn ngữ
+    langSelect.addEventListener('change', (e) => {
+        updateLevelOptions(e.target.value);
+    });
+    
+    // Khởi tạo lần đầu
+    updateLevelOptions(langSelect.value);
 });
 
 skillSelect.addEventListener('change', (e) => {
