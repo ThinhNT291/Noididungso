@@ -68,6 +68,7 @@ let cachedWritingHintsError = null;
 
 let mediaRecorder, audioChunks = [], audioCtx, analyser, animationId;
 let currentAudioBase64 = null;
+let currentSessionData = null;
 
 // Biến quản lý Đồng hồ
 let prepInterval, mainInterval;
@@ -607,30 +608,62 @@ function stopVisualizer() {
 // ==========================================
 // 7. RENDER KẾT QUẢ, LỊCH SỬ & RESET
 // ==========================================
+
+// --- KHÔI PHỤC HOÀN TOÀN HÀM RENDER CỦA PHIÊN BẢN CŨ KẾT HỢP GIAO DIỆN MỚI ---
 function renderSpeakingAssessment(data) {
     let html = `
         <div style="background: linear-gradient(135deg, #2ecc71, #27ae60); padding: 15px; border-radius: 8px; color: white; margin-bottom: 20px;">
             <h3 style="margin: 0 0 10px 0; color: white;"><i class="fas fa-award"></i> Trình độ ước tính: <span style="color: #ffeaa7;">${data.estimated_level}</span></h3>
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <div style="flex:1; background:rgba(255,255,255,0.2); padding: 10px; border-radius:8px; text-align:center;"><small>Phát âm</small><br><strong>${data.scores.pronunciation}/10</strong></div>
-                <div style="flex:1; background:rgba(255,255,255,0.2); padding: 10px; border-radius:8px; text-align:center;"><small>Trôi chảy</small><br><strong>${data.scores.fluency}/10</strong></div>
-                <div style="flex:1; background:rgba(255,255,255,0.2); padding: 10px; border-radius:8px; text-align:center;"><small>Từ vựng</small><br><strong>${data.scores.vocabulary}/10</strong></div>
-                <div style="flex:1; background:rgba(255,255,255,0.2); padding: 10px; border-radius:8px; text-align:center;"><small>Ngữ pháp</small><br><strong>${data.scores.grammar}/10</strong></div>
+                <div style="flex:1; background:rgba(255,255,255,0.2); padding: 10px; border-radius:8px; text-align:center;"><small>Phát âm</small><br><strong>${data.scores?.pronunciation || 0}/10</strong></div>
+                <div style="flex:1; background:rgba(255,255,255,0.2); padding: 10px; border-radius:8px; text-align:center;"><small>Trôi chảy</small><br><strong>${data.scores?.fluency || 0}/10</strong></div>
+                <div style="flex:1; background:rgba(255,255,255,0.2); padding: 10px; border-radius:8px; text-align:center;"><small>Từ vựng</small><br><strong>${data.scores?.vocabulary || 0}/10</strong></div>
+                <div style="flex:1; background:rgba(255,255,255,0.2); padding: 10px; border-radius:8px; text-align:center;"><small>Ngữ pháp</small><br><strong>${data.scores?.grammar || 0}/10</strong></div>
             </div>
         </div>
+        
         <h4><i class="fas fa-quote-left"></i> Bản Transcript:</h4>
         <p style="background: #f8f9fa; padding: 15px; border-radius: 6px; font-style: italic; margin-bottom: 20px;">${data.transcript}</p>
+        
+        ${data.phonetic_analysis ? `
+        <h4 style="color:#8e44ad; border-bottom: 1px solid #ccc; padding-bottom: 5px;"><i class="fas fa-wave-square"></i> Phân tích Ngữ âm & Âm sắc</h4>
+        <div style="background: #f4f0fa; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+            <p style="margin-bottom: 10px;"><strong><i class="fas fa-align-left"></i> Ngữ đoạn & Ngữ điệu:</strong> ${data.phonetic_analysis.chunking_intonation}</p>
+            <p><strong><i class="fas fa-smile"></i> Âm sắc & Biểu cảm:</strong> ${data.phonetic_analysis.tone_timbre}</p>
+        </div>` : ''}
+
         <div style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
             <div style="flex: 1; min-width: 200px; border-left: 4px solid #27ae60; padding-left: 10px;">
-                <h4 style="color:#27ae60; margin-bottom: 5px;"><i class="fas fa-check-circle"></i> Điểm mạnh</h4>${formatList(data.analysis.strengths)}
+                <h4 style="color:#27ae60; margin-bottom: 5px;"><i class="fas fa-check-circle"></i> Điểm mạnh</h4>
+                ${formatList(data.analysis?.strengths)}
             </div>
             <div style="flex: 1; min-width: 200px; border-left: 4px solid #e74c3c; padding-left: 10px;">
-                <h4 style="color:#e74c3c; margin-bottom: 5px;"><i class="fas fa-times-circle"></i> Cần cải thiện</h4>${formatList(data.analysis.weaknesses)}
+                <h4 style="color:#e74c3c; margin-bottom: 5px;"><i class="fas fa-times-circle"></i> Cần cải thiện</h4>
+                ${formatList(data.analysis?.weaknesses)}
             </div>
         </div>
+        
+        <h4 style="color:#d35400; border-bottom: 1px solid #ccc; padding-bottom: 5px;"><i class="fas fa-search"></i> Phân tích lỗi</h4>
+        <ul style="padding-left: 0; list-style: none; margin-bottom: 20px;">
+            ${(data.errors && data.errors.length > 0) ? data.errors.map(err => `<li style="margin-bottom: 10px; background: #fdf2e9; padding: 10px; border-radius: 6px;">
+                <del style="color:red; font-weight: bold;">${err.original_phrase}</del> &rarr; <strong style="color:green;">${err.correction}</strong><br>
+                <small style="color:#555;">${err.reason}</small>
+            </li>`).join('') : '<li style="color:green; padding: 10px;">Tuyệt vời! Không phát hiện lỗi nghiêm trọng.</li>'}
+        </ul>
+        
+        <h4 style="color:#8e44ad;"><i class="fas fa-route"></i> Lộ trình thăng cấp</h4>
+        ${formatList(data.how_to_improve)}
+        
         <h4 style="color:#2980b9;"><i class="fas fa-magic"></i> Câu trả lời mẫu</h4>
         <p style="background:#eafaf1; padding: 15px; border-left: 4px solid #2980b9; border-radius: 4px; margin-bottom: 20px;">${data.better_version}</p>
+        
         <p style="margin-bottom: 20px;"><strong>Nhận xét chung:</strong> ${data.feedback}</p>
+
+        ${data.reference_links && data.reference_links.length > 0 ? `
+        <h4 style="color:#2c3e50;"><i class="fas fa-link"></i> Nguồn tham khảo hữu ích</h4>
+        <ul style="padding-left: 20px; margin-bottom: 20px;">
+            ${data.reference_links.map(link => `<li><a href="${link.url}" target="_blank" style="color: #2980b9; text-decoration: none; font-weight: bold;">${link.title}</a></li>`).join('')}
+        </ul>` : ''}
     `;
     assessmentBox.innerHTML = html;
     currentSessionData = { type: 'speaking', ...data };
@@ -642,25 +675,45 @@ function renderWritingAssessment(data) {
         <div style="background: linear-gradient(135deg, #8e44ad, #9b59b6); padding: 15px; border-radius: 8px; color: white; margin-bottom: 20px;">
             <h3 style="margin: 0 0 10px 0; color: white;"><i class="fas fa-award"></i> Trình độ ước tính: <span style="color: #ffeaa7;">${data.estimated_level}</span></h3>
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <div style="flex:1; background:rgba(255,255,255,0.2); padding: 10px; border-radius:8px; text-align:center;"><small>Task</small><br><strong>${data.scores.task_achievement}/10</strong></div>
-                <div style="flex:1; background:rgba(255,255,255,0.2); padding: 10px; border-radius:8px; text-align:center;"><small>Coherence</small><br><strong>${data.scores.coherence}/10</strong></div>
-                <div style="flex:1; background:rgba(255,255,255,0.2); padding: 10px; border-radius:8px; text-align:center;"><small>Vocabulary</small><br><strong>${data.scores.vocabulary}/10</strong></div>
-                <div style="flex:1; background:rgba(255,255,255,0.2); padding: 10px; border-radius:8px; text-align:center;"><small>Grammar</small><br><strong>${data.scores.grammar}/10</strong></div>
+                <div style="flex:1; background:rgba(255,255,255,0.2); padding: 10px; border-radius:8px; text-align:center;"><small>Task</small><br><strong>${data.scores?.task_achievement || 0}/10</strong></div>
+                <div style="flex:1; background:rgba(255,255,255,0.2); padding: 10px; border-radius:8px; text-align:center;"><small>Coherence</small><br><strong>${data.scores?.coherence || 0}/10</strong></div>
+                <div style="flex:1; background:rgba(255,255,255,0.2); padding: 10px; border-radius:8px; text-align:center;"><small>Vocabulary</small><br><strong>${data.scores?.vocabulary || 0}/10</strong></div>
+                <div style="flex:1; background:rgba(255,255,255,0.2); padding: 10px; border-radius:8px; text-align:center;"><small>Grammar</small><br><strong>${data.scores?.grammar || 0}/10</strong></div>
             </div>
         </div>
         <div style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
             <div style="flex: 1; border-left: 4px solid #27ae60; padding-left: 10px;">
-                <h4 style="color:#27ae60; margin-bottom: 5px;"><i class="fas fa-check-circle"></i> Điểm mạnh</h4>${formatList(data.analysis.strengths)}
+                <h4 style="color:#27ae60; margin-bottom: 5px;"><i class="fas fa-check-circle"></i> Điểm mạnh</h4>
+                ${formatList(data.analysis?.strengths)}
             </div>
             <div style="flex: 1; border-left: 4px solid #e74c3c; padding-left: 10px;">
-                <h4 style="color:#e74c3c; margin-bottom: 5px;"><i class="fas fa-times-circle"></i> Cần khắc phục</h4>${formatList(data.analysis.weaknesses)}
+                <h4 style="color:#e74c3c; margin-bottom: 5px;"><i class="fas fa-times-circle"></i> Cần khắc phục</h4>
+                ${formatList(data.analysis?.weaknesses)}
             </div>
         </div>
-        <h4 style="color:#8e44ad;"><i class="fas fa-route"></i> Hướng dẫn thăng hạng</h4>${formatList(data.how_to_improve)}
+
+        <h4 style="color:#d35400; border-bottom: 1px solid #ccc; padding-bottom: 5px;"><i class="fas fa-search"></i> Lỗi chi tiết (Writing)</h4>
+        <ul style="padding-left: 0; list-style: none; margin-bottom: 20px;">
+            ${(data.errors && data.errors.length > 0) ? data.errors.map(err => `<li style="margin-bottom: 10px; background: #fdf2e9; padding: 10px; border-radius: 6px;">
+                <del style="color:red; font-weight: bold;">${err.original_phrase}</del> &rarr; <strong style="color:green;">${err.correction}</strong><br>
+                <small style="color:#555;">${err.reason}</small>
+            </li>`).join('') : '<li style="color:green; padding: 10px;">Tuyệt vời! Không phát hiện lỗi sai.</li>'}
+        </ul>
+
+        <h4 style="color:#8e44ad;"><i class="fas fa-route"></i> Hướng dẫn thăng hạng</h4>
+        ${formatList(data.how_to_improve)}
+        
         <h4 style="color:#2980b9;"><i class="fas fa-copy"></i> Bản nâng cấp (Giữ văn phong)</h4>
         <p style="background:#eafaf1; padding: 15px; border-left: 4px solid #2980b9; border-radius: 4px; margin-bottom: 20px;">${data.better_versions?.upgraded || "Không có dữ liệu"}</p>
+        
         <h4 style="color:#f39c12;"><i class="fas fa-crown"></i> Bản Chuyên gia</h4>
         <p style="background:#fdf2e9; padding: 15px; border-left: 4px solid #f39c12; border-radius: 4px; margin-bottom: 20px;">${data.better_versions?.expert || "Không có dữ liệu"}</p>
+
+        ${data.reference_links && data.reference_links.length > 0 ? `
+        <h4 style="color:#2c3e50;"><i class="fas fa-link"></i> Nguồn tham khảo hữu ích</h4>
+        <ul style="padding-left: 20px; margin-bottom: 20px;">
+            ${data.reference_links.map(link => `<li><a href="${link.url}" target="_blank" style="color: #2980b9; text-decoration: none; font-weight: bold;">${link.title}</a></li>`).join('')}
+        </ul>` : ''}
     `;
     assessmentBox.innerHTML = html;
     currentSessionData = { type: 'writing', ...data };
@@ -683,7 +736,7 @@ if (btnSave) {
         loadHistory();
 
         // LƯU NGẦM LÊN DRIVE
-        const fileContent = `BÀI TEST: ${title}\nNGÀY: ${dateStr}\n\nTRANSCRIPT:\n${currentSessionData.transcript || 'N/A'}\n\nĐIỂM SỐ:\nPhát âm/Task: ${currentSessionData.scores.pronunciation || currentSessionData.scores.task_achievement} | Trôi chảy/Coherence: ${currentSessionData.scores.fluency || currentSessionData.scores.coherence} | Từ vựng: ${currentSessionData.scores.vocabulary} | Ngữ pháp: ${currentSessionData.scores.grammar}\n\nĐÁNH GIÁ ĐIỂM MẠNH:\n${(currentSessionData.analysis?.strengths || []).join('\n')}\n\nĐÁNH GIÁ ĐIỂM YẾU:\n${(currentSessionData.analysis?.weaknesses || []).join('\n')}\n\nNHẬN XÉT TỔNG QUAN:\n${currentSessionData.feedback || 'Xem chi tiết trên web.'}`;
+        const fileContent = `BÀI TEST: ${title}\nNGÀY: ${dateStr}\n\nTRANSCRIPT:\n${currentSessionData.transcript || 'N/A'}\n\nĐIỂM SỐ:\nPhát âm/Task: ${currentSessionData.scores?.pronunciation || currentSessionData.scores?.task_achievement} | Trôi chảy/Coherence: ${currentSessionData.scores?.fluency || currentSessionData.scores?.coherence} | Từ vựng: ${currentSessionData.scores?.vocabulary} | Ngữ pháp: ${currentSessionData.scores?.grammar}\n\nĐÁNH GIÁ ĐIỂM MẠNH:\n${(currentSessionData.analysis?.strengths || []).join('\n')}\n\nĐÁNH GIÁ ĐIỂM YẾU:\n${(currentSessionData.analysis?.weaknesses || []).join('\n')}\n\nNHẬN XÉT TỔNG QUAN:\n${currentSessionData.feedback || 'Xem chi tiết trên web.'}`;
         const safeDate = dateStr.replace(/[\/:]/g, '-').replace(/ /g, '_');
         const filename = `${prefix}_${safeDate}_${Date.now()}.txt`;
         const drivePayload = { action: 'save_to_drive', filename: filename, content: fileContent };
