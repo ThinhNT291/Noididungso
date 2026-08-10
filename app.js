@@ -57,7 +57,7 @@ let systemQuestions = { speaking: [], writing: [] };
 let timerInterval;
 let timeRemaining = 0;
 let mediaRecorder, audioChunks = [], audioCtx, analyser, animationId;
-
+let currentAudioBase64 = null;
 // ==========================================
 // 2. KHỞI TẠO & CHUYỂN ĐỔI KỸ NĂNG
 // ==========================================
@@ -466,6 +466,7 @@ function processAudioAndSend(blob) {
     const reader = new FileReader();
     reader.readAsDataURL(blob);
     reader.onloadend = async () => {
+    currentAudioBase64 = reader.result;
         const payload = {
             action: 'evaluate_speaking',
             audio: reader.result,
@@ -689,8 +690,26 @@ if (btnSave) {
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify(drivePayload)
         }).catch(err => console.log("Lưu Drive ngầm thất bại:", err)); // Lỗi thì chỉ báo log, web không sập
+        // === BỔ SUNG: BẮN FILE AUDIO LÊN DRIVE (NẾU LÀ SPEAKING) ===
+        if (currentSessionData.type === 'speaking' && currentAudioBase64) {
+            const audioFilename = `[Audio]_${safeDate}_${Date.now()}.webm`;
+            const driveAudioPayload = {
+                action: 'save_to_drive',
+                filename: audioFilename,
+                content: currentAudioBase64,
+                isAudio: true // Cờ báo cho Backend biết đây là Audio
+            };
+
+            fetch(GAS_WEB_APP_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(driveAudioPayload)
+            }).catch(err => console.log("Lưu Audio ngầm thất bại:", err));
+        }
+        // ============================================================
     });
 }
+
 
 function loadHistory() {
     const historyList = document.getElementById('history-list');
@@ -787,6 +806,7 @@ function resetWorkspace(skill) {
 
     if (skill === 'speaking') {
         audioChunks = [];
+        currentAudioBase64 = null;
         audioPlayback.classList.add('hidden');
     } else {
         writingInput.value = '';
