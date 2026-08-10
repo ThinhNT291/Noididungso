@@ -173,7 +173,8 @@ btnApplyCustom.addEventListener('click', async () => {
     if (customImageBase64) {
         btnApplyCustom.innerHTML = '<i class="fas fa-spinner fa-spin"></i> AI đang phân tích ảnh...';
         btnApplyCustom.disabled = true;
-        
+        document.getElementById('speaking-tabs').innerHTML = '';
+        document.getElementById('writing-tabs').innerHTML = '';
         const payload = {
             action: 'analyze_image_prompt',
             image: customImageBase64
@@ -257,7 +258,7 @@ async function callBackendAPI(payload, loadingMessage, isMainAssessment = true) 
 }
 
 // ==========================================
-// 3. LOAD GRID ĐỀ BÀI (HỖ TRỢ CHIA PART VSTEP)
+// 3. LOAD GRID ĐỀ BÀI (HỖ TRỢ CHIA TAB TỪNG ĐỀ)
 // ==========================================
 async function fetchQuestionsFromGAS() {
     try {
@@ -268,9 +269,12 @@ async function fetchQuestionsFromGAS() {
         const result = await response.json();
         
         if(result.success) {
-            systemQuestions = result.data; 
-            renderGroupedGrid(speakingQuestionGrid, systemQuestions.speaking, 'speaking');
-            renderGroupedGrid(writingQuestionGrid, systemQuestions.writing, 'writing');
+            // Nhóm dữ liệu từ sheet lại: Gom các Part vào chung 1 Đề
+            systemQuestions.speaking = groupQuestionsByTitle(result.data.speaking);
+            systemQuestions.writing = groupQuestionsByTitle(result.data.writing);
+            
+            renderGrid(speakingQuestionGrid, systemQuestions.speaking, 'speaking');
+            renderGrid(writingQuestionGrid, systemQuestions.writing, 'writing');
         } else {
             throw new Error(result.error);
         }
@@ -281,82 +285,108 @@ async function fetchQuestionsFromGAS() {
     }
 }
 
-// Hàm hỗ trợ render Grid chia theo Part
-function renderGroupedGrid(container, questionsArray, skillType) {
+// Thuật toán gom nhóm mảng phẳng thành mảng Object chứa Tabs
+function groupQuestionsByTitle(flatArray) {
+    const groupedObj = {};
+    flatArray.forEach(item => {
+        if (!groupedObj[item.title]) {
+            groupedObj[item.title] = { title: item.title, parts: [] };
+        }
+        groupedObj[item.title].parts.push({ partName: item.part, content: item.content });
+    });
+    return Object.values(groupedObj);
+}
+
+// Vẽ danh sách các nút Đề (Đề 1, Đề 2...)
+function renderGrid(container, groupedArray, skillType) {
     container.innerHTML = '';
-    if (!questionsArray || questionsArray.length === 0) {
+    if (!groupedArray || groupedArray.length === 0) {
         container.innerHTML = '<span style="color:#7f8c8d;">Chưa có dữ liệu.</span>';
         return;
     }
 
-    // Gom nhóm đề theo Part
-    const grouped = {};
-    questionsArray.forEach((q, idx) => {
-        if (!grouped[q.part]) grouped[q.part] = [];
-        grouped[q.part].push({ ...q, originalIndex: idx });
+    groupedArray.forEach((q, idx) => {
+        let btn = document.createElement('button');
+        btn.className = 'q-btn';
+        btn.innerHTML = q.title;
+        btn.onclick = () => selectQuestion(skillType, idx, btn);
+        container.appendChild(btn);
     });
-
-    // Vẽ từng Part ra màn hình
-    for (const part in grouped) {
-        let partLabel = document.createElement('h5');
-        partLabel.style.cssText = 'margin: 15px 0 5px 0; color: #34495e; border-bottom: 1px solid #ccc; padding-bottom: 3px;';
-        partLabel.innerHTML = `<i class="fas fa-folder-open"></i> ${part}`;
-        container.appendChild(partLabel);
-
-        let grid = document.createElement('div');
-        grid.className = 'question-grid';
-        grouped[part].forEach(q => {
-            let btn = document.createElement('button');
-            btn.className = 'q-btn';
-            btn.innerHTML = q.title;
-            btn.onclick = () => selectQuestion(skillType, q.originalIndex, btn);
-            grid.appendChild(btn);
-        });
-        container.appendChild(grid);
-    }
 }
+
+let currentSelectedGroup = null; // Lưu cụm Đề đang được chọn
 
 function selectQuestion(skillType, index, btnElem) {
     const gridContainer = skillType === 'speaking' ? speakingQuestionGrid : writingQuestionGrid;
     gridContainer.querySelectorAll('.q-btn').forEach(b => b.classList.remove('active'));
     btnElem.classList.add('active');
 
-    const q = systemQuestions[skillType][index];
-    activePromptData = { text: q.content, image: null };
+    currentSelectedGroup = systemQuestions[skillType][index];
     
-    // Tách phần text thông thường và phần Markdown (nếu có)
-    let displayText = q.content;
-    let hasMindmap = false;
-
-    // Kiểm tra xem đề bài có chứa định dạng Markdown không (dấu # )
-    if (q.content.includes('# ')) {
-        hasMindmap = true;
-        // Lấy đoạn text mô tả nằm trước thẻ Markdown đầu tiên
-        displayText = q.content.substring(0, q.content.indexOf('# ')).trim();
-    }
+    // Tạo HTML cho các nút Tab
+    const tabsContainerId = skillType === 'speaking' ? 'speaking-tabs' : 'writing-tabs';
+    const tabsHtml = currentSelectedGroup.parts.map((p, pIndex) => 
+        `<button class="tab-btn ${pIndex === 0 ? 'active' : ''}" onclick="switchTab('${skillType}', ${pIndex})">${p.partName}</button>`
+    ).join('');
+    
+    document.getElementById(tabsContainerId).innerHTML = tabsHtml;
 
     if (skillType === 'speaking') {
         activeSpeakingPromptBox.classList.remove('hidden');
+    } else {
+        activeWritingPromptBox.classList.remove('hidden');
+        writingPromptImage.classList.add('hidden');
+    }
+    
+    // Mặc định tự động mở Tab đầu tiên
+    switchTab(skillType, 0);
+    startTimer();
+}
+
+// Hàm xử lý khi người dùng bấm chuyển Tab
+window.switchTab = (skillType, partIndex) => {
+    // 1. Đổi màu Tab đang active
+    const tabsContainerId = skillType === 'speaking' ? 'speaking-tabs' : 'writing-tabs';
+    const tabs = document.getElementById(tabsContainerId).querySelectorAll('.tab-btn');
+    tabs.forEach((t, i) => {
+        if(i === partIndex) t.classList.add('active');
+        else t.classList.remove('active');
+    });
+
+    // 2. Lấy nội dung của Part tương ứng
+    const partData = currentSelectedGroup.parts[partIndex];
+    let displayText = partData.content;
+    let hasMindmap = false;
+
+    // Gộp toàn bộ nội dung các Part lại để gửi cho AI chấm điểm (Giúp AI hiểu toàn bộ context bài test)
+    activePromptData = { 
+        text: currentSelectedGroup.parts.map(p => `[${p.partName}]\n${p.content}`).join('\n\n'), 
+        image: null 
+    };
+
+    // Kiểm tra xem Part này có cần vẽ Markdown không
+    if (displayText.includes('# ')) {
+        hasMindmap = true;
+        displayText = displayText.substring(0, displayText.indexOf('# ')).trim();
+    }
+
+    // 3. Render nội dung ra màn hình
+    if (skillType === 'speaking') {
         speakingPromptText.innerHTML = displayText.replace(/\n/g, '<br>');
-        
         if (hasMindmap) {
             speakingMindmapArea.classList.remove('hidden');
-            let markdownContent = q.content.substring(q.content.indexOf('# '));
+            let markdownContent = partData.content.substring(partData.content.indexOf('# '));
             drawMindmapToSVG(markdownContent, speakingMindmapSvg);
         } else {
             speakingMindmapArea.classList.add('hidden');
         }
-
     } else {
-        activeWritingPromptBox.classList.remove('hidden');
-        writingPromptText.innerHTML = q.content.replace(/\n/g, '<br>');
-        writingPromptImage.classList.add('hidden');
-        preloadHintsLogic();
+        writingPromptText.innerHTML = displayText.replace(/\n/g, '<br>');
+        preloadHintsLogic(); 
     }
-    startTimer();
 }
 
-// Tách riêng hàm vẽ Markmap để tái sử dụng cho cả Speaking và Writing
+// Tách riêng hàm vẽ Markmap
 function drawMindmapToSVG(markdownText, svgElement) {
     svgElement.innerHTML = ''; 
     try {
@@ -921,7 +951,8 @@ document.getElementById('btn-random-prompt')?.addEventListener('click', async ()
     
     btnRandom.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tìm...';
     btnRandom.disabled = true;
-    
+    document.getElementById('speaking-tabs').innerHTML = '';
+    document.getElementById('writing-tabs').innerHTML = '';
     if (resultSection) resultSection.classList.add('hidden');
     
 const payload = {
