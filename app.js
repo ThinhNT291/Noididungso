@@ -10,11 +10,13 @@ const btnToggleCustom = document.getElementById('btn-toggle-custom');
 const customPromptArea = document.getElementById('custom-prompt-area');
 const customPromptText = document.getElementById('custom-prompt-text');
 const customPromptImage = document.getElementById('custom-prompt-image');
+const imageFileName = document.getElementById('image-file-name'); // Thêm DOM cho tên ảnh
 const btnApplyCustom = document.getElementById('btn-apply-custom');
 
 const speakingWorkspace = document.getElementById('speaking-workspace');
 const writingWorkspace = document.getElementById('writing-workspace');
 const assessmentBox = document.getElementById('assessment-box');
+const resultSection = document.getElementById('result-section'); // DOM cho khung kết quả
 const btnSave = document.getElementById('btn-save');
 const countdownDisplay = document.getElementById('countdown-display');
 
@@ -69,6 +71,7 @@ skillSelect.addEventListener('change', (e) => {
     currentSkill = e.target.value;
     assessmentBox.innerHTML = '<span class="placeholder-text">Đợi một tý, kết quả phân tích chi tiết sẽ có ngay...</span>';
     if (btnSave) btnSave.classList.add('hidden');
+    if (resultSection) resultSection.classList.add('hidden'); // Ẩn báo cáo khi đổi kỹ năng
     clearInterval(timerInterval);
     countdownDisplay.textContent = "00:00";
     
@@ -87,13 +90,30 @@ document.getElementById('toggle-right')?.addEventListener('click', () => documen
 
 btnToggleCustom.addEventListener('click', () => customPromptArea.classList.toggle('hidden'));
 
+// Upload ảnh có UI báo trạng thái
 customPromptImage.addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (file) {
+        if(imageFileName) {
+            imageFileName.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Đang đọc ảnh: ${file.name}...`;
+            imageFileName.style.color = "#f39c12";
+        }
         const reader = new FileReader();
-        reader.onloadend = () => { customImageBase64 = reader.result; };
+        reader.onloadend = () => { 
+            customImageBase64 = reader.result; 
+            if(imageFileName) {
+                imageFileName.innerHTML = `<i class="fas fa-check-circle"></i> Đã tải xong: ${file.name}`;
+                imageFileName.style.color = "#27ae60";
+            }
+        };
         reader.readAsDataURL(file);
-    } else customImageBase64 = null;
+    } else {
+        if(imageFileName) {
+            imageFileName.innerHTML = "Chưa có ảnh nào";
+            imageFileName.style.color = "#27ae60";
+        }
+        customImageBase64 = null;
+    }
 });
 
 btnApplyCustom.addEventListener('click', () => {
@@ -122,6 +142,29 @@ btnApplyCustom.addEventListener('click', () => {
     customPromptArea.classList.add('hidden');
     startTimer();
 });
+
+// Hàm gọi API với UI ẩn/hiện báo cáo
+async function callBackendAPI(payload, loadingMessage, isMainAssessment = true) {
+    if (isMainAssessment) {
+        if (resultSection) resultSection.classList.remove('hidden'); // Bật bảng báo cáo khi nộp bài
+        assessmentBox.innerHTML = `<span class="placeholder-text" style="color:#f39c12;"><i class="fas fa-spinner fa-spin"></i> ${loadingMessage}</span>`;
+        if (btnSave) btnSave.classList.add('hidden');
+    }
+    try {
+        const response = await fetch(GAS_WEB_APP_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error);
+        return result.data;
+    } catch (err) {
+        if (isMainAssessment) assessmentBox.innerHTML = `<span style="color:red;"><i class="fas fa-exclamation-triangle"></i> Lỗi kết nối: ${err.message}</span>`;
+        console.error(err);
+        return null;
+    }
+}
 
 // ==========================================
 // 3. LOAD GRID ĐỀ BÀI TỪ GAS
@@ -235,22 +278,22 @@ async function preloadHintsLogic() {
     }
 }
 
-// --- HÀM HỖ TRỢ BIẾN MẢNG THÀNH DANH SÁCH HTML ---
+// Format Mảng thành Danh sách
 const formatList = (data) => {
     if (Array.isArray(data)) {
         return `<ul class="hint-list">${data.map(item => `<li style="margin-bottom:6px;">${item}</li>`).join('')}</ul>`;
     }
-    return `<p>${data.replace(/\n/g, '<br>')}</p>`;
+    return `<p>${(data || "").replace(/\n/g, '<br>')}</p>`;
 };
 
 function renderHintsToModal(data) {
     hintsModalBody.innerHTML = `
         <div class="hint-section"><h4><i class="fas fa-search"></i> 1. Phân tích đề bài</h4>${formatList(data.analysis)}</div>
         <div class="hint-section"><h4><i class="fas fa-sitemap"></i> 2. Bố cục logic</h4>${formatList(data.organization)}</div>
-        <div class="hint-section"><h4><i class="fas fa-chess-knight"></i> 3. Chiến lược đạt điểm cao</h4>${formatList(data.strategy.advice)}
-            <div style="margin-top:10px;"><strong>Từ vựng "ăn điểm":</strong><br> ${data.strategy.vocabulary.map(v => `<span class="hint-pill">${v}</span>`).join('')}</div>
-            <div style="margin-top:10px;"><strong>Từ nối mạch lạc:</strong><br> ${data.strategy.linking_words.map(l => `<span class="hint-pill">${l}</span>`).join('')}</div>
-            <div style="margin-top:10px;"><strong>Mẫu câu hay:</strong><br> ${data.strategy.expressions.map(e => `<span class="hint-pill">${e}</span>`).join('')}</div>
+        <div class="hint-section"><h4><i class="fas fa-chess-knight"></i> 3. Chiến lược đạt điểm cao</h4>${formatList(data.strategy?.advice)}
+            <div style="margin-top:10px;"><strong>Từ vựng "ăn điểm":</strong><br> ${(data.strategy?.vocabulary || []).map(v => `<span class="hint-pill">${v}</span>`).join('')}</div>
+            <div style="margin-top:10px;"><strong>Từ nối mạch lạc:</strong><br> ${(data.strategy?.linking_words || []).map(l => `<span class="hint-pill">${l}</span>`).join('')}</div>
+            <div style="margin-top:10px;"><strong>Mẫu câu hay:</strong><br> ${(data.strategy?.expressions || []).map(e => `<span class="hint-pill">${e}</span>`).join('')}</div>
         </div>
         <div class="hint-section" style="background: #fdf2e9; padding: 15px; border-radius: 8px;"><h4><i class="fas fa-exclamation-triangle" style="color:#e74c3c;"></i> 4. Lỗi thường gặp</h4>${formatList(data.common_mistakes)}</div>
         <div class="hint-section"><h4><i class="fas fa-stopwatch"></i> 5. Kiểm tra 2 phút cuối</h4>${formatList(data.last_minute_check)}</div>
@@ -282,6 +325,13 @@ btnShowMindmap.addEventListener('click', () => {
 
 closeModal.addEventListener('click', () => hintsModal.classList.add('hidden'));
 window.addEventListener('click', (e) => { if (e.target === hintsModal) hintsModal.classList.add('hidden'); });
+
+// Phím tắt ESC đóng Popup
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        document.querySelectorAll('.modal').forEach(modal => modal.classList.add('hidden'));
+    }
+});
 
 function drawMindmap(markdownText) {
     mindmapSvg.innerHTML = ''; 
@@ -317,9 +367,6 @@ btnSubmitWriting.addEventListener('click', async () => {
     if (text.length < 10) return alert("Bài viết quá ngắn!");
     clearInterval(timerInterval); 
     
-    assessmentBox.innerHTML = '<span class="placeholder-text" style="color:#f39c12;"><i class="fas fa-spinner fa-spin"></i> Giám khảo AI đang chấm bài Viết...</span>';
-    btnSave?.classList.add('hidden');
-
     const payload = {
         action: 'evaluate_writing',
         text: text,
@@ -329,18 +376,8 @@ btnSubmitWriting.addEventListener('click', async () => {
         promptImage: activePromptData.image
     };
 
-    try {
-        const response = await fetch(GAS_WEB_APP_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify(payload)
-        });
-        const result = await response.json();
-        if (result.success) renderWritingAssessment(result.data);
-        else assessmentBox.innerHTML = `<span style="color:red;">Lỗi: ${result.error}</span>`;
-    } catch (err) {
-        assessmentBox.innerHTML = `<span style="color:red;">Lỗi kết nối API</span>`;
-    }
+    const data = await callBackendAPI(payload, "Giám khảo AI đang chấm bài Viết của bạn...");
+    if (data) renderWritingAssessment(data);
 });
 
 // ==========================================
@@ -384,7 +421,6 @@ btnStop.addEventListener('click', () => {
 });
 
 function processAudioAndSend(blob) {
-    assessmentBox.innerHTML = '<span class="placeholder-text" style="color:#f39c12;"><i class="fas fa-spinner fa-spin"></i> Giám khảo AI đang phân tích âm thanh...</span>';
     const reader = new FileReader();
     reader.readAsDataURL(blob);
     reader.onloadend = async () => {
@@ -397,18 +433,8 @@ function processAudioAndSend(blob) {
             promptText: activePromptData.text,
             promptImage: activePromptData.image 
         };
-        try {
-            const response = await fetch(GAS_WEB_APP_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify(payload)
-            });
-            const result = await response.json();
-            if (result.success) renderSpeakingAssessment(result.data);
-            else assessmentBox.innerHTML = `<span style="color:red;">Lỗi: ${result.error}</span>`;
-        } catch (err) {
-            assessmentBox.innerHTML = `<span style="color:red;">Lỗi kết nối API</span>`;
-        }
+        const data = await callBackendAPI(payload, "Giám khảo AI đang phân tích âm thanh của bạn...");
+        if (data) renderSpeakingAssessment(data);
     };
 }
 
@@ -489,7 +515,6 @@ function renderSpeakingAssessment(data) {
         <h4><i class="fas fa-quote-left"></i> Bản Transcript:</h4>
         <p style="background: #f8f9fa; padding: 15px; border-radius: 6px; font-style: italic; margin-bottom: 20px;">${data.transcript}</p>
         
-        <!-- NEW: PHÂN TÍCH NGỮ ÂM & ÂM SẮC CHUYÊN SÂU -->
         ${data.phonetic_analysis ? `
         <h4 style="color:#8e44ad; border-bottom: 1px solid #ccc; padding-bottom: 5px;"><i class="fas fa-wave-square"></i> Phân tích Ngữ âm & Âm sắc</h4>
         <div style="background: #f4f0fa; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
@@ -500,24 +525,24 @@ function renderSpeakingAssessment(data) {
         <div style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
             <div style="flex: 1; min-width: 200px; border-left: 4px solid #27ae60; padding-left: 10px;">
                 <h4 style="color:#27ae60; margin-bottom: 5px;"><i class="fas fa-check-circle"></i> Điểm mạnh</h4>
-                <ul style="padding-left: 15px; font-size: 0.95em;">${data.analysis.strengths.map(s => `<li>${s}</li>`).join('')}</ul>
+                ${formatList(data.analysis.strengths)}
             </div>
             <div style="flex: 1; min-width: 200px; border-left: 4px solid #e74c3c; padding-left: 10px;">
                 <h4 style="color:#e74c3c; margin-bottom: 5px;"><i class="fas fa-times-circle"></i> Cần cải thiện</h4>
-                <ul style="padding-left: 15px; font-size: 0.95em;">${data.analysis.weaknesses.map(w => `<li>${w}</li>`).join('')}</ul>
+                ${formatList(data.analysis.weaknesses)}
             </div>
         </div>
         
         <h4 style="color:#d35400; border-bottom: 1px solid #ccc; padding-bottom: 5px;"><i class="fas fa-search"></i> Phân tích lỗi</h4>
         <ul style="padding-left: 0; list-style: none; margin-bottom: 20px;">
-            ${data.errors.length > 0 ? data.errors.map(err => `<li style="margin-bottom: 10px; background: #fdf2e9; padding: 10px; border-radius: 6px;">
+            ${(data.errors && data.errors.length > 0) ? data.errors.map(err => `<li style="margin-bottom: 10px; background: #fdf2e9; padding: 10px; border-radius: 6px;">
                 <del style="color:red; font-weight: bold;">${err.original_phrase}</del> &rarr; <strong style="color:green;">${err.correction}</strong><br>
                 <small style="color:#555;">${err.reason}</small>
             </li>`).join('') : '<li style="color:green; padding: 10px;">Tuyệt vời! Không phát hiện lỗi nghiêm trọng.</li>'}
         </ul>
         
         <h4 style="color:#8e44ad;"><i class="fas fa-route"></i> Lộ trình thăng cấp</h4>
-        <ul style="padding-left: 20px; font-size: 0.95em; margin-bottom: 20px;">${data.how_to_improve.map(step => `<li>${step}</li>`).join('')}</ul>
+        ${formatList(data.how_to_improve)}
         
         <h4 style="color:#2980b9;"><i class="fas fa-magic"></i> Câu trả lời mẫu</h4>
         <p style="background:#eafaf1; padding: 15px; border-left: 4px solid #2980b9; border-radius: 4px; margin-bottom: 20px;">${data.better_version}</p>
@@ -548,26 +573,26 @@ function renderWritingAssessment(data) {
         <div style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
             <div style="flex: 1; border-left: 4px solid #27ae60; padding-left: 10px;">
                 <h4 style="color:#27ae60; margin-bottom: 5px;"><i class="fas fa-check-circle"></i> Điểm mạnh</h4>
-                <ul style="padding-left: 15px; font-size: 0.95em;">${data.analysis.strengths.map(s => `<li>${s}</li>`).join('')}</ul>
+                ${formatList(data.analysis.strengths)}
             </div>
             <div style="flex: 1; border-left: 4px solid #e74c3c; padding-left: 10px;">
                 <h4 style="color:#e74c3c; margin-bottom: 5px;"><i class="fas fa-times-circle"></i> Cần khắc phục</h4>
-                <ul style="padding-left: 15px; font-size: 0.95em;">${data.analysis.weaknesses.map(w => `<li>${w}</li>`).join('')}</ul>
+                ${formatList(data.analysis.weaknesses)}
             </div>
         </div>
         <h4 style="color:#d35400; border-bottom: 1px solid #ccc; padding-bottom: 5px;"><i class="fas fa-search"></i> Lỗi chi tiết (Writing)</h4>
         <ul style="padding-left: 0; list-style: none; margin-bottom: 20px;">
-            ${data.errors.length > 0 ? data.errors.map(err => `<li style="margin-bottom: 10px; background: #fdf2e9; padding: 10px; border-radius: 6px;">
+            ${(data.errors && data.errors.length > 0) ? data.errors.map(err => `<li style="margin-bottom: 10px; background: #fdf2e9; padding: 10px; border-radius: 6px;">
                 <del style="color:red; font-weight: bold;">${err.original_phrase}</del> &rarr; <strong style="color:green;">${err.correction}</strong><br>
                 <small style="color:#555;">${err.reason}</small>
             </li>`).join('') : '<li style="color:green; padding: 10px;">Tuyệt vời! Không phát hiện lỗi sai.</li>'}
         </ul>
         <h4 style="color:#8e44ad;"><i class="fas fa-route"></i> Hướng dẫn thăng hạng</h4>
-        <ul style="padding-left: 20px; font-size: 0.95em; margin-bottom: 20px;">${data.how_to_improve.map(step => `<li>${step}</li>`).join('')}</ul>
+        ${formatList(data.how_to_improve)}
         <h4 style="color:#2980b9;"><i class="fas fa-copy"></i> Bản nâng cấp (Giữ văn phong)</h4>
-        <p style="background:#eafaf1; padding: 15px; border-left: 4px solid #2980b9; border-radius: 4px; margin-bottom: 20px;">${data.better_versions.upgraded}</p>
+        <p style="background:#eafaf1; padding: 15px; border-left: 4px solid #2980b9; border-radius: 4px; margin-bottom: 20px;">${data.better_versions?.upgraded || "Không có dữ liệu"}</p>
         <h4 style="color:#f39c12;"><i class="fas fa-crown"></i> Bản Chuyên gia</h4>
-        <p style="background:#fdf2e9; padding: 15px; border-left: 4px solid #f39c12; border-radius: 4px; margin-bottom: 20px;">${data.better_versions.expert}</p>
+        <p style="background:#fdf2e9; padding: 15px; border-left: 4px solid #f39c12; border-radius: 4px; margin-bottom: 20px;">${data.better_versions?.expert || "Không có dữ liệu"}</p>
         
         ${data.reference_links && data.reference_links.length > 0 ? `
         <h4 style="color:#2c3e50;"><i class="fas fa-link"></i> Nguồn tham khảo hữu ích</h4>
@@ -580,6 +605,7 @@ function renderWritingAssessment(data) {
     if (btnSave) btnSave.classList.remove('hidden');
 }
 
+// LƯU, TẢI VỀ, CHIA SẺ, XÓA LỊCH SỬ
 if (btnSave) {
     btnSave.addEventListener('click', () => {
         if (!currentSessionData) return;
@@ -627,6 +653,7 @@ window.toggleMenu = (id) => {
     const menu = document.getElementById(`menu-${id}`);
     menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
 }
+
 window.deleteItem = (id) => {
     if(confirm("Bạn có chắc muốn xóa bài này?")) {
         let history = JSON.parse(localStorage.getItem('aiTestHistory')) || [];
@@ -636,7 +663,32 @@ window.deleteItem = (id) => {
     }
 }
 
-// Thiết lập Free Mode
+window.downloadItem = (id) => {
+    let history = JSON.parse(localStorage.getItem('aiTestHistory')) || [];
+    const item = history.find(i => i.id === id);
+    if (!item) return;
+    const content = `BÀI TEST: ${item.title}\nNGÀY: ${item.date}\n\nTRANSCRIPT:\n${item.data.transcript || 'N/A'}\n\nĐIỂM SỐ:\nPhát âm/Task: ${item.data.scores.pronunciation || item.data.scores.task_achievement} | Trôi chảy/Coherence: ${item.data.scores.fluency || item.data.scores.coherence} | Từ vựng: ${item.data.scores.vocabulary} | Ngữ pháp: ${item.data.scores.grammar}\n\nNHẬN XÉT:\n${item.data.feedback || 'Xem chi tiết trên web.'}`;
+    const blob = new Blob([content], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `Ket_qua_${item.id}.txt`;
+    a.click();
+}
+
+window.shareItem = (id) => {
+    let history = JSON.parse(localStorage.getItem('aiTestHistory')) || [];
+    const item = history.find(i => i.id === id);
+    if (!item) return;
+    const shareText = `Tôi vừa hoàn thành bài kiểm tra trên AI EdTech. Điểm Từ vựng: ${item.data.scores.vocabulary}/10, Ngữ pháp: ${item.data.scores.grammar}/10!`;
+    if (navigator.share) {
+        navigator.share({ title: 'Kết quả AI Test', text: shareText }).catch(console.error);
+    } else {
+        navigator.clipboard.writeText(shareText);
+        alert("Đã copy vào Clipboard!");
+    }
+}
+
+// Các Mode Tự do & Reset
 function setupFreeMode(skill) {
     activePromptData = { text: "Hãy thực hiện bài kiểm tra một cách tự do không phụ thuộc vào đề bài cụ thể.", image: null };
     if (skill === 'speaking') {
@@ -661,6 +713,8 @@ document.getElementById('btn-free-writing')?.addEventListener('click', () => set
 function resetWorkspace(skill) {
     clearInterval(timerInterval);
     countdownDisplay.textContent = "00:00";
+    
+    if(resultSection) resultSection.classList.add('hidden');
     assessmentBox.innerHTML = '<span class="placeholder-text">Đợi một tý, kết quả phân tích chi tiết sẽ có ngay...</span>';
     if(btnSave) btnSave.classList.add('hidden');
 
@@ -687,43 +741,16 @@ document.getElementById('btn-new-writing')?.addEventListener('click', () => {
     document.getElementById('active-writing-prompt-box').classList.add('hidden');
     document.getElementById('writing-question-grid-container').classList.remove('hidden');
 });
-// Đóng mọi Popup bằng phím ESC
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-        document.querySelectorAll('.modal').forEach(modal => modal.classList.add('hidden'));
-    }
-});
-
-window.downloadItem = (id) => {
-    let history = JSON.parse(localStorage.getItem('aiTestHistory')) || [];
-    const item = history.find(i => i.id === id);
-    if (!item) return;
-
-    const content = `BÀI TEST: ${item.title}\nNGÀY: ${item.date}\n\nTRANSCRIPT:\n${item.data.transcript || 'N/A'}\n\nĐIỂM SỐ:\nPhát âm/Task: ${item.data.scores.pronunciation || item.data.scores.task_achievement} | Trôi chảy/Coherence: ${item.data.scores.fluency || item.data.scores.coherence} | Từ vựng: ${item.data.scores.vocabulary} | Ngữ pháp: ${item.data.scores.grammar}\n\nNHẬN XÉT:\n${item.data.feedback || 'Xem chi tiết trên web.'}`;
-
-    const blob = new Blob([content], { type: 'text/plain' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `Ket_qua_${item.id}.txt`;
-    a.click();
-}
-
-window.shareItem = (id) => {
-    let history = JSON.parse(localStorage.getItem('aiTestHistory')) || [];
-    const item = history.find(i => i.id === id);
-    if (!item) return;
-    const shareText = `Tôi vừa hoàn thành bài kiểm tra ${item.title} trên AI EdTech. Điểm Từ vựng: ${item.data.scores.vocabulary}/10, Ngữ pháp: ${item.data.scores.grammar}/10!`;
-    if (navigator.share) {
-        navigator.share({ title: 'Kết quả AI Test', text: shareText }).catch(console.error);
-    } else {
-        navigator.clipboard.writeText(shareText);
-        alert("Đã copy vào Clipboard!");
-    }
-}
 
 // Nút Cào đề ngẫu nhiên
 document.getElementById('btn-random-prompt')?.addEventListener('click', async () => {
-    currentPrompt.innerHTML = '<span style="color:#27ae60;"><i class="fas fa-spinner fa-spin"></i> Đợi chút nhé...</span>';
+    const btnRandom = document.getElementById('btn-random-prompt');
+    const originalText = btnRandom.innerHTML;
+    
+    btnRandom.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tìm...';
+    btnRandom.disabled = true;
+    
+    if (resultSection) resultSection.classList.add('hidden');
     
     const payload = {
         action: 'get_random_prompt',
@@ -731,21 +758,28 @@ document.getElementById('btn-random-prompt')?.addEventListener('click', async ()
         skill: currentSkill
     };
     
-    const data = await callBackendAPI(payload, "Processing...", false);
+    const data = await callBackendAPI(payload, "Đang cào dữ liệu...", false);
+    
+    btnRandom.innerHTML = originalText;
+    btnRandom.disabled = false;
+
     if (data) {
         activePromptData = { text: data.content, image: null };
-        currentPrompt.innerHTML = `<strong>Đề tự động:</strong> ${data.title} <a href="${data.source_link}" target="_blank" style="font-size:0.8em; color:#3498db;">[Nguồn]</a>`;
         
         if(currentSkill === 'speaking') {
+            document.getElementById('speaking-question-grid-container').classList.add('hidden');
             document.getElementById('active-speaking-prompt-box').classList.remove('hidden');
-            document.getElementById('speaking-prompt-text').innerHTML = data.content.replace(/\n/g, '<br>');
+            document.getElementById('speaking-prompt-text').innerHTML = `<strong>${data.title}</strong><br><br>${data.content.replace(/\n/g, '<br>')} <br><br><a href="${data.source_link}" target="_blank" style="font-size:0.85em; color:#3498db;"><i class="fas fa-link"></i> Nguồn tham khảo</a>`;
+            document.getElementById('speaking-prompt-image').classList.add('hidden');
         } else {
+            document.getElementById('writing-question-grid-container').classList.add('hidden');
             document.getElementById('active-writing-prompt-box').classList.remove('hidden');
-            document.getElementById('writing-prompt-text').innerHTML = data.content.replace(/\n/g, '<br>');
+            document.getElementById('writing-prompt-text').innerHTML = `<strong>${data.title}</strong><br><br>${data.content.replace(/\n/g, '<br>')} <br><br><a href="${data.source_link}" target="_blank" style="font-size:0.85em; color:#3498db;"><i class="fas fa-link"></i> Nguồn tham khảo</a>`;
+            document.getElementById('writing-prompt-image').classList.add('hidden');
             preloadHintsLogic();
         }
         startTimer();
     } else {
-        currentPrompt.innerHTML = '<span style="color:red;">Có lỗi rồi. Vui lòng thử lại.</span>';
+        alert('Lỗi tạo đề ngẫu nhiên. Vui lòng thử lại!');
     }
 });
