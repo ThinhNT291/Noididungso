@@ -64,6 +64,7 @@ let cachedWritingHints = null;
 let isPreloadingHints = false;
 let systemQuestions = { speaking: [], writing: [] }; 
 let currentSelectedGroup = null; 
+let cachedWritingHintsError = null;
 
 let mediaRecorder, audioChunks = [], audioCtx, analyser, animationId;
 let currentAudioBase64 = null;
@@ -188,16 +189,14 @@ btnApplyCustom.addEventListener('click', async () => {
     btnApplyCustom.disabled = false;
     customPromptArea.classList.add('hidden');
     
-    // Dọn dẹp giao diện cũ
     document.getElementById('speaking-tabs').innerHTML = '';
     document.getElementById('writing-tabs').innerHTML = '';
-    speakingMindmapArea.classList.add('hidden'); // Giấu mindmap cũ
+    speakingMindmapArea.classList.add('hidden');
     preWritingArea?.classList.add('hidden');
 
     if(currentSkill === 'speaking') {
         speakingQuestionGrid.querySelectorAll('.q-btn').forEach(b => b.classList.remove('active'));
         activeSpeakingPromptBox.classList.remove('hidden');
-        // Sử dụng marked để ép định dạng
         speakingPromptText.innerHTML = marked.parse(finalPromptText);
         
         const spkImage = document.getElementById('speaking-prompt-image');
@@ -213,7 +212,7 @@ btnApplyCustom.addEventListener('click', async () => {
         
         preloadHintsLogic();
     }
-    startPrepTimer(); // Chạy đồng hồ 60s
+    startPrepTimer(); 
 });
 
 async function callBackendAPI(payload, loadingMessage, isMainAssessment = true) {
@@ -275,7 +274,7 @@ function renderGrid(container, groupedArray, skillType) {
 }
 
 function selectQuestion(skillType, index, btnElem) {
-    resetWorkspace(skillType); // Xóa sạch dữ liệu cũ
+    resetWorkspace(skillType); 
     
     const gridContainer = skillType === 'speaking' ? speakingQuestionGrid : writingQuestionGrid;
     gridContainer.querySelectorAll('.q-btn').forEach(b => b.classList.remove('active'));
@@ -283,7 +282,6 @@ function selectQuestion(skillType, index, btnElem) {
 
     currentSelectedGroup = systemQuestions[skillType][index];
     
-    // Đóng gói toàn bộ Text của ĐỀ để Gợi ý Writing đọc hiểu bối cảnh
     activePromptData = { 
         text: currentSelectedGroup.parts.map(p => `[${p.partName}]\n${p.content}`).join('\n\n'), 
         image: null 
@@ -299,11 +297,11 @@ function selectQuestion(skillType, index, btnElem) {
     } else {
         activeWritingPromptBox.classList.remove('hidden');
         writingPromptImage.classList.add('hidden');
-        preloadHintsLogic(); // Fix lỗi gợi ý bị liệt: Chỉ load 1 lần khi chọn Đề
+        preloadHintsLogic(); 
     }
     
     switchTab(skillType, 0);
-    startPrepTimer(); // Chạy 60s
+    startPrepTimer(); 
 }
 
 window.switchTab = (skillType, partIndex) => {
@@ -339,11 +337,10 @@ function drawMindmapToSVG(markdownText, svgElement) {
         const { Transformer, Markmap } = window.markmap;
         const transformer = new Transformer();
         const { root } = transformer.transform(markdownText);
-        // Chỉnh options để các nhánh giãn xa nhau
         Markmap.create(svgElement, { 
             autoFit: true, 
-            spacingHorizontal: 120, // Kéo dài các nhánh con
-            spacingVertical: 40     // Tăng khoảng cách các nút trên dưới
+            spacingHorizontal: 120,
+            spacingVertical: 40
         }, root);
     } catch (err) {
         svgElement.innerHTML = `<text x="10" y="20" fill="red">Lỗi vẽ Sơ đồ: ${err.message}</text>`;
@@ -361,7 +358,7 @@ function startPrepTimer() {
     
     prepTimerBanner.classList.remove('hidden');
     prepTimeDisplay.textContent = prepTimeRemaining;
-    updateMainTimerUI(true); // Trả đồng hồ chính về trạng thái ban đầu
+    updateMainTimerUI(true); 
     
     prepInterval = setInterval(() => {
         prepTimeRemaining--;
@@ -369,13 +366,13 @@ function startPrepTimer() {
         if (prepTimeRemaining <= 0) {
             clearInterval(prepInterval);
             prepTimerBanner.classList.add('hidden');
-            startMainTimer(); // Hết 60s tự động nhảy sang tính giờ làm bài
+            startMainTimer(); 
         }
     }, 1000);
 }
 
 function startMainTimer() {
-    if (isMainRunning) return; // Nếu đang chạy rồi thì bỏ qua
+    if (isMainRunning) return; 
     clearInterval(prepInterval);
     prepTimerBanner.classList.add('hidden');
     isMainRunning = true;
@@ -410,10 +407,6 @@ function updateMainTimerUI(reset = false) {
 // ==========================================
 // 5. GỢI Ý & SOẠN THẢO (WRITING)
 // ==========================================
-// ==========================================
-// 5. GỢI Ý & SOẠN THẢO (WRITING)
-// ==========================================
-let cachedWritingHintsError = null; // Thêm biến lưu lỗi
 
 async function preloadHintsLogic() {
     cachedWritingHints = null;
@@ -428,7 +421,8 @@ async function preloadHintsLogic() {
         language: langSelect.options[langSelect.selectedIndex].text, 
         level: levelSelect.options[levelSelect.selectedIndex].text,
         promptText: activePromptData.text, 
-        promptImage: activePromptData.image };
+        promptImage: activePromptData.image 
+    };
     
     try {
         const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
@@ -437,7 +431,7 @@ async function preloadHintsLogic() {
         if (result.success) {
             cachedWritingHints = result.data;
         } else {
-            cachedWritingHintsError = result.error; // Bắt lỗi từ Google
+            cachedWritingHintsError = result.error; 
         }
     } catch (err) { 
         cachedWritingHintsError = "Mất kết nối API: " + err.message;
@@ -471,24 +465,10 @@ btnShowHints.addEventListener('click', () => {
     } else if (cachedWritingHints) {
         renderHintsToModal(cachedWritingHints);
     } else {
-        // HIỂN THỊ LỖI CHI TIẾT RA MÀN HÌNH
         hintsModalBody.innerHTML = `<span style="color:red; font-weight:bold;">Lỗi gợi ý: ${cachedWritingHintsError || "Hệ thống AI không phản hồi đúng định dạng JSON."}</span><br><br><small style="color:#7f8c8d;">Hãy thử chọn lại đề bài hoặc tải lại trang.</small>`;
     }
 });
 
-btnShowHints.addEventListener('click', () => {
-    hintsModal.classList.remove('hidden');
-    if (isPreloadingHints) {
-        hintsModalBody.innerHTML = '<div style="text-align:center; padding: 30px;"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
-    } else if (cachedWritingHints) {
-        renderHintsToModal(cachedWritingHints);
-    } else {
-        // HIỂN THỊ LỖI CHI TIẾT RA MÀN HÌNH
-        hintsModalBody.innerHTML = `<span style="color:red; font-weight:bold;">Lỗi gợi ý: ${cachedWritingHintsError || "Hệ thống AI không phản hồi đúng định dạng JSON."}</span><br><br><small style="color:#7f8c8d;">Hãy thử chọn lại đề bài hoặc tải lại trang.</small>`;
-    }
-});
-
-// 👇 BỔ SUNG LẠI CHỨC NĂNG CHO NÚT MINDMAP 👇
 btnShowMindmap.addEventListener('click', () => {
     preWritingArea.classList.remove('hidden');
     if (isPreloadingHints) {
@@ -499,25 +479,53 @@ btnShowMindmap.addEventListener('click', () => {
         mindmapSvg.innerHTML = '<text x="20" y="30" fill="red">Chưa có dữ liệu Sơ đồ. Hãy thử lấy Gợi ý lại.</text>';
     }
 });
-// 👆 ========================================= 👆
 
 closeModal.addEventListener('click', () => hintsModal.classList.add('hidden'));
 
-// 👇 BỔ SUNG CHỨC NĂNG TẮT POPUP BẰNG PHÍM ESC 👇
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
         document.querySelectorAll('.modal').forEach(modal => modal.classList.add('hidden'));
     }
 });
-// 👆 ========================================== 👆
-closeModal.addEventListener('click', () => hintsModal.classList.add('hidden'));
+
+// Sự kiện cho hộp nhập liệu và nộp bài Writing
+writingInput.addEventListener('input', () => {
+    const text = writingInput.value.trim();
+    const words = text.length === 0 ? 0 : text.split(/\s+/).length;
+    wordCountDisplay.innerHTML = `<i class="fas fa-pen-nib"></i> Số từ: ${words}`;
+    wordCountDisplay.className = words < 120 ? 'word-count-warning' : 'word-count-good';
+});
+
+btnClearWriting.addEventListener('click', () => {
+    if(confirm("Xóa toàn bộ bài viết hiện tại?")) {
+        writingInput.value = '';
+        writingInput.dispatchEvent(new Event('input'));
+    }
+});
+
+btnSubmitWriting.addEventListener('click', async () => {
+    const text = writingInput.value.trim();
+    if (text.length < 10) return alert("Bài viết quá ngắn!");
+    clearInterval(mainInterval); 
+    
+    const payload = {
+        action: 'evaluate_writing',
+        text: text,
+        language: langSelect.options[langSelect.selectedIndex].text,
+        level: levelSelect.options[levelSelect.selectedIndex].text,
+        promptText: activePromptData.text,
+        promptImage: activePromptData.image
+    };
+
+    const data = await callBackendAPI(payload, "Giám khảo AI đang chấm bài Viết...");
+    if (data) renderWritingAssessment(data);
+});
+
 // ==========================================
 // 6. MODULE SPEAKING 
 // ==========================================
 btnRecord.addEventListener('click', async () => {
     if (!activePromptData.text) return alert("Hãy chọn đề bài trước khi ghi âm!");
-    
-    // KHI BẤM GHI ÂM -> BẮT ĐẦU MAIN TIMER LUÔN
     startMainTimer();
 
     try {
@@ -659,7 +667,7 @@ function renderWritingAssessment(data) {
     if (btnSave) btnSave.classList.remove('hidden');
 }
 
-// Lưu lịch sử
+// LƯU LỊCH SỬ VÀ DRIVE
 if (btnSave) {
     btnSave.addEventListener('click', () => {
         if (!currentSessionData) return;
@@ -673,6 +681,20 @@ if (btnSave) {
         alert("Đã lưu bài!");
         btnSave.classList.add('hidden');
         loadHistory();
+
+        // LƯU NGẦM LÊN DRIVE
+        const fileContent = `BÀI TEST: ${title}\nNGÀY: ${dateStr}\n\nTRANSCRIPT:\n${currentSessionData.transcript || 'N/A'}\n\nĐIỂM SỐ:\nPhát âm/Task: ${currentSessionData.scores.pronunciation || currentSessionData.scores.task_achievement} | Trôi chảy/Coherence: ${currentSessionData.scores.fluency || currentSessionData.scores.coherence} | Từ vựng: ${currentSessionData.scores.vocabulary} | Ngữ pháp: ${currentSessionData.scores.grammar}\n\nĐÁNH GIÁ ĐIỂM MẠNH:\n${(currentSessionData.analysis?.strengths || []).join('\n')}\n\nĐÁNH GIÁ ĐIỂM YẾU:\n${(currentSessionData.analysis?.weaknesses || []).join('\n')}\n\nNHẬN XÉT TỔNG QUAN:\n${currentSessionData.feedback || 'Xem chi tiết trên web.'}`;
+        const safeDate = dateStr.replace(/[\/:]/g, '-').replace(/ /g, '_');
+        const filename = `${prefix}_${safeDate}_${Date.now()}.txt`;
+        const drivePayload = { action: 'save_to_drive', filename: filename, content: fileContent };
+
+        fetch(GAS_WEB_APP_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(drivePayload) }).catch(err => console.log("Lưu Drive ngầm thất bại:", err)); 
+
+        if (currentSessionData.type === 'speaking' && currentAudioBase64) {
+            const audioFilename = `[Audio]_${safeDate}_${Date.now()}.webm`;
+            const driveAudioPayload = { action: 'save_to_drive', filename: audioFilename, content: currentAudioBase64, isAudio: true };
+            fetch(GAS_WEB_APP_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(driveAudioPayload) }).catch(err => console.log("Lưu Audio ngầm thất bại:", err));
+        }
     });
 }
 
@@ -708,10 +730,10 @@ function resetWorkspace(skill) {
 
     if (skill === 'speaking') {
         audioChunks = []; currentAudioBase64 = null; audioPlayback.classList.add('hidden');
-        speakingMindmapArea.classList.add('hidden'); // Fix lỗi bóng ma
+        speakingMindmapArea.classList.add('hidden'); 
     } else {
         writingInput.value = ''; writingInput.dispatchEvent(new Event('input'));
-        preWritingArea?.classList.add('hidden'); // Fix lỗi bóng ma
+        preWritingArea?.classList.add('hidden'); 
     }
 }
 
@@ -726,13 +748,13 @@ function setupFreeMode(skill) {
     if (skill === 'speaking') {
         document.getElementById('speaking-question-grid-container').classList.add('hidden');
         document.getElementById('active-speaking-prompt-box').classList.remove('hidden');
-        document.getElementById('speaking-tabs').innerHTML = ''; // Clear tabs
+        document.getElementById('speaking-tabs').innerHTML = ''; 
         speakingPromptText.innerHTML = marked.parse("🎤 **Chế độ Nói Tự Do:** Bấm Ghi âm để bắt đầu tính giờ làm bài!");
         document.getElementById('speaking-prompt-image').classList.add('hidden');
     } else {
         document.getElementById('writing-question-grid-container').classList.add('hidden');
         document.getElementById('active-writing-prompt-box').classList.remove('hidden');
-        document.getElementById('writing-tabs').innerHTML = ''; // Clear tabs
+        document.getElementById('writing-tabs').innerHTML = ''; 
         writingPromptText.innerHTML = marked.parse("✍️ **Chế độ Viết Tự Do:** Gõ bài viết của bạn bên dưới, hệ thống sẽ tự bắt đầu tính giờ.");
         document.getElementById('writing-prompt-image').classList.add('hidden');
         btnShowHints.disabled = true; 
