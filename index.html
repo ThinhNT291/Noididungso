@@ -136,28 +136,25 @@
                     </div>
                 </div>
 
-                <!-- HIỂN THỊ ĐỀ BÀI ĐANG CHỌN -->
+ <!-- HIỂN THỊ ĐỀ BÀI ĐANG CHỌN (WRITING) -->
                 <div id="active-writing-prompt-box" class="content-box hidden" style="border-left: 4px solid #8e44ad;">
                     <h4 style="color: #8e44ad; margin-bottom: 10px;"><i class="fas fa-file-alt"></i> Đề bài hiện tại:</h4>
-                 <!-- THÊM HỘP CHỨA TAB VÀO ĐÂY -->
                     <div id="writing-tabs" class="tabs-container"></div>
-                    <div id="writing-prompt-text" class="preserve-format" style="font-size: 1.1em; line-height: 1.5;"></div>
                     <div id="writing-prompt-text" class="preserve-format" style="font-size: 1.1em; line-height: 1.5;"></div>
                     <img id="writing-prompt-image" src="" class="hidden" style="max-width: 100%; border-radius: 8px; margin-top: 10px;">
                     
-                    <div style="display: flex; gap: 10px; margin-top: 15px;">
-                        <button id="btn-redo-writing" class="btn" style="background: #95a5a6; color: white;"><i class="fas fa-redo"></i> Làm lại đề này</button>
-                        <button id="btn-new-writing" class="btn" style="background: #34495e; color: white;"><i class="fas fa-list"></i> Chọn đề khác</button>
+                    <!-- BẢNG ĐIỀU KHIỂN (4 NÚT CÙNG 1 HÀNG) -->
+                    <div style="display: flex; gap: 8px; margin-top: 15px; flex-wrap: wrap;">
+                        <button id="btn-redo-writing" class="btn" style="background: #95a5a6; color: white; flex: 1; padding: 8px; font-size: 13px;"><i class="fas fa-redo"></i> Làm lại</button>
+                        <button id="btn-new-writing" class="btn" style="background: #34495e; color: white; flex: 1; padding: 8px; font-size: 13px;"><i class="fas fa-list"></i> Đề khác</button>
+                        <button id="btn-show-hints" class="btn" style="background-color: #f39c12; color: white; flex: 1; padding: 8px; font-size: 13px;" disabled><i class="fas fa-lightbulb"></i> Gợi ý</button>
+                        <button id="btn-show-mindmap" class="btn" style="background-color: #8e44ad; color: white; flex: 1; padding: 8px; font-size: 13px;" disabled><i class="fas fa-project-diagram"></i> Mindmap</button>
                     </div>
                 </div>
-
-                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                    <button id="btn-show-hints" class="btn" style="background-color: #f39c12; color: white; flex: 1;" disabled><i class="fas fa-lightbulb"></i> Phân tích & Gợi ý (Popup)</button>
-                    <button id="btn-show-mindmap" class="btn" style="background-color: #8e44ad; color: white; flex: 1;" disabled><i class="fas fa-project-diagram"></i> Vẽ Sơ đồ tư duy</button>
-                </div>
                 
-                <div id="pre-writing-area" class="hidden content-box" style="border-left: 4px solid #8e44ad;">
-                    <h4 style="color: #8e44ad; margin-bottom: 10px;">Sơ đồ tư duy (Mindmap)</h4>
+                <!-- KHU VỰC VẼ SƠ ĐỒ WRITING -->
+                <div id="pre-writing-area" class="hidden content-box" style="border-left: 4px solid #8e44ad; margin-bottom: 15px;">
+                    <h4 style="color: #8e44ad; margin-bottom: 10px;"><i class="fas fa-sitemap"></i> Sơ đồ tư duy (Mindmap)</h4>
                     <svg id="mindmap-svg" style="width: 100%; height: 350px; background: #fff; border: 1px solid #ccc; border-radius: 8px;"></svg>
                 </div>
 
