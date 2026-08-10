@@ -614,6 +614,8 @@ function loadHistory() {
             <div class="history-title">${item.title}<br><small style="color:#7f8c8d; font-weight:normal;">${item.date}</small></div>
             <i class="fas fa-ellipsis-v history-actions" onclick="toggleMenu(${item.id})"></i>
             <div class="action-menu" id="menu-${item.id}">
+                <button onclick="downloadItem(${item.id})"><i class="fas fa-download"></i> Tải về</button>
+                <button onclick="shareItem(${item.id})"><i class="fas fa-share"></i> Chia sẻ</button>
                 <button onclick="deleteItem(${item.id})" style="color:red;"><i class="fas fa-trash"></i> Xóa</button>
             </div>
         `;
@@ -685,3 +687,36 @@ document.getElementById('btn-new-writing')?.addEventListener('click', () => {
     document.getElementById('active-writing-prompt-box').classList.add('hidden');
     document.getElementById('writing-question-grid-container').classList.remove('hidden');
 });
+// Đóng mọi Popup bằng phím ESC
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        document.querySelectorAll('.modal').forEach(modal => modal.classList.add('hidden'));
+    }
+});
+
+window.downloadItem = (id) => {
+    let history = JSON.parse(localStorage.getItem('aiTestHistory')) || [];
+    const item = history.find(i => i.id === id);
+    if (!item) return;
+
+    const content = `BÀI TEST: ${item.title}\nNGÀY: ${item.date}\n\nTRANSCRIPT:\n${item.data.transcript || 'N/A'}\n\nĐIỂM SỐ:\nPhát âm/Task: ${item.data.scores.pronunciation || item.data.scores.task_achievement} | Trôi chảy/Coherence: ${item.data.scores.fluency || item.data.scores.coherence} | Từ vựng: ${item.data.scores.vocabulary} | Ngữ pháp: ${item.data.scores.grammar}\n\nNHẬN XÉT:\n${item.data.feedback || 'Xem chi tiết trên web.'}`;
+
+    const blob = new Blob([content], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `Ket_qua_${item.id}.txt`;
+    a.click();
+}
+
+window.shareItem = (id) => {
+    let history = JSON.parse(localStorage.getItem('aiTestHistory')) || [];
+    const item = history.find(i => i.id === id);
+    if (!item) return;
+    const shareText = `Tôi vừa hoàn thành bài kiểm tra ${item.title} trên AI EdTech. Điểm Từ vựng: ${item.data.scores.vocabulary}/10, Ngữ pháp: ${item.data.scores.grammar}/10!`;
+    if (navigator.share) {
+        navigator.share({ title: 'Kết quả AI Test', text: shareText }).catch(console.error);
+    } else {
+        navigator.clipboard.writeText(shareText);
+        alert("Đã copy vào Clipboard!");
+    }
+}
