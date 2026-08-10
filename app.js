@@ -158,17 +158,56 @@ customPromptImage.addEventListener('change', function(e) {
     }
 });
 
-btnApplyCustom.addEventListener('click', () => {
+btnApplyCustom.addEventListener('click', async () => {
     const text = customPromptText.value.trim();
     if (!text && !customImageBase64) return alert("Vui lòng nhập chữ hoặc up ảnh!");
     
-    activePromptData = { text: text, image: customImageBase64 };
+    // Đổi UI sang trạng thái chờ AI đọc ảnh
+    const originalBtnHtml = btnApplyCustom.innerHTML;
     
+    let finalPromptText = text;
+
+    // NẾU CÓ ẢNH -> GỌI AI PHÂN TÍCH ẢNH TRƯỚC TIÊN
+    if (customImageBase64) {
+        btnApplyCustom.innerHTML = '<i class="fas fa-spinner fa-spin"></i> AI đang phân tích ảnh...';
+        btnApplyCustom.disabled = true;
+        
+        const payload = {
+            action: 'analyze_image_prompt',
+            image: customImageBase64
+        };
+        try {
+            const response = await fetch(GAS_WEB_APP_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(payload)
+            });
+            const result = await response.json();
+            
+            // Nếu AI đọc thành công, gộp text người dùng nhập (nếu có) với kết quả AI đọc được
+            if (result.success && result.data && result.data.extracted_prompt) {
+                finalPromptText = text ? `${text}\n\n[AI Phân tích ảnh]:\n${result.data.extracted_prompt}` : `[AI Phân tích ảnh]:\n${result.data.extracted_prompt}`;
+            }
+        } catch (err) {
+            console.error("Lỗi phân tích ảnh:", err);
+            alert("Không thể phân tích ảnh lúc này, hệ thống sẽ sử dụng ảnh gốc.");
+        }
+    }
+
+    // Gán dữ liệu đề bài chính thức
+    activePromptData = { text: finalPromptText, image: customImageBase64 };
+    
+    // Phục hồi nút bấm
+    btnApplyCustom.innerHTML = originalBtnHtml;
+    btnApplyCustom.disabled = false;
+    customPromptArea.classList.add('hidden');
+    
+    // Đẩy dữ liệu lên giao diện
     if(currentSkill === 'speaking') {
         speakingQuestionGrid.querySelectorAll('.q-btn').forEach(b => b.classList.remove('active'));
         activeSpeakingPromptBox.classList.remove('hidden');
-        speakingPromptText.innerHTML = text.replace(/\n/g, '<br>');
-        // --- BỔ SUNG ĐOẠN NÀY ĐỂ HIỆN ẢNH BÊN SPEAKING ---
+        speakingPromptText.innerHTML = finalPromptText.replace(/\n/g, '<br>');
+        
         const spkImage = document.getElementById('speaking-prompt-image');
         if (customImageBase64) {
             spkImage.src = customImageBase64;
@@ -176,11 +215,10 @@ btnApplyCustom.addEventListener('click', () => {
         } else {
             spkImage.classList.add('hidden');
         }
-        // --------------------------------------------------
     } else {
         writingQuestionGrid.querySelectorAll('.q-btn').forEach(b => b.classList.remove('active')); 
         activeWritingPromptBox.classList.remove('hidden');
-        writingPromptText.innerHTML = text.replace(/\n/g, '<br>');
+        writingPromptText.innerHTML = finalPromptText.replace(/\n/g, '<br>');
         
         if (customImageBase64) {
             writingPromptImage.src = customImageBase64;
@@ -190,7 +228,6 @@ btnApplyCustom.addEventListener('click', () => {
         }
         preloadHintsLogic();
     }
-    customPromptArea.classList.add('hidden');
     startTimer();
 });
 
