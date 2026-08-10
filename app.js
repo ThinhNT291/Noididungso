@@ -29,6 +29,8 @@ const btnStop = document.getElementById('btn-stop');
 const audioPlayback = document.getElementById('audio-playback');
 const canvas = document.getElementById('audio-visualizer');
 const canvasCtx = canvas.getContext('2d');
+const speakingMindmapArea = document.getElementById('speaking-mindmap-area');
+const speakingMindmapSvg = document.getElementById('speaking-mindmap-svg');
 
 // Writing DOM
 const writingQuestionGrid = document.getElementById('writing-question-grid');
@@ -255,72 +257,96 @@ async function callBackendAPI(payload, loadingMessage, isMainAssessment = true) 
 }
 
 // ==========================================
-// 3. LOAD GRID ĐỀ BÀI TỪ GAS
+// 3. LOAD GRID ĐỀ BÀI (HỖ TRỢ CHIA PART VSTEP)
 // ==========================================
 async function fetchQuestionsFromGAS() {
     try {
-        const response = await fetch(GAS_WEB_APP_URL + "?action=get_questions", {
-            method: "GET",
-            redirect: "follow"
-        });
-        
+        const response = await fetch(GAS_WEB_APP_URL + "?action=get_questions", { method: "GET", redirect: "follow" });
         const contentType = response.headers.get("content-type");
-        if (contentType && contentType.indexOf("text/html") !== -1) {
-            throw new Error("Google trả về trang HTML. Lỗi Deploy GAS hoặc URL bị sai.");
-        }
+        if (contentType && contentType.indexOf("text/html") !== -1) throw new Error("Google trả về trang HTML. Lỗi Deploy GAS.");
 
         const result = await response.json();
         
-        speakingQuestionGrid.innerHTML = ''; 
-        writingQuestionGrid.innerHTML = '';
-
         if(result.success) {
             systemQuestions = result.data; 
-            
-            if (systemQuestions.speaking && systemQuestions.speaking.length > 0) {
-                systemQuestions.speaking.forEach((q, index) => {
-                    let btn = document.createElement('button');
-                    btn.className = 'q-btn';
-                    btn.innerHTML = q.title;
-                    btn.onclick = () => selectQuestion('speaking', index, btn);
-                    speakingQuestionGrid.appendChild(btn);
-                });
-            } else {
-                speakingQuestionGrid.innerHTML = '<span style="color:#7f8c8d;">Chưa có đề Speaking.</span>';
-            }
-
-            if (systemQuestions.writing && systemQuestions.writing.length > 0) {
-                systemQuestions.writing.forEach((q, index) => {
-                    let btn = document.createElement('button');
-                    btn.className = 'q-btn';
-                    btn.innerHTML = q.title;
-                    btn.onclick = () => selectQuestion('writing', index, btn);
-                    writingQuestionGrid.appendChild(btn);
-                });
-            } else {
-                writingQuestionGrid.innerHTML = '<span style="color:#7f8c8d;">Chưa có đề Writing.</span>';
-            }
+            renderGroupedGrid(speakingQuestionGrid, systemQuestions.speaking, 'speaking');
+            renderGroupedGrid(writingQuestionGrid, systemQuestions.writing, 'writing');
         } else {
             throw new Error(result.error);
         }
     } catch(e) {
-        console.error("Lỗi chi tiết:", e);
+        console.error("Lỗi:", e);
         speakingQuestionGrid.innerHTML = `<span style="color:#e74c3c;">Lỗi: ${e.message}</span>`;
         writingQuestionGrid.innerHTML = `<span style="color:#e74c3c;">Lỗi: ${e.message}</span>`;
     }
 }
 
+// Hàm hỗ trợ render Grid chia theo Part
+function renderGroupedGrid(container, questionsArray, skillType) {
+    container.innerHTML = '';
+    if (!questionsArray || questionsArray.length === 0) {
+        container.innerHTML = '<span style="color:#7f8c8d;">Chưa có dữ liệu.</span>';
+        return;
+    }
+
+    // Gom nhóm đề theo Part
+    const grouped = {};
+    questionsArray.forEach((q, idx) => {
+        if (!grouped[q.part]) grouped[q.part] = [];
+        grouped[q.part].push({ ...q, originalIndex: idx });
+    });
+
+    // Vẽ từng Part ra màn hình
+    for (const part in grouped) {
+        let partLabel = document.createElement('h5');
+        partLabel.style.cssText = 'margin: 15px 0 5px 0; color: #34495e; border-bottom: 1px solid #ccc; padding-bottom: 3px;';
+        partLabel.innerHTML = `<i class="fas fa-folder-open"></i> ${part}`;
+        container.appendChild(partLabel);
+
+        let grid = document.createElement('div');
+        grid.className = 'question-grid';
+        grouped[part].forEach(q => {
+            let btn = document.createElement('button');
+            btn.className = 'q-btn';
+            btn.innerHTML = q.title;
+            btn.onclick = () => selectQuestion(skillType, q.originalIndex, btn);
+            grid.appendChild(btn);
+        });
+        container.appendChild(grid);
+    }
+}
+
 function selectQuestion(skillType, index, btnElem) {
-    const grid = skillType === 'speaking' ? speakingQuestionGrid : writingQuestionGrid;
-    grid.querySelectorAll('.q-btn').forEach(b => b.classList.remove('active'));
+    const gridContainer = skillType === 'speaking' ? speakingQuestionGrid : writingQuestionGrid;
+    gridContainer.querySelectorAll('.q-btn').forEach(b => b.classList.remove('active'));
     btnElem.classList.add('active');
 
     const q = systemQuestions[skillType][index];
     activePromptData = { text: q.content, image: null };
     
+    // Tách phần text thông thường và phần Markdown (nếu có)
+    let displayText = q.content;
+    let hasMindmap = false;
+
+    // Kiểm tra xem đề bài có chứa định dạng Markdown không (dấu # )
+    if (q.content.includes('# ')) {
+        hasMindmap = true;
+        // Lấy đoạn text mô tả nằm trước thẻ Markdown đầu tiên
+        displayText = q.content.substring(0, q.content.indexOf('# ')).trim();
+    }
+
     if (skillType === 'speaking') {
         activeSpeakingPromptBox.classList.remove('hidden');
-        speakingPromptText.innerHTML = q.content.replace(/\n/g, '<br>');
+        speakingPromptText.innerHTML = displayText.replace(/\n/g, '<br>');
+        
+        if (hasMindmap) {
+            speakingMindmapArea.classList.remove('hidden');
+            let markdownContent = q.content.substring(q.content.indexOf('# '));
+            drawMindmapToSVG(markdownContent, speakingMindmapSvg);
+        } else {
+            speakingMindmapArea.classList.add('hidden');
+        }
+
     } else {
         activeWritingPromptBox.classList.remove('hidden');
         writingPromptText.innerHTML = q.content.replace(/\n/g, '<br>');
@@ -328,6 +354,19 @@ function selectQuestion(skillType, index, btnElem) {
         preloadHintsLogic();
     }
     startTimer();
+}
+
+// Tách riêng hàm vẽ Markmap để tái sử dụng cho cả Speaking và Writing
+function drawMindmapToSVG(markdownText, svgElement) {
+    svgElement.innerHTML = ''; 
+    try {
+        const { Transformer, Markmap } = window.markmap;
+        const transformer = new Transformer();
+        const { root } = transformer.transform(markdownText);
+        Markmap.create(svgElement, null, root);
+    } catch (err) {
+        svgElement.innerHTML = `<text x="10" y="20" fill="red">Lỗi vẽ Sơ đồ: ${err.message}</text>`;
+    }
 }
 
 // ==========================================
