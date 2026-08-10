@@ -423,7 +423,12 @@ async function preloadHintsLogic() {
     btnShowMindmap.disabled = false;
     btnShowHints.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang nạp Gợi ý ngầm...';
     
-    const payload = { action: 'get_writing_hints', language: langSelect.options[langSelect.selectedIndex].text, promptText: activePromptData.text, promptImage: activePromptData.image };
+    const payload = { 
+        action: 'get_writing_hints',
+        language: langSelect.options[langSelect.selectedIndex].text, 
+        level: levelSelect.options[levelSelect.selectedIndex].text,
+        promptText: activePromptData.text, 
+        promptImage: activePromptData.image };
     
     try {
         const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
