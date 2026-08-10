@@ -409,18 +409,34 @@ function updateMainTimerUI(reset = false) {
 // ==========================================
 // 5. GỢI Ý & SOẠN THẢO (WRITING)
 // ==========================================
+// ==========================================
+// 5. GỢI Ý & SOẠN THẢO (WRITING)
+// ==========================================
+let cachedWritingHintsError = null; // Thêm biến lưu lỗi
+
 async function preloadHintsLogic() {
     cachedWritingHints = null;
+    cachedWritingHintsError = null;
     isPreloadingHints = true;
     btnShowHints.disabled = false;
+    btnShowMindmap.disabled = false;
     btnShowHints.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang nạp Gợi ý ngầm...';
     
     const payload = { action: 'get_writing_hints', language: langSelect.options[langSelect.selectedIndex].text, promptText: activePromptData.text, promptImage: activePromptData.image };
+    
     try {
         const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
         const result = await response.json();
-        if (result.success) cachedWritingHints = result.data;
-    } catch (err) { console.error("Lỗi:", err); } 
+        
+        if (result.success) {
+            cachedWritingHints = result.data;
+        } else {
+            cachedWritingHintsError = result.error; // Bắt lỗi từ Google
+        }
+    } catch (err) { 
+        cachedWritingHintsError = "Mất kết nối API: " + err.message;
+        console.error("Lỗi:", err); 
+    } 
     finally {
         isPreloadingHints = false;
         btnShowHints.innerHTML = '<i class="fas fa-lightbulb"></i> Phân tích & Gợi ý (Popup)';
@@ -444,40 +460,17 @@ function renderHintsToModal(data) {
 
 btnShowHints.addEventListener('click', () => {
     hintsModal.classList.remove('hidden');
-    if (isPreloadingHints) hintsModalBody.innerHTML = '<div style="text-align:center; padding: 30px;"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
-    else if (cachedWritingHints) renderHintsToModal(cachedWritingHints);
-    else hintsModalBody.innerHTML = '<span style="color:red;">Lỗi gợi ý.</span>';
-});
-
-closeModal.addEventListener('click', () => hintsModal.classList.add('hidden'));
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden')); });
-
-writingInput.addEventListener('input', () => {
-    // KHI GÕ CHỮ TRONG WRITING -> BẮT ĐẦU TÍNH GIỜ MAIN TIMER
-    if (!isMainRunning && writingInput.value.length > 2) startMainTimer();
-
-    const text = writingInput.value.trim();
-    const words = text.length === 0 ? 0 : text.split(/\s+/).length;
-    wordCountDisplay.innerHTML = `<i class="fas fa-pen-nib"></i> Số từ: ${words}`;
-    wordCountDisplay.className = words < 120 ? 'word-count-warning' : 'word-count-good';
-});
-
-btnClearWriting.addEventListener('click', () => {
-    if(confirm("Xóa toàn bộ bài viết hiện tại?")) {
-        writingInput.value = '';
-        writingInput.dispatchEvent(new Event('input'));
+    if (isPreloadingHints) {
+        hintsModalBody.innerHTML = '<div style="text-align:center; padding: 30px;"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+    } else if (cachedWritingHints) {
+        renderHintsToModal(cachedWritingHints);
+    } else {
+        // HIỂN THỊ LỖI CHI TIẾT RA MÀN HÌNH
+        hintsModalBody.innerHTML = `<span style="color:red; font-weight:bold;">Lỗi gợi ý: ${cachedWritingHintsError || "Hệ thống AI không phản hồi đúng định dạng JSON."}</span><br><br><small style="color:#7f8c8d;">Hãy thử chọn lại đề bài hoặc tải lại trang.</small>`;
     }
 });
 
-btnSubmitWriting.addEventListener('click', async () => {
-    const text = writingInput.value.trim();
-    if (text.length < 10) return alert("Bài viết quá ngắn!");
-    clearInterval(mainInterval); 
-    const payload = { action: 'evaluate_writing', text: text, language: langSelect.options[langSelect.selectedIndex].text, level: levelSelect.options[levelSelect.selectedIndex].text, promptText: activePromptData.text, promptImage: activePromptData.image };
-    const data = await callBackendAPI(payload, "Giám khảo AI đang chấm bài Viết của bạn...");
-    if (data) renderWritingAssessment(data);
-});
-
+closeModal.addEventListener('click', () => hintsModal.classList.add('hidden'));
 // ==========================================
 // 6. MODULE SPEAKING 
 // ==========================================
