@@ -126,20 +126,16 @@ btnApplyCustom.addEventListener('click', () => {
 // ==========================================
 // 3. LOAD GRID ĐỀ BÀI TỪ GAS
 // ==========================================
-// ==========================================
-// 3. LOAD GRID ĐỀ BÀI TỪ GAS (CÓ BẪY LỖI CHI TIẾT)
-// ==========================================
 async function fetchQuestionsFromGAS() {
     try {
         const response = await fetch(GAS_WEB_APP_URL + "?action=get_questions", {
             method: "GET",
-            redirect: "follow" // Ép trình duyệt đi theo redirect của Google
+            redirect: "follow"
         });
         
-        // Kiểm tra nếu Google trả về một trang HTML (thường là trang báo lỗi bắt đăng nhập) thay vì JSON
         const contentType = response.headers.get("content-type");
         if (contentType && contentType.indexOf("text/html") !== -1) {
-            throw new Error("Google trả về trang HTML. Lỗi Deploy GAS (Chưa chọn Who has access: Anyone) hoặc URL bị sai.");
+            throw new Error("Google trả về trang HTML. Lỗi Deploy GAS hoặc URL bị sai.");
         }
 
         const result = await response.json();
@@ -150,7 +146,6 @@ async function fetchQuestionsFromGAS() {
         if(result.success) {
             systemQuestions = result.data; 
             
-            // Render Speaking Grid
             if (systemQuestions.speaking && systemQuestions.speaking.length > 0) {
                 systemQuestions.speaking.forEach((q, index) => {
                     let btn = document.createElement('button');
@@ -160,10 +155,9 @@ async function fetchQuestionsFromGAS() {
                     speakingQuestionGrid.appendChild(btn);
                 });
             } else {
-                speakingQuestionGrid.innerHTML = '<span style="color:#7f8c8d;">Chưa có đề Speaking trong Google Sheets.</span>';
+                speakingQuestionGrid.innerHTML = '<span style="color:#7f8c8d;">Chưa có đề Speaking.</span>';
             }
 
-            // Render Writing Grid
             if (systemQuestions.writing && systemQuestions.writing.length > 0) {
                 systemQuestions.writing.forEach((q, index) => {
                     let btn = document.createElement('button');
@@ -173,15 +167,13 @@ async function fetchQuestionsFromGAS() {
                     writingQuestionGrid.appendChild(btn);
                 });
             } else {
-                writingQuestionGrid.innerHTML = '<span style="color:#7f8c8d;">Chưa có đề Writing trong Google Sheets.</span>';
+                writingQuestionGrid.innerHTML = '<span style="color:#7f8c8d;">Chưa có đề Writing.</span>';
             }
         } else {
-            // In ra chính xác lỗi mà GAS gửi về
             throw new Error(result.error);
         }
     } catch(e) {
         console.error("Lỗi chi tiết:", e);
-        // Hiển thị trực tiếp lỗi lên màn hình để dễ bắt mạch
         speakingQuestionGrid.innerHTML = `<span style="color:#e74c3c;">Lỗi: ${e.message}</span>`;
         writingQuestionGrid.innerHTML = `<span style="color:#e74c3c;">Lỗi: ${e.message}</span>`;
     }
@@ -506,9 +498,16 @@ function renderSpeakingAssessment(data) {
         </ul>
         <h4 style="color:#8e44ad;"><i class="fas fa-route"></i> Lộ trình thăng cấp</h4>
         <ul style="padding-left: 20px; font-size: 0.95em; margin-bottom: 20px;">${data.how_to_improve.map(step => `<li>${step}</li>`).join('')}</ul>
+        
         <h4 style="color:#2980b9;"><i class="fas fa-magic"></i> Câu trả lời mẫu</h4>
         <p style="background:#eafaf1; padding: 15px; border-left: 4px solid #2980b9; border-radius: 4px; margin-bottom: 20px;">${data.better_version}</p>
-        <p><strong>Nhận xét chung:</strong> ${data.feedback}</p>
+        <p style="margin-bottom: 20px;"><strong>Nhận xét chung:</strong> ${data.feedback}</p>
+
+        ${data.reference_links && data.reference_links.length > 0 ? `
+        <h4 style="color:#2c3e50;"><i class="fas fa-link"></i> Nguồn tham khảo hữu ích</h4>
+        <ul style="padding-left: 20px; margin-bottom: 20px;">
+            ${data.reference_links.map(link => `<li><a href="${link.url}" target="_blank" style="color: #2980b9; text-decoration: none; font-weight: bold;">${link.title}</a></li>`).join('')}
+        </ul>` : ''}
     `;
     assessmentBox.innerHTML = html;
     currentSessionData = { type: 'speaking', ...data };
@@ -549,10 +548,12 @@ function renderWritingAssessment(data) {
         <p style="background:#eafaf1; padding: 15px; border-left: 4px solid #2980b9; border-radius: 4px; margin-bottom: 20px;">${data.better_versions.upgraded}</p>
         <h4 style="color:#f39c12;"><i class="fas fa-crown"></i> Bản Chuyên gia</h4>
         <p style="background:#fdf2e9; padding: 15px; border-left: 4px solid #f39c12; border-radius: 4px; margin-bottom: 20px;">${data.better_versions.expert}</p>
+        
+        ${data.reference_links && data.reference_links.length > 0 ? `
         <h4 style="color:#2c3e50;"><i class="fas fa-link"></i> Nguồn tham khảo hữu ích</h4>
         <ul style="padding-left: 20px; margin-bottom: 20px;">
             ${data.reference_links.map(link => `<li><a href="${link.url}" target="_blank" style="color: #2980b9; text-decoration: none; font-weight: bold;">${link.title}</a></li>`).join('')}
-        </ul>
+        </ul>` : ''}
     `;
     assessmentBox.innerHTML = html;
     currentSessionData = { type: 'writing', ...data };
@@ -612,3 +613,55 @@ window.deleteItem = (id) => {
         loadHistory();
     }
 }
+
+// Thiết lập Free Mode
+function setupFreeMode(skill) {
+    activePromptData = { text: "Hãy thực hiện bài kiểm tra một cách tự do không phụ thuộc vào đề bài cụ thể.", image: null };
+    if (skill === 'speaking') {
+        document.getElementById('speaking-question-grid-container').classList.add('hidden');
+        document.getElementById('active-speaking-prompt-box').classList.remove('hidden');
+        document.getElementById('speaking-prompt-text').textContent = "🎤 Chế độ Nói Tự Do: Bấm Ghi âm để bắt đầu!";
+        document.getElementById('speaking-prompt-image').classList.add('hidden');
+    } else {
+        document.getElementById('writing-question-grid-container').classList.add('hidden');
+        document.getElementById('active-writing-prompt-box').classList.remove('hidden');
+        document.getElementById('writing-prompt-text').textContent = "✍️ Chế độ Viết Tự Do: Gõ bài viết của bạn bên dưới.";
+        document.getElementById('writing-prompt-image').classList.add('hidden');
+        btnShowHints.disabled = true; 
+        btnShowMindmap.disabled = true;
+    }
+    startTimer();
+}
+
+document.getElementById('btn-free-speaking')?.addEventListener('click', () => setupFreeMode('speaking'));
+document.getElementById('btn-free-writing')?.addEventListener('click', () => setupFreeMode('writing'));
+
+function resetWorkspace(skill) {
+    clearInterval(timerInterval);
+    countdownDisplay.textContent = "00:00";
+    assessmentBox.innerHTML = '<span class="placeholder-text">Đợi một tý, kết quả phân tích chi tiết sẽ có ngay...</span>';
+    if(btnSave) btnSave.classList.add('hidden');
+
+    if (skill === 'speaking') {
+        audioChunks = [];
+        audioPlayback.classList.add('hidden');
+    } else {
+        writingInput.value = '';
+        writingInput.dispatchEvent(new Event('input'));
+        preWritingArea.classList.add('hidden');
+    }
+}
+
+document.getElementById('btn-redo-speaking')?.addEventListener('click', () => { resetWorkspace('speaking'); startTimer(); });
+document.getElementById('btn-redo-writing')?.addEventListener('click', () => { resetWorkspace('writing'); startTimer(); });
+
+document.getElementById('btn-new-speaking')?.addEventListener('click', () => {
+    resetWorkspace('speaking');
+    document.getElementById('active-speaking-prompt-box').classList.add('hidden');
+    document.getElementById('speaking-question-grid-container').classList.remove('hidden');
+});
+document.getElementById('btn-new-writing')?.addEventListener('click', () => {
+    resetWorkspace('writing');
+    document.getElementById('active-writing-prompt-box').classList.add('hidden');
+    document.getElementById('writing-question-grid-container').classList.remove('hidden');
+});
