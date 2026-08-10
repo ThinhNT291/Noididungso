@@ -168,6 +168,15 @@ btnApplyCustom.addEventListener('click', () => {
         speakingQuestionGrid.querySelectorAll('.q-btn').forEach(b => b.classList.remove('active'));
         activeSpeakingPromptBox.classList.remove('hidden');
         speakingPromptText.innerHTML = text.replace(/\n/g, '<br>');
+        // --- BỔ SUNG ĐOẠN NÀY ĐỂ HIỆN ẢNH BÊN SPEAKING ---
+        const spkImage = document.getElementById('speaking-prompt-image');
+        if (customImageBase64) {
+            spkImage.src = customImageBase64;
+            spkImage.classList.remove('hidden');
+        } else {
+            spkImage.classList.add('hidden');
+        }
+        // --------------------------------------------------
     } else {
         writingQuestionGrid.querySelectorAll('.q-btn').forEach(b => b.classList.remove('active')); 
         activeWritingPromptBox.classList.remove('hidden');
