@@ -653,10 +653,14 @@ if (btnSave) {
         if (!currentSessionData) return;
         let history = JSON.parse(localStorage.getItem('aiTestHistory')) || [];
         const prefix = currentSessionData.type === 'speaking' ? '[Nói]' : '[Viết]';
+        const title = `${prefix} ${activePromptData.text.substring(0, 30)}...`;
+        const dateStr = new Date().toLocaleString('vi-VN');
+        
+        // 1. Lưu vào LocalStorage (Web)
         const newItem = { 
             id: Date.now(), 
-            date: new Date().toLocaleString('vi-VN'), 
-            title: `${prefix} ${activePromptData.text.substring(0, 30)}...`,
+            date: dateStr, 
+            title: title,
             data: currentSessionData 
         };
         history.push(newItem);
@@ -664,6 +668,27 @@ if (btnSave) {
         alert("Đã lưu bài!");
         btnSave.classList.add('hidden');
         loadHistory();
+
+        // 2. LƯU NGẦM LÊN GOOGLE DRIVE
+        // Format nội dung file Text y như lúc tải về
+        const fileContent = `BÀI TEST: ${title}\nNGÀY: ${dateStr}\n\nTRANSCRIPT:\n${currentSessionData.transcript || 'N/A'}\n\nĐIỂM SỐ:\nPhát âm/Task: ${currentSessionData.scores.pronunciation || currentSessionData.scores.task_achievement} | Trôi chảy/Coherence: ${currentSessionData.scores.fluency || currentSessionData.scores.coherence} | Từ vựng: ${currentSessionData.scores.vocabulary} | Ngữ pháp: ${currentSessionData.scores.grammar}\n\nĐÁNH GIÁ ĐIỂM MẠNH:\n${(currentSessionData.analysis?.strengths || []).join('\n')}\n\nĐÁNH GIÁ ĐIỂM YẾU:\n${(currentSessionData.analysis?.weaknesses || []).join('\n')}\n\nNHẬN XÉT TỔNG QUAN:\n${currentSessionData.feedback || 'Xem chi tiết trên web.'}`;
+        
+        // Tạo tên file an toàn (Không chứa ký tự cấm như / hay :)
+        const safeDate = dateStr.replace(/[\/:]/g, '-').replace(/ /g, '_');
+        const filename = `${prefix}_${safeDate}_${Date.now()}.txt`;
+
+        const drivePayload = {
+            action: 'save_to_drive',
+            filename: filename,
+            content: fileContent
+        };
+
+        // Bắn API bằng fetch thông thường (không gọi hàm loading để người dùng không biết)
+        fetch(GAS_WEB_APP_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(drivePayload)
+        }).catch(err => console.log("Lưu Drive ngầm thất bại:", err)); // Lỗi thì chỉ báo log, web không sập
     });
 }
 
