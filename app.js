@@ -720,3 +720,32 @@ window.shareItem = (id) => {
         alert("Đã copy vào Clipboard!");
     }
 }
+
+// Nút Cào đề ngẫu nhiên
+document.getElementById('btn-random-prompt')?.addEventListener('click', async () => {
+    currentPrompt.innerHTML = '<span style="color:#27ae60;"><i class="fas fa-spinner fa-spin"></i> Đợi chút nhé...</span>';
+    
+    const payload = {
+        action: 'get_random_prompt',
+        language: langSelect.options[langSelect.selectedIndex].text,
+        skill: currentSkill
+    };
+    
+    const data = await callBackendAPI(payload, "Processing...", false);
+    if (data) {
+        activePromptData = { text: data.content, image: null };
+        currentPrompt.innerHTML = `<strong>Đề tự động:</strong> ${data.title} <a href="${data.source_link}" target="_blank" style="font-size:0.8em; color:#3498db;">[Nguồn]</a>`;
+        
+        if(currentSkill === 'speaking') {
+            document.getElementById('active-speaking-prompt-box').classList.remove('hidden');
+            document.getElementById('speaking-prompt-text').innerHTML = data.content.replace(/\n/g, '<br>');
+        } else {
+            document.getElementById('active-writing-prompt-box').classList.remove('hidden');
+            document.getElementById('writing-prompt-text').innerHTML = data.content.replace(/\n/g, '<br>');
+            preloadHintsLogic();
+        }
+        startTimer();
+    } else {
+        currentPrompt.innerHTML = '<span style="color:red;">Có lỗi rồi. Vui lòng thử lại.</span>';
+    }
+});
