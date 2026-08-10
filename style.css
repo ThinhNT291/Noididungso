@@ -263,9 +263,11 @@ h3 { font-size: 1.15em; }
 h4 { font-size: 1.05em; }
 .btn { font-size: 13.5px; padding: 8px 12px; }
 
-/* --- GIỮ NGUYÊN ĐỊNH DẠNG ĐỀ BÀI (XUỐNG DÒNG, DẤU CÁCH) --- */
+/* --- LÀM ĐẸP ĐỊNH DẠNG TEXT CỦA MARKDOWN & CHỐNG TRÀN --- */
 .preserve-format {
-    white-space: pre-wrap; /* Quan trọng: Giữ lại mọi dấu Enter từ Google Sheets */
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
     font-size: 1.05em;
     line-height: 1.6;
     color: #2c3e50;
@@ -274,6 +276,10 @@ h4 { font-size: 1.05em; }
     border-radius: 6px;
     border: 1px solid #eee;
 }
+
+.preserve-format p { margin-bottom: 10px; }
+.preserve-format ul, .preserve-format ol { margin-left: 20px; margin-bottom: 10px; }
+.preserve-format strong { color: #d35400; }
 
 /* --- CUSTOM UPLOAD BUTTON --- */
 .custom-file-upload {
