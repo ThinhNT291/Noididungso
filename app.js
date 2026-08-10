@@ -752,10 +752,11 @@ document.getElementById('btn-random-prompt')?.addEventListener('click', async ()
     
     if (resultSection) resultSection.classList.add('hidden');
     
-    const payload = {
+const payload = {
         action: 'get_random_prompt',
         language: langSelect.options[langSelect.selectedIndex].text,
-        skill: currentSkill
+        skill: currentSkill,
+        level: levelSelect.options[levelSelect.selectedIndex].text // Truyền cấp độ lên AI
     };
     
     const data = await callBackendAPI(payload, "Đang cào dữ liệu...", false);
