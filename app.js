@@ -476,6 +476,40 @@ btnShowHints.addEventListener('click', () => {
     }
 });
 
+btnShowHints.addEventListener('click', () => {
+    hintsModal.classList.remove('hidden');
+    if (isPreloadingHints) {
+        hintsModalBody.innerHTML = '<div style="text-align:center; padding: 30px;"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+    } else if (cachedWritingHints) {
+        renderHintsToModal(cachedWritingHints);
+    } else {
+        // HIỂN THỊ LỖI CHI TIẾT RA MÀN HÌNH
+        hintsModalBody.innerHTML = `<span style="color:red; font-weight:bold;">Lỗi gợi ý: ${cachedWritingHintsError || "Hệ thống AI không phản hồi đúng định dạng JSON."}</span><br><br><small style="color:#7f8c8d;">Hãy thử chọn lại đề bài hoặc tải lại trang.</small>`;
+    }
+});
+
+// 👇 BỔ SUNG LẠI CHỨC NĂNG CHO NÚT MINDMAP 👇
+btnShowMindmap.addEventListener('click', () => {
+    preWritingArea.classList.remove('hidden');
+    if (isPreloadingHints) {
+        mindmapSvg.innerHTML = '<text x="20" y="30" fill="#f39c12">Đang nạp dữ liệu Mindmap...</text>';
+    } else if (cachedWritingHints && cachedWritingHints.mindmap_markdown) {
+        drawMindmapToSVG(cachedWritingHints.mindmap_markdown, mindmapSvg);
+    } else {
+        mindmapSvg.innerHTML = '<text x="20" y="30" fill="red">Chưa có dữ liệu Sơ đồ. Hãy thử lấy Gợi ý lại.</text>';
+    }
+});
+// 👆 ========================================= 👆
+
+closeModal.addEventListener('click', () => hintsModal.classList.add('hidden'));
+
+// 👇 BỔ SUNG CHỨC NĂNG TẮT POPUP BẰNG PHÍM ESC 👇
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        document.querySelectorAll('.modal').forEach(modal => modal.classList.add('hidden'));
+    }
+});
+// 👆 ========================================== 👆
 closeModal.addEventListener('click', () => hintsModal.classList.add('hidden'));
 // ==========================================
 // 6. MODULE SPEAKING 
