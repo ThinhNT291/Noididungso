@@ -322,3 +322,28 @@ h4 { font-size: 1.05em; }
     background: var(--primary-color);
     color: white;
 }
+
+
+
+/* --- ĐỒNG HỒ CHUẨN BỊ 60 GIÂY --- */
+#prep-timer-banner {
+    background: linear-gradient(135deg, #f39c12, #e67e22);
+    color: white;
+    text-align: center;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: bold;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 10px rgba(230, 126, 34, 0.3);
+    animation: slideDownFade 0.5s ease-out;
+}
+
+@keyframes slideDownFade {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- LÀM ĐẸP ĐỊNH DẠNG TEXT CỦA MARKDOWN --- */
+.preserve-format p { margin-bottom: 10px; }
+.preserve-format ul, .preserve-format ol { margin-left: 20px; margin-bottom: 10px; }
+.preserve-format strong { color: #d35400; } /* Làm nổi bật chữ in đậm */
