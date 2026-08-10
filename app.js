@@ -49,6 +49,7 @@ const wordCountDisplay = document.getElementById('word-count');
 const btnSubmitWriting = document.getElementById('btn-submit-writing');
 const btnClearWriting = document.getElementById('btn-clear-writing');
 const btnShowHints = document.getElementById('btn-show-hints');
+const btnShowMindmap = document.getElementById('btn-show-mindmap');
 const preWritingArea = document.getElementById('pre-writing-area');
 const mindmapSvg = document.getElementById('mindmap-svg');
 const hintsModal = document.getElementById('hints-modal');
