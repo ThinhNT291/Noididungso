@@ -184,11 +184,11 @@ h2, h3 { margin-bottom: 15px; color: #2c3e50; }
 }
 
 /* --- GIAO DIỆN POPUP (MODAL) HINTS --- */
+/* --- GIAO DIỆN POPUP (MODAL) HINTS --- */
 .modal {
     position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%;
-    background-color: rgba(0,0,0,0.5);
+    background-color: rgba(0,0,0,0.6); /* Nền đen đậm, KHÔNG dùng blur */
     display: flex; align-items: center; justify-content: center;
-    backdrop-filter: blur(3px); /* Làm mờ nền */
 }
 
 .modal.hidden { display: none !important; }
@@ -276,11 +276,6 @@ h4 { font-size: 1.05em; }
     border-radius: 6px;
     border: 1px solid #eee;
 }
-
-.preserve-format p { margin-bottom: 10px; }
-.preserve-format ul, .preserve-format ol { margin-left: 20px; margin-bottom: 10px; }
-.preserve-format strong { color: #d35400; }
-
 /* --- CUSTOM UPLOAD BUTTON --- */
 .custom-file-upload {
     display: block;
