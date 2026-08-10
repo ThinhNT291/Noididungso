@@ -9,6 +9,7 @@
     <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
     <script src="https://cdn.jsdelivr.net/npm/markmap-view"></script>
     <script src="https://cdn.jsdelivr.net/npm/markmap-lib"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -70,8 +71,11 @@
 
         <!-- CỘT GIỮA: KHÔNG GIAN LÀM VIỆC -->
         <main class="main-content">
+            <div id="prep-timer-banner" class="hidden">
+                <i class="fas fa-stopwatch"></i> Thời gian chuẩn bị: <span id="prep-time-display" style="font-size: 1.2em; font-weight: 900;">60</span> giây
+            </div>
             <div class="prompt-section">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
                     <h3>Không gian Luyện tập</h3>
                     <span id="countdown-display" style="font-size: 1.5em; font-weight: bold; color: #e74c3c; font-family: monospace;">00:00</span>
                 </div>
