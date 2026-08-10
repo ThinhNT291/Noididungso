@@ -256,3 +256,37 @@ h2, h3 { margin-bottom: 15px; color: #2c3e50; }
     border-color: var(--primary-color);
     box-shadow: 0 6px 12px rgba(74, 144, 226, 0.4);
 }
+/* --- TỔNG THỂ: THU NHỎ FONT CHỮ --- */
+body { font-size: 15px; }
+h2 { font-size: 1.3em; }
+h3 { font-size: 1.15em; }
+h4 { font-size: 1.05em; }
+.btn { font-size: 13.5px; padding: 8px 12px; }
+
+/* --- GIỮ NGUYÊN ĐỊNH DẠNG ĐỀ BÀI (XUỐNG DÒNG, DẤU CÁCH) --- */
+.preserve-format {
+    white-space: pre-wrap; /* Quan trọng: Giữ lại mọi dấu Enter từ Google Sheets */
+    font-size: 1.05em;
+    line-height: 1.6;
+    color: #2c3e50;
+    background: #fff;
+    padding: 15px;
+    border-radius: 6px;
+    border: 1px solid #eee;
+}
+
+/* --- CUSTOM UPLOAD BUTTON --- */
+.custom-file-upload {
+    display: block;
+    background: #bdc3c7;
+    color: #2c3e50;
+    text-align: center;
+    padding: 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    margin-bottom: 5px;
+    transition: 0.2s;
+}
+.custom-file-upload:hover { background: #95a5a6; color: white; }
+#image-file-name { font-size: 0.85em; color: #27ae60; text-align: center; font-style: italic; margin-bottom: 10px; }
