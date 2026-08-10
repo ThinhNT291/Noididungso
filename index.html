@@ -35,7 +35,8 @@
                         <option value="russian">Tiếng Nga</option>
                     </select>
                 </div>
-<div class="setting-group">
+
+                <div class="setting-group">
                     <label>Cấp độ mục tiêu:</label>
                     <select id="level-select">
                         <option value="A1-A2 (Beginner)">A1-A2 (Sơ cấp)</option>
@@ -74,8 +75,9 @@
             <div id="prep-timer-banner" class="hidden">
                 <i class="fas fa-stopwatch"></i> Thời gian chuẩn bị: <span id="prep-time-display" style="font-size: 1.2em; font-weight: 900;">60</span> giây
             </div>
+            
             <div class="prompt-section">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
                     <h3>Không gian Luyện tập</h3>
                     <span id="countdown-display" style="font-size: 1.5em; font-weight: bold; color: #e74c3c; font-family: monospace;">00:00</span>
                 </div>
@@ -96,22 +98,20 @@
                 <!-- HIỂN THỊ ĐỀ BÀI ĐANG CHỌN -->
                 <div id="active-speaking-prompt-box" class="content-box hidden" style="border-left: 4px solid var(--primary-color);">
                     <h4 style="color: var(--primary-color); margin-bottom: 10px;"><i class="fas fa-microphone-alt"></i> Đề bài hiện tại:</h4>
-                    <!-- THÊM HỘP CHỨA TAB VÀO ĐÂY -->
                     <div id="speaking-tabs" class="tabs-container"></div>
                     <div id="speaking-prompt-text" class="preserve-format" style="font-size: 1.1em; line-height: 1.5;"></div>
-                    <div id="speaking-prompt-text" class="preserve-format" style="font-size: 1.1em; line-height: 1.5;"></div>
                     <img id="speaking-prompt-image" src="" class="hidden" style="max-width: 100%; border-radius: 8px; margin-top: 10px;">
-<!-- KHU VỰC VẼ SƠ ĐỒ CHO SPEAKING PART 3 -->
-                <div id="speaking-mindmap-area" class="hidden content-box" style="border-left: 4px solid #2980b9;">
-                    <h4 style="color: #2980b9; margin-bottom: 10px;"><i class="fas fa-sitemap"></i> Sơ đồ chủ đề (Part 3)</h4>
-                    <svg id="speaking-mindmap-svg" style="width: 100%; height: 350px; background: #fff; border: 1px solid #ccc; border-radius: 8px;"></svg>
-                </div>
-
                     
                     <div style="display: flex; gap: 10px; margin-top: 15px;">
                         <button id="btn-redo-speaking" class="btn" style="background: #95a5a6; color: white;"><i class="fas fa-redo"></i> Làm lại đề này</button>
                         <button id="btn-new-speaking" class="btn" style="background: #34495e; color: white;"><i class="fas fa-list"></i> Chọn đề khác</button>
                     </div>
+                </div>
+
+                <!-- KHU VỰC VẼ SƠ ĐỒ CHO SPEAKING PART 3 -->
+                <div id="speaking-mindmap-area" class="hidden content-box" style="border-left: 4px solid #2980b9;">
+                    <h4 style="color: #2980b9; margin-bottom: 10px;"><i class="fas fa-sitemap"></i> Sơ đồ chủ đề (Part 3)</h4>
+                    <svg id="speaking-mindmap-svg" style="width: 100%; height: 350px; background: #fff; border: 1px solid #ccc; border-radius: 8px;"></svg>
                 </div>
 
                 <div class="controls-section" style="margin-top: 15px;">
@@ -136,14 +136,14 @@
                     </div>
                 </div>
 
- <!-- HIỂN THỊ ĐỀ BÀI ĐANG CHỌN (WRITING) -->
+                <!-- HIỂN THỊ ĐỀ BÀI ĐANG CHỌN (WRITING) -->
                 <div id="active-writing-prompt-box" class="content-box hidden" style="border-left: 4px solid #8e44ad;">
                     <h4 style="color: #8e44ad; margin-bottom: 10px;"><i class="fas fa-file-alt"></i> Đề bài hiện tại:</h4>
                     <div id="writing-tabs" class="tabs-container"></div>
                     <div id="writing-prompt-text" class="preserve-format" style="font-size: 1.1em; line-height: 1.5;"></div>
                     <img id="writing-prompt-image" src="" class="hidden" style="max-width: 100%; border-radius: 8px; margin-top: 10px;">
                     
-                    <!-- BẢNG ĐIỀU KHIỂN (4 NÚT CÙNG 1 HÀNG) -->
+                    <!-- BẢNG ĐIỀU KHIỂN -->
                     <div style="display: flex; gap: 8px; margin-top: 15px; flex-wrap: wrap;">
                         <button id="btn-redo-writing" class="btn" style="background: #95a5a6; color: white; flex: 1; padding: 8px; font-size: 13px;"><i class="fas fa-redo"></i> Làm lại</button>
                         <button id="btn-new-writing" class="btn" style="background: #34495e; color: white; flex: 1; padding: 8px; font-size: 13px;"><i class="fas fa-list"></i> Đề khác</button>
@@ -169,7 +169,7 @@
                 </div>
             </div>
 
-<!-- BÁO CÁO ĐÁNH GIÁ -->
+            <!-- BÁO CÁO ĐÁNH GIÁ -->
             <div class="assessment-section hidden" id="result-section">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <h3>Báo cáo Đánh giá</h3>
@@ -179,6 +179,7 @@
                     <span class="placeholder-text">Đợi một tý, kết quả phân tích chi tiết sẽ có ngay...</span>
                 </div>
             </div>
+        </main> <!-- DÒNG NÀY RẤT QUAN TRỌNG, ĐÃ ĐƯỢC BỔ SUNG -->
 
         <!-- CỘT PHẢI: LỊCH SỬ -->
         <aside class="sidebar-right" id="sidebar-right">
@@ -190,7 +191,7 @@
         </aside>
     </div>
 
-    <!-- POPUP GỢI Ý ĐƯỢC ĐẶT Ở ĐÂY (NGOÀI APP-CONTAINER) -->
+    <!-- POPUP GỢI Ý ĐƯỢC ĐẶT Ở ĐÂY -->
     <div id="hints-modal" class="modal hidden">
         <div class="modal-content">
             <span class="close-btn" id="close-modal">&times;</span>
