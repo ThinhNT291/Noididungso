@@ -963,3 +963,102 @@ btnPlaySample.addEventListener('click', async () => {
     
     btnPlaySample.disabled = false;
 });
+
+// ==========================================
+// MODULE LUYỆN ĐỌC (READ ALOUD - RECORDING)
+// ==========================================
+let mediaRecorderRead, audioChunksRead = [], audioCtxRead, analyserRead, animationIdRead;
+let currentBlobRead = null;
+
+const btnRecordRead = document.getElementById('btn-record-read');
+const btnStopRead = document.getElementById('btn-stop-read');
+const audioPlaybackRead = document.getElementById('audio-playback-read');
+
+if (btnRecordRead) {
+    btnRecordRead.addEventListener('click', async () => {
+        if (!activePromptData.text) return alert("Hãy chọn đề bài hoặc tạo đề ngẫu nhiên trước khi ghi âm!");
+        startMainTimer(); // Tận dụng đồng hồ đếm ngược sẵn có
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            let options = {};
+            if (MediaRecorder.isTypeSupported('audio/webm')) {
+                options = { mimeType: 'audio/webm' };
+            } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+                options = { mimeType: 'audio/mp4' };
+            }
+            
+            mediaRecorderRead = new MediaRecorder(stream, options);
+            audioChunksRead = [];
+            startVisualizerRead(stream);
+
+            mediaRecorderRead.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRead.push(e.data); };
+            
+            mediaRecorderRead.onstop = () => {
+                let actualMimeType = mediaRecorderRead.mimeType || 'audio/mp4';
+                currentBlobRead = new Blob(audioChunksRead, { type: actualMimeType }); 
+                audioPlaybackRead.src = URL.createObjectURL(currentBlobRead);
+                audioPlaybackRead.classList.remove('hidden');
+                
+                // Ở đây sau này chúng ta sẽ viết tiếp hàm gửi file audioRead lên GAS để chấm điểm phát âm
+                console.log("Đã ghi âm xong đoạn Luyện đọc!");
+            };
+            
+            mediaRecorderRead.start();
+            btnRecordRead.disabled = true;
+            btnRecordRead.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Đang thu âm...';
+            btnStopRead.classList.remove('hidden');
+        } catch (err) { 
+            alert("Lỗi Micro: " + err.message); 
+        }
+    });
+}
+
+if (btnStopRead) {
+    btnStopRead.addEventListener('click', () => {
+        if (mediaRecorderRead && mediaRecorderRead.state === "recording") {
+            mediaRecorderRead.stop();
+            mediaRecorderRead.stream.getTracks().forEach(track => track.stop());
+            btnRecordRead.disabled = false;
+            btnRecordRead.innerHTML = '<i class="fas fa-microphone"></i> Ghi âm lại';
+            btnStopRead.classList.add('hidden');
+            clearInterval(mainInterval);
+            stopVisualizerRead();
+        }
+    });
+}
+
+function startVisualizerRead(stream) {
+    if (!canvasRead) return;
+    canvasRead.classList.remove('hidden');
+    canvasRead.width = canvasRead.parentElement.clientWidth; 
+    audioCtxRead = new (window.AudioContext || window.webkitAudioContext)();
+    analyserRead = audioCtxRead.createAnalyser();
+    const source = audioCtxRead.createMediaStreamSource(stream);
+    source.connect(analyserRead);
+    analyserRead.fftSize = 256;
+    const bufferLength = analyserRead.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    
+    function draw() {
+        animationIdRead = requestAnimationFrame(draw);
+        analyserRead.getByteFrequencyData(dataArray);
+        canvasCtxRead.fillStyle = '#2c3e50';
+        canvasCtxRead.fillRect(0, 0, canvasRead.width, canvasRead.height);
+        const barWidth = (canvasRead.width / bufferLength) * 2.5;
+        let x = 0;
+        for (let i = 0; i < bufferLength; i++) {
+            let barHeight = dataArray[i] / 2;
+            canvasCtxRead.fillStyle = `rgb(${barHeight + 100}, 211, 230)`;
+            canvasCtxRead.fillRect(x, canvasRead.height - barHeight, barWidth, barHeight);
+            x += barWidth + 1;
+        }
+    }
+    draw();
+}
+
+function stopVisualizerRead() {
+    cancelAnimationFrame(animationIdRead);
+    if (audioCtxRead) audioCtxRead.close();
+    if (canvasRead) canvasCtxRead.clearRect(0, 0, canvasRead.width, canvasRead.height);
+}
