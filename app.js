@@ -609,7 +609,6 @@ function stopVisualizer() {
 // 7. RENDER KẾT QUẢ, LỊCH SỬ & RESET
 // ==========================================
 
-// --- KHÔI PHỤC HOÀN TOÀN HÀM RENDER CỦA PHIÊN BẢN CŨ KẾT HỢP GIAO DIỆN MỚI ---
 function renderSpeakingAssessment(data) {
     let html = `
         <div style="background: linear-gradient(135deg, #2ecc71, #27ae60); padding: 15px; border-radius: 8px; color: white; margin-bottom: 20px;">
@@ -623,13 +622,13 @@ function renderSpeakingAssessment(data) {
         </div>
         
         <h4><i class="fas fa-quote-left"></i> Bản Transcript:</h4>
-        <p style="background: #f8f9fa; padding: 15px; border-radius: 6px; font-style: italic; margin-bottom: 20px;">${data.transcript}</p>
+        <p style="white-space: pre-wrap; background: #f8f9fa; padding: 15px; border-radius: 6px; font-style: italic; margin-bottom: 20px;">${data.transcript}</p>
         
         ${data.phonetic_analysis ? `
         <h4 style="color:#8e44ad; border-bottom: 1px solid #ccc; padding-bottom: 5px;"><i class="fas fa-wave-square"></i> Phân tích Ngữ âm & Âm sắc</h4>
         <div style="background: #f4f0fa; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
-            <p style="margin-bottom: 10px;"><strong><i class="fas fa-align-left"></i> Ngữ đoạn & Ngữ điệu:</strong> ${data.phonetic_analysis.chunking_intonation}</p>
-            <p><strong><i class="fas fa-smile"></i> Âm sắc & Biểu cảm:</strong> ${data.phonetic_analysis.tone_timbre}</p>
+            <p style="white-space: pre-wrap; margin-bottom: 10px;"><strong><i class="fas fa-align-left"></i> Ngữ đoạn & Ngữ điệu:</strong> ${data.phonetic_analysis.chunking_intonation}</p>
+            <p style="white-space: pre-wrap;"><strong><i class="fas fa-smile"></i> Âm sắc & Biểu cảm:</strong> ${data.phonetic_analysis.tone_timbre}</p>
         </div>` : ''}
 
         <div style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
@@ -655,9 +654,9 @@ function renderSpeakingAssessment(data) {
         ${formatList(data.how_to_improve)}
         
         <h4 style="color:#2980b9;"><i class="fas fa-magic"></i> Câu trả lời mẫu</h4>
-        <p style="background:#eafaf1; padding: 15px; border-left: 4px solid #2980b9; border-radius: 4px; margin-bottom: 20px;">${data.better_version}</p>
+        <p style="white-space: pre-wrap; background:#eafaf1; padding: 15px; border-left: 4px solid #2980b9; border-radius: 4px; margin-bottom: 20px;">${data.better_version}</p>
         
-        <p style="margin-bottom: 20px;"><strong>Nhận xét chung:</strong> ${data.feedback}</p>
+        <div style="white-space: pre-wrap; margin-bottom: 20px;"><strong>Nhận xét chung:</strong><br>${data.feedback}</div>
 
         ${data.reference_links && data.reference_links.length > 0 ? `
         <h4 style="color:#2c3e50;"><i class="fas fa-link"></i> Nguồn tham khảo hữu ích</h4>
@@ -704,10 +703,10 @@ function renderWritingAssessment(data) {
         ${formatList(data.how_to_improve)}
         
         <h4 style="color:#2980b9;"><i class="fas fa-copy"></i> Bản nâng cấp (Giữ văn phong)</h4>
-        <p style="background:#eafaf1; padding: 15px; border-left: 4px solid #2980b9; border-radius: 4px; margin-bottom: 20px;">${data.better_versions?.upgraded || "Không có dữ liệu"}</p>
+        <p style="white-space: pre-wrap; background:#eafaf1; padding: 15px; border-left: 4px solid #2980b9; border-radius: 4px; margin-bottom: 20px;">${data.better_versions?.upgraded || "Không có dữ liệu"}</p>
         
         <h4 style="color:#f39c12;"><i class="fas fa-crown"></i> Bản Chuyên gia</h4>
-        <p style="background:#fdf2e9; padding: 15px; border-left: 4px solid #f39c12; border-radius: 4px; margin-bottom: 20px;">${data.better_versions?.expert || "Không có dữ liệu"}</p>
+        <p style="white-space: pre-wrap; background:#fdf2e9; padding: 15px; border-left: 4px solid #f39c12; border-radius: 4px; margin-bottom: 20px;">${data.better_versions?.expert || "Không có dữ liệu"}</p>
 
         ${data.reference_links && data.reference_links.length > 0 ? `
         <h4 style="color:#2c3e50;"><i class="fas fa-link"></i> Nguồn tham khảo hữu ích</h4>
