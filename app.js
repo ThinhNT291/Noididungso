@@ -977,16 +977,11 @@ const audioPlaybackRead = document.getElementById('audio-playback-read');
 if (btnRecordRead) {
     btnRecordRead.addEventListener('click', async () => {
         if (!activePromptData.text) return alert("Hãy chọn đề bài hoặc tạo đề ngẫu nhiên trước khi ghi âm!");
-        startMainTimer(); // Tận dụng đồng hồ đếm ngược sẵn có
+        startMainTimer();
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            let options = {};
-            if (MediaRecorder.isTypeSupported('audio/webm')) {
-                options = { mimeType: 'audio/webm' };
-            } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
-                options = { mimeType: 'audio/mp4' };
-            }
+            let options = MediaRecorder.isTypeSupported('audio/webm') ? { mimeType: 'audio/webm' } : { mimeType: 'audio/mp4' };
             
             mediaRecorderRead = new MediaRecorder(stream, options);
             audioChunksRead = [];
@@ -1000,18 +995,69 @@ if (btnRecordRead) {
                 audioPlaybackRead.src = URL.createObjectURL(currentBlobRead);
                 audioPlaybackRead.classList.remove('hidden');
                 
-                // Ở đây sau này chúng ta sẽ viết tiếp hàm gửi file audioRead lên GAS để chấm điểm phát âm
-                console.log("Đã ghi âm xong đoạn Luyện đọc!");
+                // Tách hàm xử lý ra ngoài để không bị lỗi Scope
+                processAudioReadAndSend(currentBlobRead);
             };
             
             mediaRecorderRead.start();
             btnRecordRead.disabled = true;
             btnRecordRead.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Đang thu âm...';
             btnStopRead.classList.remove('hidden');
-        } catch (err) { 
-            alert("Lỗi Micro: " + err.message); 
-        }
+        } catch (err) { alert("Lỗi Micro: " + err.message); }
     });
+}
+
+// Hàm tách biệt (không nằm trong onstop nữa)
+async function processAudioReadAndSend(blob) {
+    const reader = new FileReader();
+    reader.readAsDataURL(blob);
+    reader.onloadend = async () => {
+        const base64Audio = reader.result;
+        const payload = { 
+            action: 'evaluate_read_aloud', 
+            audio: base64Audio, 
+            mimeType: blob.type, 
+            language: langSelect.options[langSelect.selectedIndex].text, 
+            level: levelSelect.options[levelSelect.selectedIndex].text, 
+            promptText: activePromptData.text 
+        };
+        
+        if (resultSection) resultSection.classList.remove('hidden');
+        assessmentBox.innerHTML = `<span class="placeholder-text" style="color:#f39c12;"><i class="fas fa-spinner fa-spin"></i> Giám khảo AI đang đối chiếu từng từ...</span>`;
+        
+        const data = await callBackendAPI(payload, "Đang phân tích độ chuẩn xác...", true);
+        if (data) renderReadAloudAssessment(data);
+    };
+}
+
+// Hàm hiển thị kết quả Pro
+function renderReadAloudAssessment(data) {
+    let html = `
+        <div style="background: #2c3e50; padding: 20px; border-radius: 12px; color: white; margin-bottom: 20px;">
+            <h2 style="margin:0; color:#f1c40f;"><i class="fas fa-star"></i> Điểm bài đọc: ${data.score}/10</h2>
+            <p>Độ chính xác âm thanh: <strong>${data.accuracy_percent}%</strong></p>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+            <div style="background:#e8f8f5; padding:15px; border-radius:8px; border-left: 5px solid #27ae60;">
+                <h4 style="color:#27ae60; margin-top:0;">Điểm mạnh</h4>
+                <ul>${data.strengths.map(s => `<li>${s}</li>`).join('')}</ul>
+            </div>
+            <div style="background:#fdedec; padding:15px; border-radius:8px; border-left: 5px solid #e74c3c;">
+                <h4 style="color:#e74c3c; margin-top:0;">Cần cải thiện</h4>
+                <ul>${data.weaknesses.map(w => `<li>${w}</li>`).join('')}</ul>
+            </div>
+        </div>
+        <div style="margin-bottom:20px;">
+            <h4><i class="fas fa-comments"></i> Nhận xét chuyên sâu</h4>
+            <p style="background:#f4f4f4; padding:15px; border-radius:8px;">${data.detailed_feedback}</p>
+        </div>
+        <div style="background:#fff3cd; padding:15px; border-radius:8px; border: 1px solid #ffeeba;">
+            <h4><i class="fas fa-chalkboard-teacher"></i> Bài tập khắc phục lỗi</h4>
+            <p><strong>Câu luyện tập:</strong> <em>${data.drill_sentence}</em></p>
+            <p>${data.roadmap}</p>
+        </div>
+    `;
+    assessmentBox.innerHTML = html;
 }
 
 if (btnStopRead) {
@@ -1026,39 +1072,4 @@ if (btnStopRead) {
             stopVisualizerRead();
         }
     });
-}
-
-function startVisualizerRead(stream) {
-    if (!canvasRead) return;
-    canvasRead.classList.remove('hidden');
-    canvasRead.width = canvasRead.parentElement.clientWidth; 
-    audioCtxRead = new (window.AudioContext || window.webkitAudioContext)();
-    analyserRead = audioCtxRead.createAnalyser();
-    const source = audioCtxRead.createMediaStreamSource(stream);
-    source.connect(analyserRead);
-    analyserRead.fftSize = 256;
-    const bufferLength = analyserRead.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
-    
-    function draw() {
-        animationIdRead = requestAnimationFrame(draw);
-        analyserRead.getByteFrequencyData(dataArray);
-        canvasCtxRead.fillStyle = '#2c3e50';
-        canvasCtxRead.fillRect(0, 0, canvasRead.width, canvasRead.height);
-        const barWidth = (canvasRead.width / bufferLength) * 2.5;
-        let x = 0;
-        for (let i = 0; i < bufferLength; i++) {
-            let barHeight = dataArray[i] / 2;
-            canvasCtxRead.fillStyle = `rgb(${barHeight + 100}, 211, 230)`;
-            canvasCtxRead.fillRect(x, canvasRead.height - barHeight, barWidth, barHeight);
-            x += barWidth + 1;
-        }
-    }
-    draw();
-}
-
-function stopVisualizerRead() {
-    cancelAnimationFrame(animationIdRead);
-    if (audioCtxRead) audioCtxRead.close();
-    if (canvasRead) canvasCtxRead.clearRect(0, 0, canvasRead.width, canvasRead.height);
 }
