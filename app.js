@@ -842,35 +842,49 @@ document.getElementById('btn-random-prompt')?.addEventListener('click', async ()
     const btnRandom = document.getElementById('btn-random-prompt');
     const originalText = btnRandom.innerHTML;
     
-    btnRandom.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tìm...';
+    btnRandom.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tạo đề...';
     btnRandom.disabled = true;
     resetWorkspace(currentSkill);
     
     const payload = { action: 'get_random_prompt', language: langSelect.options[langSelect.selectedIndex].text, skill: currentSkill, level: levelSelect.options[levelSelect.selectedIndex].text };
-    const data = await callBackendAPI(payload, "Đang cào dữ liệu...", false);
-    btnRandom.innerHTML = originalText; btnRandom.disabled = false;
+    const data = await callBackendAPI(payload, "Đang nhờ AI sáng tác đề ngẫu nhiên...", false);
+    btnRandom.innerHTML = originalText; 
+    btnRandom.disabled = false;
 
     if (data) {
         const promptData = Array.isArray(data) ? data[0] : data;
         activePromptData = { text: promptData.content, image: null };
-        let titleHtml = `**${promptData.title}**\n\n${promptData.content} \n\n[Nguồn tham khảo](${promptData.source_link})`;
+        let titleHtml = `**${promptData.title}**\n\n${promptData.content}`;
 
+        // Phân phối dữ liệu vào đúng giao diện tùy theo kỹ năng đang chọn
         if(currentSkill === 'speaking') {
             document.getElementById('speaking-question-grid-container').classList.add('hidden');
-            document.getElementById('active-speaking-prompt-box').classList.remove('hidden');
+            activeSpeakingPromptBox.classList.remove('hidden');
             document.getElementById('speaking-tabs').innerHTML = '';
             speakingPromptText.innerHTML = marked.parse(titleHtml);
             document.getElementById('speaking-prompt-image').classList.add('hidden');
-        } else {
+        } 
+        else if(currentSkill === 'writing') {
             document.getElementById('writing-question-grid-container').classList.add('hidden');
-            document.getElementById('active-writing-prompt-box').classList.remove('hidden');
+            activeWritingPromptBox.classList.remove('hidden');
             document.getElementById('writing-tabs').innerHTML = '';
             writingPromptText.innerHTML = marked.parse(titleHtml);
-            document.getElementById('writing-prompt-image').classList.add('hidden');
+            writingPromptImage.classList.add('hidden');
             preloadHintsLogic();
+        } 
+        else if(currentSkill === 'read-aloud') {
+            // Đã bổ sung hiển thị cho Luyện đọc
+            const gridContainer = document.getElementById('read-aloud-question-grid-container');
+            if(gridContainer) gridContainer.classList.add('hidden');
+            
+            if(activeReadAloudPromptBox) activeReadAloudPromptBox.classList.remove('hidden');
+            if(readAloudPromptText) readAloudPromptText.innerHTML = marked.parse(titleHtml);
         }
+        
         startPrepTimer();
-    } else { alert('Lỗi tạo đề ngẫu nhiên.'); }
+    } else { 
+        alert('Lỗi tạo đề ngẫu nhiên từ AI.'); 
+    }
 });
 
 // Cập nhật giá trị hiển thị tốc độ khi gạt thanh trượt
