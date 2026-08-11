@@ -55,6 +55,22 @@ const mindmapSvg = document.getElementById('mindmap-svg');
 const hintsModal = document.getElementById('hints-modal');
 const closeModal = document.getElementById('close-modal');
 const hintsModalBody = document.getElementById('hints-modal-body');
+const readAloudWorkspace = document.getElementById('read-aloud-workspace');
+const readAloudQuestionGrid = document.getElementById('read-aloud-question-grid');
+const activeReadAloudPromptBox = document.getElementById('active-read-aloud-prompt-box');
+const readAloudPromptText = document.getElementById('read-aloud-prompt-text');
+
+const btnPlaySample = document.getElementById('btn-play-sample');
+const ttsSpeed = document.getElementById('tts-speed');
+const ttsSpeedVal = document.getElementById('tts-speed-val');
+const ttsStatus = document.getElementById('tts-status');
+
+const btnRecordRead = document.getElementById('btn-record-read');
+const btnStopRead = document.getElementById('btn-stop-read');
+const audioPlaybackRead = document.getElementById('audio-playback-read');
+const canvasRead = document.getElementById('audio-visualizer-read');
+const canvasCtxRead = canvasRead ? canvasRead.getContext('2d') : null;
+let audioPlayerTTS = null; // Trình phát âm thanh mẫu
 
 // Biến toàn cục
 let currentSkill = 'speaking'; 
@@ -125,12 +141,18 @@ skillSelect.addEventListener('change', (e) => {
     currentSkill = e.target.value;
     resetWorkspace(currentSkill);
     
+    // Ẩn tất cả trước
+    speakingWorkspace.classList.add('hidden');
+    writingWorkspace.classList.add('hidden');
+    readAloudWorkspace.classList.add('hidden');
+
+    // Mở đúng cái được chọn
     if (currentSkill === 'writing') {
-        speakingWorkspace.classList.add('hidden');
         writingWorkspace.classList.remove('hidden');
-    } else {
+    } else if (currentSkill === 'speaking') {
         speakingWorkspace.classList.remove('hidden');
-        writingWorkspace.classList.add('hidden');
+    } else if (currentSkill === 'read-aloud') {
+        readAloudWorkspace.classList.remove('hidden');
     }
 });
 
@@ -849,4 +871,81 @@ document.getElementById('btn-random-prompt')?.addEventListener('click', async ()
         }
         startPrepTimer();
     } else { alert('Lỗi tạo đề ngẫu nhiên.'); }
+});
+
+// Cập nhật giá trị hiển thị tốc độ khi gạt thanh trượt
+ttsSpeed.addEventListener('input', (e) => {
+    ttsSpeedVal.textContent = e.target.value + 'x';
+    if (audioPlayerTTS) {
+        audioPlayerTTS.playbackRate = parseFloat(e.target.value);
+    }
+});
+
+// Hàm biến Raw Base64 thành WAV
+function createWavUrlFromBase64(base64Data, sampleRate = 24000) {
+    const binaryString = window.atob(base64Data);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
+    const buffer = new ArrayBuffer(44 + bytes.length);
+    const view = new DataView(buffer);
+    const writeString = (view, offset, string) => { for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i)); };
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, 36 + bytes.length, true);
+    writeString(view, 8, 'WAVE'); writeString(view, 12, 'fmt '); view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true); view.setUint16(22, 1, true); view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+    writeString(view, 36, 'data'); view.setUint32(40, bytes.length, true);
+    const dataArray = new Uint8Array(buffer, 44); dataArray.set(bytes);
+    const blob = new Blob([buffer], { type: 'audio/wav' });
+    return URL.createObjectURL(blob);
+}
+
+// Bấm nút Nghe Mẫu
+btnPlaySample.addEventListener('click', async () => {
+    if (!activePromptData.text) return alert("Chưa có đề bài!");
+    
+    // Nếu đang phát thì bấm để dừng
+    if (audioPlayerTTS && !audioPlayerTTS.paused) {
+        audioPlayerTTS.pause();
+        btnPlaySample.innerHTML = '<i class="fas fa-volume-up"></i> Nghe mẫu AI';
+        return;
+    }
+
+    const originalTextBtn = btnPlaySample.innerHTML;
+    btnPlaySample.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang gọi AI...';
+    btnPlaySample.disabled = true;
+    ttsStatus.textContent = "";
+
+    const payload = { action: 'generate_audio', text: activePromptData.text };
+
+    try {
+        const urlWithCacheBuster = GAS_WEB_APP_URL + "?t=" + new Date().getTime();
+        const response = await fetch(urlWithCacheBuster, {
+            method: 'POST', cache: 'no-store',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+
+        if (result.success && result.data && result.data.audioBase64) {
+            const rawBase64 = result.data.audioBase64.split('base64,')[1];
+            const wavUrl = createWavUrlFromBase64(rawBase64, 24000);
+            
+            audioPlayerTTS = new Audio(wavUrl);
+            audioPlayerTTS.playbackRate = parseFloat(ttsSpeed.value); // Áp dụng tốc độ
+            
+            audioPlayerTTS.onended = () => {
+                btnPlaySample.innerHTML = '<i class="fas fa-volume-up"></i> Nghe lại';
+                URL.revokeObjectURL(wavUrl);
+            };
+            
+            audioPlayerTTS.play();
+            btnPlaySample.innerHTML = '<i class="fas fa-pause"></i> Tạm dừng';
+        } else {
+            ttsStatus.textContent = "Lỗi sinh âm thanh!";
+        }
+    } catch (err) { ttsStatus.textContent = "Lỗi kết nối!"; }
+    
+    btnPlaySample.disabled = false;
 });
