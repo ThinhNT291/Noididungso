@@ -56,6 +56,11 @@ const hintsModal = document.getElementById('hints-modal');
 const closeModal = document.getElementById('close-modal');
 const hintsModalBody = document.getElementById('hints-modal-body');
 
+// ĐÃ THÊM: DOM cho popup xem lại lịch sử
+const historyModal = document.getElementById('history-modal');
+const closeHistoryModal = document.getElementById('close-history-modal');
+const historyModalBody = document.getElementById('history-modal-body');
+
 // Read Aloud DOM
 const readAloudQuestionGrid = document.getElementById('read-aloud-question-grid');
 const activeReadAloudPromptBox = document.getElementById('active-read-aloud-prompt-box');
@@ -85,7 +90,9 @@ let mediaRecorder, audioChunks = [], audioCtx, analyser, animationId;
 let mediaRecorderRead, audioChunksRead = [], audioCtxRead, analyserRead, animationIdRead;
 let currentBlobRead = null;
 let currentAudioBase64 = null;
+let currentReadAloudAudioBase64 = null; // ĐÃ THÊM: audio base64 của bản ghi âm luyện đọc (để lưu vào lịch sử)
 let currentSessionData = null;
+let lastWritingSubmittedText = null; // ĐÃ THÊM: lưu lại bài viết vừa nộp, để có thể lưu vào lịch sử
 
 let prepInterval, mainInterval;
 let prepTimeRemaining = 60;
@@ -545,6 +552,7 @@ btnSubmitWriting.addEventListener('click', async () => {
         promptImage: activePromptData.image
     };
 
+    lastWritingSubmittedText = text; // ĐÃ THÊM: lưu lại để dùng khi bấm "Lưu bài"
     const data = await callBackendAPI(payload, "Giám khảo AI đang chấm bài Viết...");
     if (data) renderWritingAssessment(data);
 });
@@ -719,6 +727,7 @@ async function processAudioReadAndSend(blob) {
     reader.readAsDataURL(blob);
     reader.onloadend = async () => {
         const base64Audio = reader.result;
+        currentReadAloudAudioBase64 = base64Audio; // ĐÃ THÊM: lưu lại để dùng khi bấm "Lưu bài"
         const payload = { 
             action: 'evaluate_read_aloud', 
             audio: base64Audio, 
@@ -736,8 +745,9 @@ async function processAudioReadAndSend(blob) {
     };
 }
 
-function renderReadAloudAssessment(data) {
-    let html = `
+// ĐÃ SỬA: tách phần dựng HTML ra hàm riêng để tái dùng được khi xem lại lịch sử
+function buildReadAloudAssessmentHTML(data) {
+    return `
         <div style="background: #2c3e50; padding: 20px; border-radius: 12px; color: white; margin-bottom: 20px;">
             <h2 style="margin:0; color:#f1c40f;"><i class="fas fa-star"></i> Điểm bài đọc: ${data.score}/10</h2>
             <p>Độ chính xác âm thanh: <strong>${data.accuracy_percent}%</strong></p>
@@ -762,7 +772,10 @@ function renderReadAloudAssessment(data) {
             <p>${data.roadmap}</p>
         </div>
     `;
-    assessmentBox.innerHTML = html;
+}
+
+function renderReadAloudAssessment(data) {
+    assessmentBox.innerHTML = buildReadAloudAssessmentHTML(data);
     currentSessionData = { type: 'read-aloud', ...data };
     if (btnSave) btnSave.classList.remove('hidden');
 }
@@ -770,8 +783,9 @@ function renderReadAloudAssessment(data) {
 // ==========================================
 // 8. RENDER KẾT QUẢ SPEAKING & WRITING
 // ==========================================
-function renderSpeakingAssessment(data) {
-    let html = `
+// ĐÃ SỬA: tách phần dựng HTML ra hàm riêng để tái dùng được khi xem lại lịch sử
+function buildSpeakingAssessmentHTML(data) {
+    return `
         <div style="background: linear-gradient(135deg, #2ecc71, #27ae60); padding: 15px; border-radius: 8px; color: white; margin-bottom: 20px;">
             <h3 style="margin: 0 0 10px 0; color: white;"><i class="fas fa-award"></i> Trình độ ước tính: <span style="color: #ffeaa7;">${data.estimated_level}</span></h3>
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
@@ -803,13 +817,17 @@ function renderSpeakingAssessment(data) {
         <p style="white-space: pre-wrap; background:#eafaf1; padding: 15px; border-left: 4px solid #2980b9; border-radius: 4px; margin-bottom: 20px;">${data.better_version}</p>
         <div style="white-space: pre-wrap; margin-bottom: 20px;"><strong>Nhận xét chung:</strong><br>${data.feedback}</div>
     `;
-    assessmentBox.innerHTML = html;
+}
+
+function renderSpeakingAssessment(data) {
+    assessmentBox.innerHTML = buildSpeakingAssessmentHTML(data);
     currentSessionData = { type: 'speaking', ...data };
     if (btnSave) btnSave.classList.remove('hidden');
 }
 
-function renderWritingAssessment(data) {
-    let html = `
+// ĐÃ SỬA: tách phần dựng HTML ra hàm riêng để tái dùng được khi xem lại lịch sử
+function buildWritingAssessmentHTML(data) {
+    return `
         <div style="background: linear-gradient(135deg, #8e44ad, #9b59b6); padding: 15px; border-radius: 8px; color: white; margin-bottom: 20px;">
             <h3 style="margin: 0 0 10px 0; color: white;"><i class="fas fa-award"></i> Trình độ ước tính: <span style="color: #ffeaa7;">${data.estimated_level}</span></h3>
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
@@ -830,7 +848,10 @@ function renderWritingAssessment(data) {
             </div>
         </div>
     `;
-    assessmentBox.innerHTML = html;
+}
+
+function renderWritingAssessment(data) {
+    assessmentBox.innerHTML = buildWritingAssessmentHTML(data);
     currentSessionData = { type: 'writing', ...data };
     if (btnSave) btnSave.classList.remove('hidden');
 }
@@ -879,25 +900,171 @@ document.getElementById('btn-random-prompt')?.addEventListener('click', async ()
     }
 });
 
+// ĐÃ SỬA TOÀN BỘ KHỐI NÀY: trước đây chỉ có xoá, giờ thêm Lưu bài + bấm-để-xem-lại cho cả 3 kỹ năng
 function loadHistory() {
     const historyList = document.getElementById('history-list');
     let history = JSON.parse(localStorage.getItem('aiTestHistory')) || [];
     if (!historyList) return;
     if (history.length === 0) return historyList.innerHTML = '<li class="history-item empty-history">Chưa có bài lưu nào.</li>';
     historyList.innerHTML = '';
-    history.reverse().forEach(item => {
+    [...history].reverse().forEach(item => {
         historyList.innerHTML += `
-            <li class="history-item">
+            <li class="history-item" onclick="openHistoryItem(${item.id})" style="cursor:pointer;">
                 <div class="history-title">${item.title}<br><small style="color:#7f8c8d; font-weight:normal;">${item.date}</small></div>
-                <i class="fas fa-ellipsis-v history-actions" onclick="document.getElementById('menu-${item.id}').style.display = document.getElementById('menu-${item.id}').style.display === 'block' ? 'none' : 'block'"></i>
+                <i class="fas fa-ellipsis-v history-actions" onclick="event.stopPropagation(); document.getElementById('menu-${item.id}').style.display = document.getElementById('menu-${item.id}').style.display === 'block' ? 'none' : 'block'"></i>
                 <div class="action-menu" id="menu-${item.id}">
-                    <button onclick="deleteItem(${item.id})" style="color:red;"><i class="fas fa-trash"></i> Xóa</button>
+                    <button onclick="event.stopPropagation(); deleteItem(${item.id})" style="color:red;"><i class="fas fa-trash"></i> Xóa</button>
                 </div>
             </li>
         `;
     });
 }
 window.deleteItem = (id) => { if(confirm("Xóa bài này?")) { localStorage.setItem('aiTestHistory', JSON.stringify((JSON.parse(localStorage.getItem('aiTestHistory')) || []).filter(item => item.id !== id))); loadHistory(); } }
+
+// ĐÃ THÊM: nhãn hiển thị theo loại kỹ năng
+function skillLabel(type) {
+    if (type === 'speaking') return 'Nói';
+    if (type === 'writing') return 'Viết';
+    if (type === 'read-aloud') return 'Đọc (Shadowing)';
+    return type;
+}
+
+// ĐÃ THÊM: upload audio (data URL base64) lên Google Drive qua action save_to_drive.
+// Trả về {fileId, streamUrl, viewUrl} nếu thành công, null nếu lỗi (để nơi gọi tự fallback).
+async function uploadAudioToDrive(audioDataUrl, filenamePrefix) {
+    if (!audioDataUrl) return null;
+    try {
+        const payload = {
+            action: 'save_to_drive',
+            isAudio: true,
+            filename: `${filenamePrefix}_${Date.now()}.webm`,
+            content: audioDataUrl
+        };
+        const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
+        const result = await response.json();
+        if (result.success && result.data && result.data.fileId) return result.data;
+        console.error("Lỗi upload Drive:", result.error);
+        return null;
+    } catch (err) {
+        console.error("Lỗi upload Drive:", err);
+        return null;
+    }
+}
+
+// ĐÃ THÊM: lưu phiên làm việc hiện tại (đề bài + audio nếu có + bài làm/transcript + đánh giá) vào lịch sử.
+// Audio giờ được đẩy thẳng lên Google Drive, localStorage chỉ giữ link phát lại (nhẹ, không lo đầy bộ nhớ).
+async function saveCurrentSessionToHistory() {
+    if (!currentSessionData) return alert("Chưa có kết quả đánh giá để lưu.");
+    const type = currentSessionData.type;
+
+    let audioBase64 = null;
+    if (type === 'speaking') audioBase64 = currentAudioBase64;
+    else if (type === 'read-aloud') audioBase64 = currentReadAloudAudioBase64;
+
+    const rawPrompt = (activePromptData.text || '').replace(/\[.*?\]/g, '').replace(/[#*_`]/g, '').trim();
+    const shortTitle = rawPrompt.length > 60 ? rawPrompt.slice(0, 60) + '…' : (rawPrompt || 'Bài tự do');
+
+    const originalBtnHtml = btnSave ? btnSave.innerHTML : '';
+    let driveAudio = null;
+
+    if (audioBase64) {
+        if (btnSave) { btnSave.disabled = true; btnSave.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tải audio lên Drive...'; }
+        driveAudio = await uploadAudioToDrive(audioBase64, type === 'speaking' ? 'Speaking' : 'Shadowing');
+        if (btnSave) btnSave.disabled = false;
+    }
+
+    const item = {
+        id: Date.now(),
+        type: type,
+        title: `[${skillLabel(type)}] ${shortTitle}`,
+        date: new Date().toLocaleString('vi-VN'),
+        promptText: activePromptData.text || '',
+        promptImage: activePromptData.image || null,
+        language: langSelect.options[langSelect.selectedIndex]?.text || '',
+        level: levelSelect.options[levelSelect.selectedIndex]?.text || '',
+        writingText: type === 'writing' ? (lastWritingSubmittedText || '') : null,
+        // ĐÃ THÊM: ưu tiên lưu link Drive; chỉ giữ base64 trong localStorage khi upload Drive thất bại (fallback)
+        driveAudio: driveAudio,
+        audioBase64: driveAudio ? null : audioBase64,
+        assessment: currentSessionData
+    };
+
+    let history = JSON.parse(localStorage.getItem('aiTestHistory')) || [];
+    history.push(item);
+
+    try {
+        localStorage.setItem('aiTestHistory', JSON.stringify(history));
+    } catch (e) {
+        // ĐÃ THÊM: localStorage đầy (thường do audio quá nặng) -> thử lưu lại KHÔNG kèm audio thay vì mất trắng
+        item.audioBase64 = null;
+        history[history.length - 1] = item;
+        try {
+            localStorage.setItem('aiTestHistory', JSON.stringify(history));
+            alert("Bộ nhớ trình duyệt gần đầy nên bài được lưu KHÔNG kèm audio. Các đánh giá/văn bản vẫn được giữ nguyên.");
+        } catch (e2) {
+            history.pop();
+            alert("Không thể lưu bài — bộ nhớ trình duyệt (localStorage) đã đầy. Hãy xoá bớt vài bài cũ trong Lịch sử rồi thử lại.");
+            return;
+        }
+    }
+
+    if (audioBase64 && !driveAudio) {
+        alert("Lưu ý: tải audio lên Google Drive không thành công, audio đã được giữ tạm trong bộ nhớ trình duyệt (localStorage) thay thế.");
+    }
+
+    loadHistory();
+    if (btnSave) {
+        btnSave.innerHTML = '<i class="fas fa-check"></i> Đã lưu!';
+        setTimeout(() => { if (btnSave) btnSave.innerHTML = originalBtnHtml.includes('Đã lưu') ? '<i class="fas fa-save"></i> Lưu bài' : originalBtnHtml; }, 1500);
+    }
+}
+btnSave?.addEventListener('click', saveCurrentSessionToHistory);
+
+// ĐÃ THÊM: mở popup xem lại 1 bài đã lưu — đẩy ngược đề bài, audio, bài làm và đánh giá lên
+window.openHistoryItem = (id) => {
+    const history = JSON.parse(localStorage.getItem('aiTestHistory')) || [];
+    const item = history.find(h => h.id === id);
+    if (!item || !historyModalBody || !historyModal) return;
+
+    let assessmentHtml = '';
+    if (item.type === 'speaking') assessmentHtml = buildSpeakingAssessmentHTML(item.assessment);
+    else if (item.type === 'writing') assessmentHtml = buildWritingAssessmentHTML(item.assessment);
+    else if (item.type === 'read-aloud') assessmentHtml = buildReadAloudAssessmentHTML(item.assessment);
+
+    // ĐÃ THÊM: ưu tiên phát audio từ Google Drive (item.driveAudio); các bài lưu trước đây
+    // (chưa có Drive) vẫn phát được nhờ fallback về item.audioBase64.
+    let audioHtml = '';
+    if (item.driveAudio && item.driveAudio.streamUrl) {
+        audioHtml = `<audio controls style="width:100%; margin-bottom:5px;" src="${item.driveAudio.streamUrl}"></audio>
+            <div style="margin-bottom:15px;"><a href="${item.driveAudio.viewUrl}" target="_blank" style="font-size:0.8em; color:#7f8c8d;"><i class="fab fa-google-drive"></i> Mở file trên Google Drive</a></div>`;
+    } else if (item.audioBase64) {
+        audioHtml = `<audio controls style="width:100%; margin-bottom:15px;" src="${item.audioBase64}"></audio>`;
+    }
+
+    const promptImageHtml = item.promptImage
+        ? `<img src="${item.promptImage}" style="max-width:100%; border-radius:8px; margin-bottom:15px;">`
+        : '';
+
+    const writingHtml = (item.type === 'writing' && item.writingText)
+        ? `<h4 style="margin-bottom:8px;"><i class="fas fa-file-alt"></i> Bài viết đã nộp:</h4>
+           <div class="content-box" style="margin-bottom:15px; white-space:pre-wrap;">${item.writingText.replace(/</g, '&lt;')}</div>`
+        : '';
+
+    historyModalBody.innerHTML = `
+        <span class="close-btn" onclick="document.getElementById('history-modal').classList.add('hidden')" style="position:static; float:right;">&times;</span>
+        <h2 style="color:#2c3e50; margin-bottom:5px; clear:both;">${item.title}</h2>
+        <p style="color:#7f8c8d; font-size:0.85em; margin-bottom:15px;">${item.date} • ${item.language} • ${item.level}</p>
+        <h4 style="margin-bottom:8px;"><i class="fas fa-file-signature"></i> Đề bài:</h4>
+        <div class="content-box preserve-format" style="margin-bottom:15px;">${marked.parse(item.promptText || '')}</div>
+        ${promptImageHtml}
+        ${audioHtml}
+        ${writingHtml}
+        ${assessmentHtml}
+    `;
+    historyModal.classList.remove('hidden');
+};
+
+closeHistoryModal?.addEventListener('click', () => historyModal.classList.add('hidden'));
 
 function resetWorkspace(skill) {
     clearInterval(prepInterval);
@@ -909,6 +1076,7 @@ function resetWorkspace(skill) {
     if(resultSection) resultSection.classList.add('hidden');
     if(assessmentBox) assessmentBox.innerHTML = '<span class="placeholder-text">Đợi một tý, kết quả phân tích chi tiết sẽ có ngay...</span>';
     if(btnSave) btnSave.classList.add('hidden');
+    currentSessionData = null; // ĐÃ THÊM: tránh lưu nhầm kết quả cũ vào lịch sử sau khi reset
 
     if (skill === 'speaking') {
         audioChunks = []; currentAudioBase64 = null; if(audioPlayback) audioPlayback.classList.add('hidden');
@@ -916,6 +1084,11 @@ function resetWorkspace(skill) {
     } else if (skill === 'writing') {
         if(writingInput) { writingInput.value = ''; writingInput.dispatchEvent(new Event('input')); }
         preWritingArea?.classList.add('hidden'); 
+        lastWritingSubmittedText = null;
+    } else if (skill === 'read-aloud') {
+        // ĐÃ THÊM: nhánh này trước đây chưa tồn tại — audio/bản ghi cũ của Shadowing không được dọn khi Reset
+        audioChunksRead = []; currentBlobRead = null; currentReadAloudAudioBase64 = null;
+        if (audioPlaybackRead) audioPlaybackRead.classList.add('hidden');
     }
 }
 
