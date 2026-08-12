@@ -263,7 +263,7 @@
 
     <script src="app.js"></script>
 
-    <!-- SCRIPT GỌI API GEMINI AUDIO TRỰC TIẾP TỪ FRONTEND -->
+<!-- SCRIPT GỌI API GEMINI AUDIO TRỰC TIẾP TỪ FRONTEND -->
     <script>
         const GEMINI_AUDIO_URL = "https://script.google.com/macros/s/AKfycbxWpuLpICy8Y0cJIQ32JcBuPCjpPdEdDplCOy273XXz-abSr2NijCSVq5r3LpE6iTI2/exec";
 
@@ -305,10 +305,25 @@
                 const result = await response.json();
 
                 if (result.success && result.data && result.data.audioBase64) {
-                    statusDiv.innerHTML = "✅ Tạo xong! Có thể Pause/Play.";
+                    statusDiv.innerHTML = "✅ Tạo xong! Có thể Pause/Play và kéo thanh thời gian.";
                     
-                    // Gắn file âm thanh vào thẻ <audio> để có thanh Seek bar
-                    audioPlayer.src = result.data.audioBase64;
+                    // --- BẮT ĐẦU ĐOẠN FIX LỖI SEEK BAR ĐƠ ---
+                    let base64String = result.data.audioBase64.split(',')[1];
+                    let mimeType = result.data.audioBase64.split(';')[0].split(':')[1] || 'audio/wav';
+
+                    const byteCharacters = atob(base64String);
+                    const byteNumbers = new Array(byteCharacters.length);
+                    for (let i = 0; i < byteCharacters.length; i++) {
+                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }
+                    const byteArray = new Uint8Array(byteNumbers);
+                    
+                    const audioBlob = new Blob([byteArray], { type: mimeType });
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    // --- KẾT THÚC ĐOẠN FIX ---
+
+                    // Gắn file âm thanh ảo vào thẻ <audio> 
+                    audioPlayer.src = audioUrl;
                     audioPlayer.style.display = 'block';
                     
                     // Đồng bộ thanh trượt tốc độ nếu người dùng đã kéo trước đó
@@ -321,11 +336,12 @@
                     statusDiv.innerHTML = "❌ Lỗi: " + (result.error || "Không rõ nguyên nhân");
                 }
             } catch (err) {
+                // ĐOẠN NÀY LÚC NÃY ÔNG XÓA NHẦM MẤT NÈ
                 statusDiv.innerHTML = "❌ Lỗi kết nối: " + err.message;
             } finally {
-                // Khôi phục nút bấm
+                // KHÔI PHỤC NÚT BẤM (CŨNG BỊ XÓA NHẦM)
                 btnPlay.disabled = false;
-                btnPlay.innerHTML = '<i class="fas fa-volume-up"></i> Nghe lại';
+                btnPlay.innerHTML = '<i class="fas fa-volume-up"></i> Nghe mẫu';
             }
         });
         
