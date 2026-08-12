@@ -189,18 +189,33 @@
             <!-- Text sẽ hiện ở đây -->
         </div>
 
-        <!-- Bảng điều khiển Giọng đọc AI (TTS) -->
-        <div style="background: #eafaf1; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; border: 1px solid #a3e4d7;">
-            <button id="btn-play-sample" style="background: #27ae60; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 16px;">
-                <i class="fas fa-volume-up"></i> Nghe mẫu
-            </button>
-            
-            <div style="display: flex; align-items: center; gap: 10px; background: white; padding: 5px 15px; border-radius: 20px; border: 1px solid #ccc;">
-                <label for="tts-speed" style="font-weight: bold; color: #2c3e50;"><i class="fas fa-tachometer-alt"></i> Tốc độ:</label>
-                <input type="range" id="tts-speed" min="0.5" max="1.5" step="0.1" value="0.9" style="cursor: pointer;">
-                <span id="tts-speed-val" style="color: #e74c3c; font-weight: bold; min-width: 35px;">0.9x</span>
+        <!-- ĐÃ NÂNG CẤP: Bảng điều khiển Giọng đọc AI (TTS) có Seek Bar & Chọn giọng -->
+        <div style="background: #eafaf1; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: flex; flex-direction: column; gap: 15px; border: 1px solid #a3e4d7;">
+            <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+                
+                <!-- MENU CHỌN GIỌNG -->
+                <select id="voice-select" style="padding: 10px; font-size: 15px; border-radius: 5px; border: 1px solid #ccc; outline: none; font-weight: bold; flex: 1; min-width: 150px;">
+                    <option value="Aoede">Nữ trầm (Aoede)</option>
+                    <option value="Kore">Nữ thanh (Kore)</option>
+                    <option value="Charon" selected>Nam trầm (Charon)</option>
+                    <option value="Fenrir">Nam vang (Fenrir)</option>
+                    <option value="Puck">Nam tươi (Puck)</option>
+                </select>
+
+                <button id="btn-play-sample" style="background: #27ae60; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 16px;">
+                    <i class="fas fa-volume-up"></i> Nghe mẫu
+                </button>
+                
+                <div style="display: flex; align-items: center; gap: 10px; background: white; padding: 5px 15px; border-radius: 20px; border: 1px solid #ccc;">
+                    <label for="tts-speed" style="font-weight: bold; color: #2c3e50;"><i class="fas fa-tachometer-alt"></i> Tốc độ:</label>
+                    <input type="range" id="tts-speed" min="0.5" max="1.5" step="0.1" value="1.0" style="cursor: pointer;">
+                    <span id="tts-speed-val" style="color: #e74c3c; font-weight: bold; min-width: 35px;">1.0x</span>
+                </div>
+                <div id="tts-status" style="font-size: 0.95em; color: #e67e22; font-style: italic; font-weight: bold;"></div>
             </div>
-            <div id="tts-status" style="font-size: 0.9em; color: #e67e22; font-style: italic;"></div>
+            
+            <!-- THANH SEEK BAR -->
+            <audio id="audio-player-sample" controls style="width: 100%; display: none;"></audio>
         </div>
         
         <!-- Khu vực Thu âm -->
@@ -247,5 +262,84 @@
     </div>
 
     <script src="app.js"></script>
+
+    <!-- SCRIPT GỌI API GEMINI AUDIO TRỰC TIẾP TỪ FRONTEND -->
+    <script>
+        const GEMINI_AUDIO_URL = "https://script.google.com/macros/s/AKfycbxWpuLpICy8Y0cJIQ32JcBuPCjpPdEdDplCOy273XXz-abSr2NijCSVq5r3LpE6iTI2/exec";
+
+        document.getElementById('btn-play-sample')?.addEventListener('click', async () => {
+            const statusDiv = document.getElementById('tts-status');
+            const voiceSelect = document.getElementById('voice-select');
+            const audioPlayer = document.getElementById('audio-player-sample');
+            const btnPlay = document.getElementById('btn-play-sample');
+            const speedSlider = document.getElementById('tts-speed'); 
+            
+            // Lấy text đang hiển thị trong thẻ div
+            let textToSay = document.getElementById('read-aloud-prompt-text').innerText.trim();
+            if (!textToSay) {
+                alert("Vui lòng chọn hoặc nhập đề bài trước khi nghe mẫu!");
+                return;
+            }
+
+            // Ẩn thanh audio cũ, đổi trạng thái nút bấm
+            audioPlayer.style.display = 'none';
+            btnPlay.disabled = true;
+            btnPlay.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tạo...';
+            statusDiv.innerHTML = `Đang tải giọng ${voiceSelect.value}... ⏳`;
+
+            const payload = {
+                action: 'generate_audio',
+                text: textToSay,
+                voiceName: voiceSelect.value // Gửi tên giọng qua Backend
+            };
+
+            try {
+                // Thêm timestamp để bypass cache Safari
+                const urlWithCacheBuster = GEMINI_AUDIO_URL + "?t=" + new Date().getTime();
+                const response = await fetch(urlWithCacheBuster, {
+                    method: 'POST',
+                    cache: 'no-store',
+                    body: JSON.stringify(payload)
+                });
+                
+                const result = await response.json();
+
+                if (result.success && result.data && result.data.audioBase64) {
+                    statusDiv.innerHTML = "✅ Tạo xong! Có thể Pause/Play.";
+                    
+                    // Gắn file âm thanh vào thẻ <audio> để có thanh Seek bar
+                    audioPlayer.src = result.data.audioBase64;
+                    audioPlayer.style.display = 'block';
+                    
+                    // Đồng bộ thanh trượt tốc độ nếu người dùng đã kéo trước đó
+                    if (speedSlider) {
+                        audioPlayer.playbackRate = parseFloat(speedSlider.value);
+                    }
+                    
+                    audioPlayer.play();
+                } else {
+                    statusDiv.innerHTML = "❌ Lỗi: " + (result.error || "Không rõ nguyên nhân");
+                }
+            } catch (err) {
+                statusDiv.innerHTML = "❌ Lỗi kết nối: " + err.message;
+            } finally {
+                // Khôi phục nút bấm
+                btnPlay.disabled = false;
+                btnPlay.innerHTML = '<i class="fas fa-volume-up"></i> Nghe lại';
+            }
+        });
+        
+        // LIÊN KẾT THANH TRƯỢT TỐC ĐỘ VỚI AUDIO PLAYER
+        document.getElementById('tts-speed')?.addEventListener('input', (e) => {
+            const val = e.target.value;
+            document.getElementById('tts-speed-val').innerText = val + 'x';
+            
+            // Đổi tốc độ phát ngay lập tức nếu đang có audio
+            const audioPlayer = document.getElementById('audio-player-sample');
+            if (audioPlayer) {
+                audioPlayer.playbackRate = parseFloat(val);
+            }
+        });
+    </script>
 </body>
 </html>
