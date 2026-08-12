@@ -3,6 +3,14 @@
 // ==========================================
 const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxk_Si6DqBHBpMZ_Thnmmf_3nnTLZCuwJaxY4V1oQZ-nXtcitVcbyJtuFf2jb1oBhQL/exec"; 
 
+// ĐÃ THÊM: chỗ nối sẵn cho Google Sign-In sau này. Hiện tại web CHƯA có đăng nhập nên trả về null
+// (Backend sẽ tự dùng chung 1 userId mặc định "default_user" cho mọi request không kèm userId).
+// Sau này khi gắn Google Identity Services, chỉ cần sửa hàm này để trả về email/idToken thật của
+// người đang đăng nhập — mọi nơi gọi getUserId() trong file này sẽ tự động dùng giá trị mới, không cần sửa gì khác.
+function getUserId() {
+    return null; // TODO: thay bằng email/idToken thật sau khi có Google Sign-In
+}
+
 marked.setOptions({ breaks: true }); 
 
 const skillSelect = document.getElementById('skill-select');
@@ -93,6 +101,7 @@ let currentAudioBase64 = null;
 let currentReadAloudAudioBase64 = null; // ĐÃ THÊM: audio base64 của bản ghi âm luyện đọc (để lưu vào lịch sử)
 let currentSessionData = null;
 let lastWritingSubmittedText = null; // ĐÃ THÊM: lưu lại bài viết vừa nộp, để có thể lưu vào lịch sử
+let historyCache = []; // ĐÃ THÊM: cache danh sách lịch sử lấy từ backend (Google Sheet), dùng khi mở popup xem lại
 
 let prepInterval, mainInterval;
 let prepTimeRemaining = 60;
@@ -901,10 +910,26 @@ document.getElementById('btn-random-prompt')?.addEventListener('click', async ()
 });
 
 // ĐÃ SỬA TOÀN BỘ KHỐI NÀY: trước đây chỉ có xoá, giờ thêm Lưu bài + bấm-để-xem-lại cho cả 3 kỹ năng
-function loadHistory() {
+// ĐÃ SỬA: lịch sử giờ lấy từ backend (Google Sheet) qua action get_history_list, không còn đọc localStorage
+// -> xem được từ bất kỳ thiết bị/trình duyệt nào, miễn là cùng userId (hiện tại dùng chung 1 userId mặc định).
+async function loadHistory() {
     const historyList = document.getElementById('history-list');
-    let history = JSON.parse(localStorage.getItem('aiTestHistory')) || [];
     if (!historyList) return;
+    historyList.innerHTML = '<li class="history-item empty-history"><i class="fas fa-spinner fa-spin"></i> Đang tải lịch sử...</li>';
+
+    const payload = { action: 'get_history_list', userId: getUserId() };
+    let history = [];
+    try {
+        const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
+        const result = await response.json();
+        if (result.success) history = result.data || [];
+        else throw new Error(result.error);
+    } catch (err) {
+        historyList.innerHTML = `<li class="history-item empty-history" style="color:#e74c3c;">Lỗi tải lịch sử: ${err.message}</li>`;
+        return;
+    }
+
+    historyCache = history;
     if (history.length === 0) return historyList.innerHTML = '<li class="history-item empty-history">Chưa có bài lưu nào.</li>';
     historyList.innerHTML = '';
     [...history].reverse().forEach(item => {
@@ -919,7 +944,18 @@ function loadHistory() {
         `;
     });
 }
-window.deleteItem = (id) => { if(confirm("Xóa bài này?")) { localStorage.setItem('aiTestHistory', JSON.stringify((JSON.parse(localStorage.getItem('aiTestHistory')) || []).filter(item => item.id !== id))); loadHistory(); } }
+window.deleteItem = async (id) => {
+    if (!confirm("Xóa bài này?")) return;
+    try {
+        const payload = { action: 'delete_history_item', id: id, userId: getUserId() };
+        const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error);
+    } catch (err) {
+        alert("Không xoá được: " + err.message);
+    }
+    loadHistory();
+}
 
 // ĐÃ THÊM: nhãn hiển thị theo loại kỹ năng
 function skillLabel(type) {
@@ -951,8 +987,8 @@ async function uploadAudioToDrive(audioDataUrl, filenamePrefix) {
     }
 }
 
-// ĐÃ THÊM: lưu phiên làm việc hiện tại (đề bài + audio nếu có + bài làm/transcript + đánh giá) vào lịch sử.
-// Audio giờ được đẩy thẳng lên Google Drive, localStorage chỉ giữ link phát lại (nhẹ, không lo đầy bộ nhớ).
+// ĐÃ SỬA: audio đẩy lên Drive như trước, nhưng bản ghi lịch sử giờ lưu lên Google Sheet qua backend
+// (thay vì localStorage) -> mở web ở máy/điện thoại khác vẫn thấy đủ lịch sử.
 async function saveCurrentSessionToHistory() {
     if (!currentSessionData) return alert("Chưa có kết quả đánh giá để lưu.");
     const type = currentSessionData.type;
@@ -970,7 +1006,6 @@ async function saveCurrentSessionToHistory() {
     if (audioBase64) {
         if (btnSave) { btnSave.disabled = true; btnSave.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tải audio lên Drive...'; }
         driveAudio = await uploadAudioToDrive(audioBase64, type === 'speaking' ? 'Speaking' : 'Shadowing');
-        if (btnSave) btnSave.disabled = false;
     }
 
     const item = {
@@ -983,47 +1018,38 @@ async function saveCurrentSessionToHistory() {
         language: langSelect.options[langSelect.selectedIndex]?.text || '',
         level: levelSelect.options[levelSelect.selectedIndex]?.text || '',
         writingText: type === 'writing' ? (lastWritingSubmittedText || '') : null,
-        // ĐÃ THÊM: ưu tiên lưu link Drive; chỉ giữ base64 trong localStorage khi upload Drive thất bại (fallback)
         driveAudio: driveAudio,
-        audioBase64: driveAudio ? null : audioBase64,
         assessment: currentSessionData
     };
 
-    let history = JSON.parse(localStorage.getItem('aiTestHistory')) || [];
-    history.push(item);
-
+    if (btnSave) { btnSave.disabled = true; btnSave.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang lưu...'; }
     try {
-        localStorage.setItem('aiTestHistory', JSON.stringify(history));
-    } catch (e) {
-        // ĐÃ THÊM: localStorage đầy (thường do audio quá nặng) -> thử lưu lại KHÔNG kèm audio thay vì mất trắng
-        item.audioBase64 = null;
-        history[history.length - 1] = item;
-        try {
-            localStorage.setItem('aiTestHistory', JSON.stringify(history));
-            alert("Bộ nhớ trình duyệt gần đầy nên bài được lưu KHÔNG kèm audio. Các đánh giá/văn bản vẫn được giữ nguyên.");
-        } catch (e2) {
-            history.pop();
-            alert("Không thể lưu bài — bộ nhớ trình duyệt (localStorage) đã đầy. Hãy xoá bớt vài bài cũ trong Lịch sử rồi thử lại.");
-            return;
-        }
+        const payload = { action: 'save_history_item', userId: getUserId(), item: item };
+        const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error);
+    } catch (err) {
+        if (btnSave) btnSave.disabled = false;
+        return alert("Không lưu được bài: " + err.message);
     }
 
     if (audioBase64 && !driveAudio) {
-        alert("Lưu ý: tải audio lên Google Drive không thành công, audio đã được giữ tạm trong bộ nhớ trình duyệt (localStorage) thay thế.");
+        alert("Lưu ý: tải audio lên Google Drive không thành công, bài được lưu KHÔNG kèm audio.");
     }
 
-    loadHistory();
+    await loadHistory();
     if (btnSave) {
+        btnSave.disabled = false;
         btnSave.innerHTML = '<i class="fas fa-check"></i> Đã lưu!';
         setTimeout(() => { if (btnSave) btnSave.innerHTML = originalBtnHtml.includes('Đã lưu') ? '<i class="fas fa-save"></i> Lưu bài' : originalBtnHtml; }, 1500);
     }
 }
 btnSave?.addEventListener('click', saveCurrentSessionToHistory);
 
-// ĐÃ THÊM: mở popup xem lại 1 bài đã lưu — đẩy ngược đề bài, audio, bài làm và đánh giá lên
+// ĐÃ SỬA: mở popup xem lại 1 bài đã lưu — đọc từ historyCache (dữ liệu lấy về từ backend ở loadHistory)
+// thay vì localStorage, vì lịch sử giờ nằm trên Google Sheet dùng chung cho mọi thiết bị.
 window.openHistoryItem = (id) => {
-    const history = JSON.parse(localStorage.getItem('aiTestHistory')) || [];
-    const item = history.find(h => h.id === id);
+    const item = historyCache.find(h => Number(h.id) === Number(id));
     if (!item || !historyModalBody || !historyModal) return;
 
     let assessmentHtml = '';
