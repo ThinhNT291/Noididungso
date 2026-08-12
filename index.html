@@ -261,6 +261,14 @@
         </div>
     </div>
 
+    <!-- ĐÃ THÊM: POPUP XEM LẠI 1 BÀI ĐÃ LƯU TRONG LỊCH SỬ (đề bài + audio + đánh giá) -->
+    <div id="history-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-btn" id="close-history-modal">&times;</span>
+            <div id="history-modal-body" style="line-height: 1.6; font-size: 1.05em; color: #333;"></div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 
 <!-- SCRIPT GỌI API GEMINI AUDIO TRỰC TIẾP TỪ FRONTEND -->
@@ -291,6 +299,52 @@
                 voiceName: voiceSelect.value // Gửi tên giọng qua Backend
             };
 
+            // ĐÃ THÊM: tách phần "gắn audio base64 vào player + phát" thành hàm dùng chung,
+            // để cả đường thành công bình thường lẫn đường "cứu hộ" cache đều tái sử dụng được.
+            function playAudioFromDataUri(dataUri) {
+                let base64String = dataUri.split(',')[1];
+                let mimeType = dataUri.split(';')[0].split(':')[1] || 'audio/wav';
+
+                const byteCharacters = atob(base64String);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+
+                const audioBlob = new Blob([byteArray], { type: mimeType });
+                const audioUrl = URL.createObjectURL(audioBlob);
+
+                audioPlayer.src = audioUrl;
+                audioPlayer.style.display = 'block';
+
+                if (speedSlider) {
+                    audioPlayer.playbackRate = parseFloat(speedSlider.value);
+                }
+
+                audioPlayer.play();
+            }
+
+            // ĐÃ THÊM: khi bị lỗi (network hỏng / JSON trả về không hợp lệ), trước khi báo lỗi hẳn,
+            // thử dò xem audio đã thực sự được tạo xong và nằm trong cache Drive chưa (không tốn quota API).
+            async function tryRecoverFromCache() {
+                try {
+                    const recoveryPayload = { action: 'check_cached_audio', text: textToSay, voiceName: voiceSelect.value };
+                    const recoveryResponse = await fetch(GAS_WEB_APP_URL, {
+                        method: 'POST',
+                        cache: 'no-store',
+                        body: JSON.stringify(recoveryPayload)
+                    });
+                    const recoveryResult = await recoveryResponse.json();
+                    if (recoveryResult.success && recoveryResult.data && recoveryResult.data.found) {
+                        return recoveryResult.data.audioBase64;
+                    }
+                } catch (recoveryErr) {
+                    console.warn("Dò cache cứu hộ cũng thất bại:", recoveryErr);
+                }
+                return null;
+            }
+
             try {
                 // Thêm timestamp để bypass cache Safari
                 const urlWithCacheBuster = GAS_WEB_APP_URL + "?t=" + new Date().getTime();
@@ -304,40 +358,23 @@
 
                 if (result.success && result.data && result.data.audioBase64) {
                     statusDiv.innerHTML = "✅ Tạo xong! Có thể Pause/Play và kéo thanh thời gian.";
-                    
-                    // --- BẮT ĐẦU ĐOẠN FIX LỖI SEEK BAR ĐƠ ---
-                    let base64String = result.data.audioBase64.split(',')[1];
-                    let mimeType = result.data.audioBase64.split(';')[0].split(':')[1] || 'audio/wav';
-
-                    const byteCharacters = atob(base64String);
-                    const byteNumbers = new Array(byteCharacters.length);
-                    for (let i = 0; i < byteCharacters.length; i++) {
-                        byteNumbers[i] = byteCharacters.charCodeAt(i);
-                    }
-                    const byteArray = new Uint8Array(byteNumbers);
-                    
-                    const audioBlob = new Blob([byteArray], { type: mimeType });
-                    const audioUrl = URL.createObjectURL(audioBlob);
-                    // --- KẾT THÚC ĐOẠN FIX ---
-
-                    // Gắn file âm thanh ảo vào thẻ <audio> 
-                    audioPlayer.src = audioUrl;
-                    audioPlayer.style.display = 'block';
-                    
-                    // Đồng bộ thanh trượt tốc độ nếu người dùng đã kéo trước đó
-                    if (speedSlider) {
-                        audioPlayer.playbackRate = parseFloat(speedSlider.value);
-                    }
-                    
-                    audioPlayer.play();
-} else {
+                    playAudioFromDataUri(result.data.audioBase64);
+                } else {
                     // Trích xuất lỗi từ mọi ngóc ngách
                     let errorMsg = result.error || (result.data ? result.data.error : null) || "Không rõ nguyên nhân";
                     statusDiv.innerHTML = "❌ Lỗi: " + errorMsg;
                 }
             } catch (err) {
-                // ĐOẠN NÀY LÚC NÃY ÔNG XÓA NHẦM MẤT NÈ
-                statusDiv.innerHTML = "❌ Lỗi kết nối: " + err.message;
+                // ĐÃ SỬA: trước khi báo lỗi hẳn, thử dò cache — phòng trường hợp
+                // audio đã tạo thành công (tốn quota rồi) nhưng response trả về bị lỗi JSON.
+                statusDiv.innerHTML = "⚠️ Phản hồi lỗi, đang kiểm tra xem audio đã tạo xong chưa...";
+                const recoveredDataUri = await tryRecoverFromCache();
+                if (recoveredDataUri) {
+                    statusDiv.innerHTML = "✅ Đã khôi phục audio từ cache (không tốn thêm quota).";
+                    playAudioFromDataUri(recoveredDataUri);
+                } else {
+                    statusDiv.innerHTML = "❌ Lỗi kết nối: " + err.message;
+                }
             } finally {
                 // KHÔI PHỤC NÚT BẤM (CŨNG BỊ XÓA NHẦM)
                 btnPlay.disabled = false;
