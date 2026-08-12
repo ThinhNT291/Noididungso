@@ -239,7 +239,7 @@ btnApplyCustom.addEventListener('click', async () => {
     startPrepTimer(); 
 });
 
-async function callBackendAPI(payload, loadingMessage, isMainAssessment = true) {
+async function callBackendAPI(payload, loadingMessage, isMainAssessment = true, retriesLeft = 2) {
     if (isMainAssessment) {
         if (resultSection) resultSection.classList.remove('hidden');
         assessmentBox.innerHTML = `<span class="placeholder-text" style="color:#f39c12;"><i class="fas fa-spinner fa-spin"></i> ${loadingMessage}</span>`;
@@ -247,10 +247,16 @@ async function callBackendAPI(payload, loadingMessage, isMainAssessment = true) 
     }
     try {
         const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const result = await response.json();
         if (!result.success) throw new Error(result.error);
         return result.data;
     } catch (err) {
+        if (retriesLeft > 0) {
+            if (isMainAssessment) assessmentBox.innerHTML = `<span class="placeholder-text" style="color:#f39c12;"><i class="fas fa-spinner fa-spin"></i> ${loadingMessage} (đang thử lại...)</span>`;
+            await new Promise(res => setTimeout(res, 1500));
+            return callBackendAPI(payload, loadingMessage, isMainAssessment, retriesLeft - 1);
+        }
         if (isMainAssessment) assessmentBox.innerHTML = `<span style="color:red;"><i class="fas fa-exclamation-triangle"></i> Lỗi kết nối: ${err.message}</span>`;
         return null;
     }
