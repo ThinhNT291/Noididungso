@@ -332,8 +332,10 @@
                     }
                     
                     audioPlayer.play();
-                } else {
-                    statusDiv.innerHTML = "❌ Lỗi: " + (result.error || "Không rõ nguyên nhân");
+} else {
+                    // Trích xuất lỗi từ mọi ngóc ngách
+                    let errorMsg = result.error || (result.data ? result.data.error : null) || "Không rõ nguyên nhân";
+                    statusDiv.innerHTML = "❌ Lỗi: " + errorMsg;
                 }
             } catch (err) {
                 // ĐOẠN NÀY LÚC NÃY ÔNG XÓA NHẦM MẤT NÈ
