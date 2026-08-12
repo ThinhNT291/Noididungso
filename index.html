@@ -265,8 +265,6 @@
 
 <!-- SCRIPT GỌI API GEMINI AUDIO TRỰC TIẾP TỪ FRONTEND -->
     <script>
-        const GEMINI_AUDIO_URL = "https://script.google.com/macros/s/AKfycbxk_Si6DqBHBpMZ_Thnmmf_3nnTLZCuwJaxY4V1oQZ-nXtcitVcbyJtuFf2jb1oBhQL/exec";
-
         document.getElementById('btn-play-sample')?.addEventListener('click', async () => {
             const statusDiv = document.getElementById('tts-status');
             const voiceSelect = document.getElementById('voice-select');
@@ -295,7 +293,7 @@
 
             try {
                 // Thêm timestamp để bypass cache Safari
-                const urlWithCacheBuster = GEMINI_AUDIO_URL + "?t=" + new Date().getTime();
+                const urlWithCacheBuster = GAS_WEB_APP_URL + "?t=" + new Date().getTime();
                 const response = await fetch(urlWithCacheBuster, {
                     method: 'POST',
                     cache: 'no-store',
