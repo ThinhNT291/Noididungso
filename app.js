@@ -1057,12 +1057,12 @@ window.openHistoryItem = (id) => {
     else if (item.type === 'writing') assessmentHtml = buildWritingAssessmentHTML(item.assessment);
     else if (item.type === 'read-aloud') assessmentHtml = buildReadAloudAssessmentHTML(item.assessment);
 
-    // ĐÃ THÊM: ưu tiên phát audio từ Google Drive (item.driveAudio); các bài lưu trước đây
-    // (chưa có Drive) vẫn phát được nhờ fallback về item.audioBase64.
+    // ĐÃ SỬA: link uc?export=download không hỗ trợ tốt Range request nên thẻ <audio> không tua được.
+    // Đổi sang nhúng trình phát có sẵn của Google Drive (/preview) — hỗ trợ tua đầy đủ như mở trực tiếp trên Drive.
     let audioHtml = '';
-    if (item.driveAudio && item.driveAudio.streamUrl) {
-        audioHtml = `<audio controls style="width:100%; margin-bottom:5px;" src="${item.driveAudio.streamUrl}"></audio>
-            <div style="margin-bottom:15px;"><a href="${item.driveAudio.viewUrl}" target="_blank" style="font-size:0.8em; color:#7f8c8d;"><i class="fab fa-google-drive"></i> Mở file trên Google Drive</a></div>`;
+    if (item.driveAudio && item.driveAudio.fileId) {
+        const previewUrl = `https://drive.google.com/file/d/${item.driveAudio.fileId}/preview`;
+        audioHtml = `<iframe src="${previewUrl}" width="100%" height="80" allow="autoplay" style="border:none; border-radius:8px; margin-bottom:15px;"></iframe>`;
     } else if (item.audioBase64) {
         audioHtml = `<audio controls style="width:100%; margin-bottom:15px;" src="${item.audioBase64}"></audio>`;
     }
