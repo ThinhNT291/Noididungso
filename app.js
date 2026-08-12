@@ -1,7 +1,7 @@
 // ==========================================
 // 1. CẤU HÌNH & KHỞI TẠO DOM
 // ==========================================
-const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxWpuLpICy8Y0cJIQ32JcBuPCjpPdEdDplCOy273XXz-abSr2NijCSVq5r3LpE6iTI2/exec"; 
+const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxk_Si6DqBHBpMZ_Thnmmf_3nnTLZCuwJaxY4V1oQZ-nXtcitVcbyJtuFf2jb1oBhQL/exec"; 
 
 marked.setOptions({ breaks: true }); 
 
