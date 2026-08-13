@@ -11,6 +11,29 @@ function getUserId() {
     return null; // TODO: thay bằng email/idToken thật sau khi có Google Sign-In
 }
 
+// ĐÃ THÊM: quản lý phiên đăng nhập Google. Được index.html gọi (window.setAuthSession) ngay sau khi
+// Backend xác nhận idToken hợp lệ + email nằm trong whitelist.
+let currentIdToken = null;
+function getIdToken() { return currentIdToken; }
+
+window.setAuthSession = function(idToken, email) {
+    currentIdToken = idToken;
+    try { sessionStorage.setItem('gAuthIdToken', idToken); } catch (e) { /* private mode có thể chặn */ }
+    // Có phiên hợp lệ rồi mới bắt đầu tải dữ liệu — trước đó backend sẽ từ chối mọi request.
+    loadHistory();
+    fetchQuestionsFromGAS();
+};
+
+window.clearAuthSession = function() {
+    currentIdToken = null;
+    try { sessionStorage.removeItem('gAuthIdToken'); } catch (e) { /* ignore */ }
+};
+
+// Nhận biết lỗi xác thực do Backend trả về (token hết hạn / email bị gỡ quyền giữa phiên làm việc)
+function isAuthError(message) {
+    return typeof message === 'string' && message.startsWith('AUTH_');
+}
+
 marked.setOptions({ breaks: true }); 
 
 const skillSelect = document.getElementById('skill-select');
@@ -147,8 +170,8 @@ function updateLevelOptions(lang) {
 
 document.addEventListener('DOMContentLoaded', () => {
     skillSelect.value = 'speaking';
-    loadHistory();
-    fetchQuestionsFromGAS(); 
+    // ĐÃ SỬA: không gọi loadHistory()/fetchQuestionsFromGAS() ở đây nữa — Backend giờ yêu cầu đăng nhập
+    // trước, 2 hàm này được gọi lại trong setAuthSession() ngay sau khi xác thực Google thành công.
     langSelect.addEventListener('change', (e) => updateLevelOptions(e.target.value));
     updateLevelOptions(langSelect.value);
 });
@@ -210,7 +233,7 @@ btnApplyCustom.addEventListener('click', async () => {
     if (customImageBase64) {
         btnApplyCustom.innerHTML = '<i class="fas fa-spinner fa-spin"></i> AI đang phân tích...';
         btnApplyCustom.disabled = true;
-        const payload = { action: 'analyze_image_prompt', image: customImageBase64 };
+        const payload = { action: 'analyze_image_prompt', image: customImageBase64, idToken: getIdToken() };
         try {
             const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
             const result = await response.json();
@@ -261,6 +284,8 @@ async function callBackendAPI(payload, loadingMessage, isMainAssessment = true, 
         assessmentBox.innerHTML = `<span class="placeholder-text" style="color:#f39c12;"><i class="fas fa-spinner fa-spin"></i> ${loadingMessage}</span>`;
         if (btnSave) btnSave.classList.add('hidden');
     }
+    // ĐÃ THÊM: mọi request qua đây đều tự động kèm idToken hiện tại — không cần sửa từng nơi gọi callBackendAPI
+    payload.idToken = getIdToken();
     try {
         const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -268,6 +293,14 @@ async function callBackendAPI(payload, loadingMessage, isMainAssessment = true, 
         if (!result.success) throw new Error(result.error);
         return result.data;
     } catch (err) {
+        // ĐÃ THÊM: nếu Backend từ chối vì lý do xác thực (token hết hạn/bị gỡ quyền giữa phiên),
+        // đừng thử lại vô ích — bắt đăng nhập lại ngay.
+        if (isAuthError(err.message)) {
+            window.clearAuthSession && window.clearAuthSession();
+            window.showLoginGate && window.showLoginGate(err.message.replace(/^AUTH_(REQUIRED|FORBIDDEN):\s*/, ''));
+            if (isMainAssessment) assessmentBox.innerHTML = `<span style="color:red;"><i class="fas fa-exclamation-triangle"></i> Phiên đăng nhập đã hết, vui lòng đăng nhập lại.</span>`;
+            return null;
+        }
         if (retriesLeft > 0) {
             if (isMainAssessment) assessmentBox.innerHTML = `<span class="placeholder-text" style="color:#f39c12;"><i class="fas fa-spinner fa-spin"></i> ${loadingMessage} (đang thử lại...)</span>`;
             await new Promise(res => setTimeout(res, 1500));
@@ -283,7 +316,8 @@ async function callBackendAPI(payload, loadingMessage, isMainAssessment = true, 
 // ==========================================
 async function fetchQuestionsFromGAS() {
     try {
-        const response = await fetch(GAS_WEB_APP_URL + "?action=get_questions", { method: "GET", redirect: "follow" });
+        // ĐÃ THÊM: idToken bắt buộc phải có (Backend chặn get_questions nếu thiếu/không hợp lệ)
+        const response = await fetch(GAS_WEB_APP_URL + "?action=get_questions&idToken=" + encodeURIComponent(getIdToken() || ''), { method: "GET", redirect: "follow" });
         const result = await response.json();
         
         if(result.success) {
@@ -466,7 +500,8 @@ async function preloadHintsLogic() {
         language: langSelect.options[langSelect.selectedIndex].text, 
         level: levelSelect.options[levelSelect.selectedIndex].text,
         promptText: activePromptData.text, 
-        promptImage: activePromptData.image 
+        promptImage: activePromptData.image,
+        idToken: getIdToken() // ĐÃ THÊM
     };
     
     try {
@@ -917,7 +952,7 @@ async function loadHistory() {
     if (!historyList) return;
     historyList.innerHTML = '<li class="history-item empty-history"><i class="fas fa-spinner fa-spin"></i> Đang tải lịch sử...</li>';
 
-    const payload = { action: 'get_history_list', userId: getUserId() };
+    const payload = { action: 'get_history_list', idToken: getIdToken() };
     let history = [];
     try {
         const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
@@ -947,7 +982,7 @@ async function loadHistory() {
 window.deleteItem = async (id) => {
     if (!confirm("Xóa bài này?")) return;
     try {
-        const payload = { action: 'delete_history_item', id: id, userId: getUserId() };
+        const payload = { action: 'delete_history_item', id: id, idToken: getIdToken() };
         const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
         const result = await response.json();
         if (!result.success) throw new Error(result.error);
@@ -974,7 +1009,8 @@ async function uploadAudioToDrive(audioDataUrl, filenamePrefix) {
             action: 'save_to_drive',
             isAudio: true,
             filename: `${filenamePrefix}_${Date.now()}.webm`,
-            content: audioDataUrl
+            content: audioDataUrl,
+            idToken: getIdToken() // ĐÃ THÊM
         };
         const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
         const result = await response.json();
@@ -1024,7 +1060,7 @@ async function saveCurrentSessionToHistory() {
 
     if (btnSave) { btnSave.disabled = true; btnSave.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang lưu...'; }
     try {
-        const payload = { action: 'save_history_item', userId: getUserId(), item: item };
+        const payload = { action: 'save_history_item', idToken: getIdToken(), item: item };
         const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
         const result = await response.json();
         if (!result.success) throw new Error(result.error);
