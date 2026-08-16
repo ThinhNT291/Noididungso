@@ -193,8 +193,14 @@ skillSelect.addEventListener('change', (e) => {
     }
 });
 
-document.getElementById('toggle-left')?.addEventListener('click', () => document.getElementById('sidebar-left').classList.toggle('collapsed'));
-document.getElementById('toggle-right')?.addEventListener('click', () => document.getElementById('sidebar-right').classList.toggle('collapsed'));
+document.getElementById('toggle-left')?.addEventListener('click', () => {
+    document.getElementById('sidebar-left').classList.toggle('collapsed');
+    document.querySelector('.app-container').classList.toggle('left-collapsed'); // ĐÃ THÊM: đổi luôn độ rộng cột lưới
+});
+document.getElementById('toggle-right')?.addEventListener('click', () => {
+    document.getElementById('sidebar-right').classList.toggle('collapsed');
+    document.querySelector('.app-container').classList.toggle('right-collapsed'); // ĐÃ THÊM: đổi luôn độ rộng cột lưới
+});
 
 btnToggleCustom.addEventListener('click', () => customPromptArea.classList.toggle('hidden'));
 
@@ -1103,6 +1109,24 @@ window.openHistoryItem = (id) => {
         audioHtml = `<audio controls style="width:100%; margin-bottom:15px;" src="${item.audioBase64}"></audio>`;
     }
 
+    // ĐÃ THÊM: cho bài Luyện đọc (read-aloud), hiện thêm nút nghe lại giọng đọc mẫu (TTS) —
+    // đặt bên trên player ghi âm của học viên. Audio mẫu không được lưu sẵn trong lịch sử
+    // (chỉ audio ghi âm mới lưu Drive) nên bấm mới sinh/lấy lại qua generate_audio (có cache ở Backend).
+    let sampleAudioHtml = '';
+    if (item.type === 'read-aloud') {
+        sampleAudioHtml = `
+            <div style="background:#eafaf1; padding:12px 15px; border-radius:8px; margin-bottom:12px; border:1px solid #a3e4d7;">
+                <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                    <button class="btn" style="background:#27ae60; color:white;" id="history-tts-btn-${item.id}" onclick="playHistorySampleAudio(${item.id})">
+                        <i class="fas fa-volume-up"></i> Nghe giọng mẫu
+                    </button>
+                    <span id="history-tts-status-${item.id}" style="font-size:0.9em; color:#e67e22; font-style:italic;"></span>
+                </div>
+                <audio id="history-tts-player-${item.id}" controls style="width:100%; display:none; margin-top:10px;"></audio>
+            </div>
+        `;
+    }
+
     const promptImageHtml = item.promptImage
         ? `<img src="${item.promptImage}" style="max-width:100%; border-radius:8px; margin-bottom:15px;">`
         : '';
@@ -1119,11 +1143,27 @@ window.openHistoryItem = (id) => {
         <h4 style="margin-bottom:8px;"><i class="fas fa-file-signature"></i> Đề bài:</h4>
         <div class="content-box preserve-format" style="margin-bottom:15px;">${marked.parse(item.promptText || '')}</div>
         ${promptImageHtml}
+        ${sampleAudioHtml}
         ${audioHtml}
         ${writingHtml}
         ${assessmentHtml}
     `;
     historyModal.classList.remove('hidden');
+};
+
+// ĐÃ THÊM: nghe giọng mẫu (TTS) cho 1 bài Luyện đọc trong Lịch sử — tái dùng hàm dùng chung
+// generateAndPlaySample (định nghĩa trong index.html) thay vì gọi lại toàn bộ logic ở đây.
+window.playHistorySampleAudio = (itemId) => {
+    const item = historyCache.find(h => Number(h.id) === Number(itemId));
+    if (!item || !window.generateAndPlaySample) return;
+    // Bỏ bớt ký tự Markdown (**, #, -, `) để giọng đọc mẫu không đọc luôn các ký tự định dạng
+    const cleanText = (item.promptText || '').replace(/[#*_`]/g, '').trim();
+    window.generateAndPlaySample(cleanText, 'Aoede', {
+        btnId: `history-tts-btn-${item.id}`,
+        statusId: `history-tts-status-${item.id}`,
+        playerId: `history-tts-player-${item.id}`
+        // Không có speedId — modal Lịch sử không có thanh chỉnh tốc độ riêng.
+    });
 };
 
 closeHistoryModal?.addEventListener('click', () => historyModal.classList.add('hidden'));
