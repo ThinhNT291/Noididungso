@@ -6,12 +6,26 @@
     <title>AI EdTech Platform - Speaking & Writing</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- ĐÃ THÊM: Google Identity Services — bắt buộc để hiện nút "Đăng nhập bằng Google" -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
     <script src="https://cdn.jsdelivr.net/npm/markmap-view"></script>
     <script src="https://cdn.jsdelivr.net/npm/markmap-lib"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
+    <!-- ĐÃ THÊM: CỔNG ĐĂNG NHẬP GOOGLE — che toàn bộ app cho tới khi có phiên hợp lệ.
+         window.showLoginGate()/hideLoginGate() điều khiển ẩn/hiện, gọi từ app.js khi phiên hết hạn. -->
+    <div id="login-gate" class="modal">
+        <div class="modal-content" style="max-width: 420px; text-align: center;">
+            <h2 style="color:#2c3e50; margin-bottom: 10px;"><i class="fas fa-shield-alt"></i> Đăng nhập để tiếp tục</h2>
+            <p style="color:#7f8c8d; margin-bottom: 20px;">Vui lòng đăng nhập bằng tài khoản Google đã được cấp quyền để sử dụng công cụ.</p>
+            <div id="login-gate-message" style="min-height: 20px; margin-bottom: 15px; font-weight: bold; color:#e74c3c;"></div>
+            <div id="g_id_signin" style="display: inline-flex; justify-content: center;"></div>
+            <div id="login-gate-spinner" class="hidden" style="margin-top: 15px; color:#7f8c8d;"><i class="fas fa-spinner fa-spin"></i> Đang xác thực...</div>
+        </div>
+    </div>
+
     <div class="app-container">
         <!-- CỘT TRÁI: THIẾT LẬP CHUNG -->
         <aside class="sidebar-left" id="sidebar-left">
@@ -271,6 +285,93 @@
 
     <script src="app.js"></script>
 
+<!-- ĐÃ THÊM: ĐĂNG NHẬP GOOGLE (Google Identity Services) -->
+<script>
+    // QUAN TRỌNG: dán ĐÚNG Client ID đang lưu trong Script Properties (khóa GOOGLE_OAUTH_CLIENT_ID)
+    // của dự án Apps Script vào đây. Client ID không phải bí mật — an toàn khi để trong code frontend,
+    // nhưng phải khớp với giá trị Backend dùng để đối chiếu (verifyGoogleIdToken_), nếu không mọi lượt
+    // đăng nhập sẽ bị Backend từ chối với lỗi "Token không thuộc về ứng dụng này."
+    const GOOGLE_CLIENT_ID = "DÁN_CLIENT_ID_CUA_BAN_VAO_DAY.apps.googleusercontent.com";
+
+    const loginGateEl = document.getElementById('login-gate');
+    const loginGateMessageEl = document.getElementById('login-gate-message');
+    const loginGateSpinnerEl = document.getElementById('login-gate-spinner');
+
+    function setLoginGateMessage(msg) {
+        loginGateMessageEl.textContent = msg || '';
+    }
+
+    // Cho phép app.js (callBackendAPI) gọi lại khi phiên hết hạn giữa chừng
+    window.showLoginGate = function(message) {
+        loginGateEl.classList.remove('hidden');
+        setLoginGateMessage(message || '');
+        // Bỏ auto-select để người dùng có thể chọn lại tài khoản khác (phòng khi tài khoản cũ bị gỡ quyền)
+        if (window.google && google.accounts && google.accounts.id) {
+            google.accounts.id.disableAutoSelect();
+        }
+    };
+
+    function hideLoginGate() {
+        loginGateEl.classList.add('hidden');
+    }
+
+    // Gọi Backend xác thực idToken + whitelist TRƯỚC khi coi là đăng nhập thành công
+    async function verifyAndStartSession(idToken) {
+        loginGateSpinnerEl.classList.remove('hidden');
+        setLoginGateMessage('');
+        try {
+            const response = await fetch(GAS_WEB_APP_URL, {
+                method: 'POST',
+                body: JSON.stringify({ action: 'auth_check', idToken: idToken })
+            });
+            const result = await response.json();
+            if (result.success && result.data && result.data.allowed) {
+                hideLoginGate();
+                window.setAuthSession(idToken, result.data.email);
+            } else {
+                setLoginGateMessage((result.error || 'Đăng nhập thất bại.').replace(/^AUTH_(REQUIRED|FORBIDDEN):\s*/, ''));
+                if (window.google && google.accounts && google.accounts.id) {
+                    google.accounts.id.disableAutoSelect();
+                }
+            }
+        } catch (err) {
+            setLoginGateMessage('Lỗi kết nối, vui lòng thử lại: ' + err.message);
+        } finally {
+            loginGateSpinnerEl.classList.add('hidden');
+        }
+    }
+
+    function handleGoogleCredentialResponse(response) {
+        verifyAndStartSession(response.credential);
+    }
+
+    function initGsiButton() {
+        if (!window.google || !google.accounts || !google.accounts.id) {
+            // Script GSI (thẻ <script> ở <head>) có thể chưa tải kịp — thử lại sau 300ms
+            setTimeout(initGsiButton, 300);
+            return;
+        }
+        google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            callback: handleGoogleCredentialResponse,
+            auto_select: true
+        });
+        google.accounts.id.renderButton(document.getElementById('g_id_signin'), {
+            theme: 'outline', size: 'large', text: 'signin_with', shape: 'pill'
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        initGsiButton();
+
+        // Thử khôi phục phiên cũ trong sessionStorage (cùng tab, chưa đóng trình duyệt) —
+        // vẫn phải xác thực lại với Backend vì idToken có thể đã hết hạn.
+        let restoredToken = null;
+        try { restoredToken = sessionStorage.getItem('gAuthIdToken'); } catch (e) { /* private mode có thể chặn */ }
+        if (restoredToken) verifyAndStartSession(restoredToken);
+    });
+</script>
+
 <!-- SCRIPT GỌI API GEMINI AUDIO TRỰC TIẾP TỪ FRONTEND -->
     <script>
         document.getElementById('btn-play-sample')?.addEventListener('click', async () => {
@@ -296,7 +397,8 @@
             const payload = {
                 action: 'generate_audio',
                 text: textToSay,
-                voiceName: voiceSelect.value // Gửi tên giọng qua Backend
+                voiceName: voiceSelect.value, // Gửi tên giọng qua Backend
+                idToken: getIdToken() // ĐÃ SỬA: thiếu dòng này khiến Backend luôn từ chối vì AUTH_REQUIRED
             };
 
             // ĐÃ THÊM: tách phần "gắn audio base64 vào player + phát" thành hàm dùng chung,
@@ -329,7 +431,7 @@
             // thử dò xem audio đã thực sự được tạo xong và nằm trong cache Drive chưa (không tốn quota API).
             async function tryRecoverFromCache() {
                 try {
-                    const recoveryPayload = { action: 'check_cached_audio', text: textToSay, voiceName: voiceSelect.value };
+                    const recoveryPayload = { action: 'check_cached_audio', text: textToSay, voiceName: voiceSelect.value, idToken: getIdToken() }; // ĐÃ SỬA: thêm idToken
                     const recoveryResponse = await fetch(GAS_WEB_APP_URL, {
                         method: 'POST',
                         cache: 'no-store',
