@@ -28,7 +28,15 @@ body {
     gap: 20px;
     padding: 20px;
     height: 100vh;
+    transition: grid-template-columns 0.3s ease;
 }
+
+/* ĐÃ THÊM: khi thu gọn 1 trong 2 cột, phải đổi luôn độ rộng cột lưới (grid-template-columns) của
+   .app-container, chứ chỉ thu gọn chính thẻ .sidebar-left/.sidebar-right (65px) bên trong 1 ô lưới
+   vẫn rộng 250px/300px thì phần trống đó không nhả ra cho cột giữa (.main-content) được. */
+.app-container.left-collapsed { grid-template-columns: 65px 1fr 300px; }
+.app-container.right-collapsed { grid-template-columns: 250px 1fr 65px; }
+.app-container.left-collapsed.right-collapsed { grid-template-columns: 65px 1fr 65px; }
 
 .sidebar-left, .main-content, .sidebar-right {
     background-color: var(--panel-bg);
