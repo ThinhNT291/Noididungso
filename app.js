@@ -1109,22 +1109,13 @@ window.openHistoryItem = (id) => {
         audioHtml = `<audio controls style="width:100%; margin-bottom:15px;" src="${item.audioBase64}"></audio>`;
     }
 
-    // ĐÃ THÊM: cho bài Luyện đọc (read-aloud), hiện thêm nút nghe lại giọng đọc mẫu (TTS) —
-    // đặt bên trên player ghi âm của học viên. Audio mẫu không được lưu sẵn trong lịch sử
-    // (chỉ audio ghi âm mới lưu Drive) nên bấm mới sinh/lấy lại qua generate_audio (có cache ở Backend).
+    // ĐÃ SỬA: cho bài Luyện đọc (read-aloud), thay vì hiện sẵn nút "Nghe giọng mẫu" (bấm mới gọi API),
+    // giờ chỉ hiện chỗ trống + spinner ở đây — sau khi chèn xong innerHTML bên dưới sẽ tự động dò cache
+    // (checkAndRenderHistorySample) và thay bằng: player phát ngay nếu đã có cache, hoặc nút bấm-để-tạo
+    // nếu thực sự chưa có.
     let sampleAudioHtml = '';
     if (item.type === 'read-aloud') {
-        sampleAudioHtml = `
-            <div style="background:#eafaf1; padding:12px 15px; border-radius:8px; margin-bottom:12px; border:1px solid #a3e4d7;">
-                <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-                    <button class="btn" style="background:#27ae60; color:white;" id="history-tts-btn-${item.id}" onclick="playHistorySampleAudio(${item.id})">
-                        <i class="fas fa-volume-up"></i> Nghe giọng mẫu
-                    </button>
-                    <span id="history-tts-status-${item.id}" style="font-size:0.9em; color:#e67e22; font-style:italic;"></span>
-                </div>
-                <audio id="history-tts-player-${item.id}" controls style="width:100%; display:none; margin-top:10px;"></audio>
-            </div>
-        `;
+        sampleAudioHtml = `<div id="history-tts-slot-${item.id}" style="margin-bottom:12px; color:#7f8c8d; font-size:0.9em;"><i class="fas fa-spinner fa-spin"></i> Đang kiểm tra audio mẫu đã lưu trong cache...</div>`;
     }
 
     const promptImageHtml = item.promptImage
@@ -1149,16 +1140,76 @@ window.openHistoryItem = (id) => {
         ${assessmentHtml}
     `;
     historyModal.classList.remove('hidden');
+
+    if (item.type === 'read-aloud') checkAndRenderHistorySample(item); // ĐÃ THÊM
 };
 
-// ĐÃ THÊM: nghe giọng mẫu (TTS) cho 1 bài Luyện đọc trong Lịch sử — tái dùng hàm dùng chung
-// generateAndPlaySample (định nghĩa trong index.html) thay vì gọi lại toàn bộ logic ở đây.
+// ĐÃ THÊM: chuyển văn bản Markdown gốc (item.promptText) sang text thuần theo ĐÚNG cách Backend
+// đã dùng để tính khoá cache lúc luyện tập trực tiếp (marked.parse() rồi lấy .innerText của phần
+// tử đã render) — bắt buộc phải khớp y hệt, vì khoá cache là hash(text, voice); lệch 1 ký tự cũng
+// tính là cache miss và tạo audio mới tốn quota.
+function getPlainTextLikeLivePrompt_(rawMarkdown) {
+    const tempEl = document.createElement('div');
+    tempEl.style.cssText = 'position:absolute; left:-9999px; top:-9999px; visibility:hidden;';
+    tempEl.innerHTML = marked.parse(rawMarkdown || '');
+    document.body.appendChild(tempEl);
+    const text = tempEl.innerText.trim();
+    document.body.removeChild(tempEl);
+    return text;
+}
+
+// ĐÃ THÊM: bộ giọng đang có trong <select id="voice-select"> ở phần luyện tập trực tiếp — vì lịch sử
+// không lưu lại đã nghe bằng giọng nào, nên dò cache theo TẤT CẢ giọng cùng lúc (1 lượt gọi Backend).
+const READ_ALOUD_TTS_VOICES_ = ['Aoede', 'Kore', 'Charon', 'Fenrir', 'Puck'];
+
+// ĐÃ THÊM: tự động dò cache (KHÔNG gọi API Gemini, không tốn quota) ngay khi mở modal Lịch sử —
+// nếu tìm thấy audio mẫu đã lưu sẵn thì hiện thẳng player để nghe ngay (giống player audio ghi âm),
+// không cần bấm nút. Nếu chưa từng lưu, mới hiện nút để bấm-tạo-mới (lúc đó mới thực sự gọi Gemini).
+async function checkAndRenderHistorySample(item) {
+    const slot = document.getElementById(`history-tts-slot-${item.id}`);
+    if (!slot) return;
+
+    const cleanText = getPlainTextLikeLivePrompt_(item.promptText);
+
+    try {
+        const payload = { action: 'check_cached_audio', text: cleanText, voiceNames: READ_ALOUD_TTS_VOICES_, idToken: getIdToken() };
+        const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', cache: 'no-store', body: JSON.stringify(payload) });
+        const result = await response.json();
+
+        if (result.success && result.data && result.data.found) {
+            slot.outerHTML = `
+                <div style="background:#eafaf1; padding:12px 15px; border-radius:8px; margin-bottom:12px; border:1px solid #a3e4d7;">
+                    <div style="font-size:0.85em; color:#27ae60; margin-bottom:6px;"><i class="fas fa-check-circle"></i> Giọng mẫu (${result.data.voiceName}) — lấy từ cache, không tốn thêm quota:</div>
+                    <audio controls style="width:100%;" src="${result.data.audioBase64}"></audio>
+                </div>
+            `;
+            return;
+        }
+    } catch (e) {
+        console.warn("Dò cache audio mẫu thất bại:", e);
+    }
+
+    // Không thấy cache ở bất kỳ giọng nào (hoặc lượt kiểm tra bị lỗi) — hiện nút để bấm tạo mới nếu cần.
+    slot.outerHTML = `
+        <div style="background:#eafaf1; padding:12px 15px; border-radius:8px; margin-bottom:12px; border:1px solid #a3e4d7;">
+            <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                <button class="btn" style="background:#27ae60; color:white;" id="history-tts-btn-${item.id}" onclick="playHistorySampleAudio(${item.id})">
+                    <i class="fas fa-volume-up"></i> Nghe giọng mẫu (chưa có sẵn, sẽ tạo mới)
+                </button>
+                <span id="history-tts-status-${item.id}" style="font-size:0.9em; color:#e67e22; font-style:italic;"></span>
+            </div>
+            <audio id="history-tts-player-${item.id}" controls style="width:100%; display:none; margin-top:10px;"></audio>
+        </div>
+    `;
+}
+
+// ĐÃ SỬA: dùng đúng getPlainTextLikeLivePrompt_ thay vì regex tự chế, để nếu phải tạo mới,
+// văn bản gửi đi khớp y hệt bản gốc — lần sau mở lại lịch sử sẽ dò thấy cache ngay.
 window.playHistorySampleAudio = (itemId) => {
     const item = historyCache.find(h => Number(h.id) === Number(itemId));
     if (!item || !window.generateAndPlaySample) return;
-    // Bỏ bớt ký tự Markdown (**, #, -, `) để giọng đọc mẫu không đọc luôn các ký tự định dạng
-    const cleanText = (item.promptText || '').replace(/[#*_`]/g, '').trim();
-    window.generateAndPlaySample(cleanText, 'Aoede', {
+    const cleanText = getPlainTextLikeLivePrompt_(item.promptText);
+    window.generateAndPlaySample(cleanText, 'Charon', {
         btnId: `history-tts-btn-${item.id}`,
         statusId: `history-tts-status-${item.id}`,
         playerId: `history-tts-player-${item.id}`
