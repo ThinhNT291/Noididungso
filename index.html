@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Training Zone</title>
+    <title>AI EdTech Platform - Speaking & Writing</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- ĐÃ THÊM: Google Identity Services — bắt buộc để hiện nút "Đăng nhập bằng Google" -->
@@ -19,7 +19,7 @@
     <div id="login-gate" class="modal">
         <div class="modal-content" style="max-width: 420px; text-align: center;">
             <h2 style="color:#2c3e50; margin-bottom: 10px;"><i class="fas fa-shield-alt"></i> Đăng nhập để tiếp tục</h2>
-            <p style="color:#7f8c8d; margin-bottom: 20px;">Đăng nhập để tiếp tục.</p>
+            <p style="color:#7f8c8d; margin-bottom: 20px;">Vui lòng đăng nhập bằng tài khoản Google đã được cấp quyền để sử dụng công cụ.</p>
             <div id="login-gate-message" style="min-height: 20px; margin-bottom: 15px; font-weight: bold; color:#e74c3c;"></div>
             <div id="g_id_signin" style="display: inline-flex; justify-content: center;"></div>
             <div id="login-gate-spinner" class="hidden" style="margin-top: 15px; color:#7f8c8d;"><i class="fas fa-spinner fa-spin"></i> Đang xác thực...</div>
@@ -251,7 +251,7 @@
                     <button id="btn-save" class="btn btn-save hidden"><i class="fas fa-save"></i> Lưu bài</button>
                 </div>
                 <div id="assessment-box" class="content-box">
-                    <span class="placeholder-text">Kết quả phân tích sẽ hiển thị tại đây...</span>
+                    <span class="placeholder-text">Đợi một tý, kết quả phân tích chi tiết sẽ có ngay...</span>
                 </div>
             </div>
         </main> <!-- DÒNG NÀY RẤT QUAN TRỌNG, ĐÃ ĐƯỢC BỔ SUNG -->
@@ -291,7 +291,7 @@
     // của dự án Apps Script vào đây. Client ID không phải bí mật — an toàn khi để trong code frontend,
     // nhưng phải khớp với giá trị Backend dùng để đối chiếu (verifyGoogleIdToken_), nếu không mọi lượt
     // đăng nhập sẽ bị Backend từ chối với lỗi "Token không thuộc về ứng dụng này."
-    const GOOGLE_CLIENT_ID = "311965248456-01ts8h9g6tuj0slob58n8vrfm091c4u7.apps.googleusercontent.com";
+    const GOOGLE_CLIENT_ID = "DÁN_CLIENT_ID_CUA_BAN_VAO_DAY.apps.googleusercontent.com";
 
     const loginGateEl = document.getElementById('login-gate');
     const loginGateMessageEl = document.getElementById('login-gate-message');
@@ -374,35 +374,33 @@
 
 <!-- SCRIPT GỌI API GEMINI AUDIO TRỰC TIẾP TỪ FRONTEND -->
     <script>
-        document.getElementById('btn-play-sample')?.addEventListener('click', async () => {
-            const statusDiv = document.getElementById('tts-status');
-            const voiceSelect = document.getElementById('voice-select');
-            const audioPlayer = document.getElementById('audio-player-sample');
-            const btnPlay = document.getElementById('btn-play-sample');
-            const speedSlider = document.getElementById('tts-speed'); 
-            
-            // Lấy text đang hiển thị trong thẻ div
-            let textToSay = document.getElementById('read-aloud-prompt-text').innerText.trim();
+        // ĐÃ SỬA: tách toàn bộ logic gọi generate_audio + phát audio ra hàm dùng chung
+        // (trước đây nằm cứng trong 1 event listener của nút Nghe mẫu chính) — để popup xem lại
+        // Lịch sử cũng gọi lại được hàm này cho phần "Nghe giọng mẫu" của bài Luyện đọc.
+        // ids = { btnId, statusId, playerId, speedId? } — speedId không bắt buộc (modal Lịch sử không có thanh tốc độ).
+        async function generateAndPlaySample(textToSay, voiceName, ids) {
+            const btnEl = ids.btnId ? document.getElementById(ids.btnId) : null;
+            const statusEl = ids.statusId ? document.getElementById(ids.statusId) : null;
+            const audioPlayer = ids.playerId ? document.getElementById(ids.playerId) : null;
+            const speedSlider = ids.speedId ? document.getElementById(ids.speedId) : null;
+
             if (!textToSay) {
-                alert("Vui lòng chọn hoặc nhập đề bài trước khi nghe mẫu!");
+                alert("Không có văn bản để đọc mẫu!");
                 return;
             }
 
-            // Ẩn thanh audio cũ, đổi trạng thái nút bấm
-            audioPlayer.style.display = 'none';
-            btnPlay.disabled = true;
-            btnPlay.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tạo...';
-            statusDiv.innerHTML = `Đang tải giọng ${voiceSelect.value}... ⏳`;
+            const originalBtnHtml = btnEl ? btnEl.innerHTML : '';
+            if (audioPlayer) audioPlayer.style.display = 'none';
+            if (btnEl) { btnEl.disabled = true; btnEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tạo...'; }
+            if (statusEl) statusEl.innerHTML = `Đang tải giọng ${voiceName}... ⏳`;
 
             const payload = {
                 action: 'generate_audio',
                 text: textToSay,
-                voiceName: voiceSelect.value, // Gửi tên giọng qua Backend
-                idToken: getIdToken() // ĐÃ SỬA: thiếu dòng này khiến Backend luôn từ chối vì AUTH_REQUIRED
+                voiceName: voiceName,
+                idToken: getIdToken()
             };
 
-            // ĐÃ THÊM: tách phần "gắn audio base64 vào player + phát" thành hàm dùng chung,
-            // để cả đường thành công bình thường lẫn đường "cứu hộ" cache đều tái sử dụng được.
             function playAudioFromDataUri(dataUri) {
                 let base64String = dataUri.split(',')[1];
                 let mimeType = dataUri.split(';')[0].split(':')[1] || 'audio/wav';
@@ -417,21 +415,17 @@
                 const audioBlob = new Blob([byteArray], { type: mimeType });
                 const audioUrl = URL.createObjectURL(audioBlob);
 
-                audioPlayer.src = audioUrl;
-                audioPlayer.style.display = 'block';
-
-                if (speedSlider) {
-                    audioPlayer.playbackRate = parseFloat(speedSlider.value);
+                if (audioPlayer) {
+                    audioPlayer.src = audioUrl;
+                    audioPlayer.style.display = 'block';
+                    if (speedSlider) audioPlayer.playbackRate = parseFloat(speedSlider.value);
+                    audioPlayer.play();
                 }
-
-                audioPlayer.play();
             }
 
-            // ĐÃ THÊM: khi bị lỗi (network hỏng / JSON trả về không hợp lệ), trước khi báo lỗi hẳn,
-            // thử dò xem audio đã thực sự được tạo xong và nằm trong cache Drive chưa (không tốn quota API).
             async function tryRecoverFromCache() {
                 try {
-                    const recoveryPayload = { action: 'check_cached_audio', text: textToSay, voiceName: voiceSelect.value, idToken: getIdToken() }; // ĐÃ SỬA: thêm idToken
+                    const recoveryPayload = { action: 'check_cached_audio', text: textToSay, voiceName: voiceName, idToken: getIdToken() };
                     const recoveryResponse = await fetch(GAS_WEB_APP_URL, {
                         method: 'POST',
                         cache: 'no-store',
@@ -448,40 +442,47 @@
             }
 
             try {
-                // Thêm timestamp để bypass cache Safari
                 const urlWithCacheBuster = GAS_WEB_APP_URL + "?t=" + new Date().getTime();
                 const response = await fetch(urlWithCacheBuster, {
                     method: 'POST',
                     cache: 'no-store',
                     body: JSON.stringify(payload)
                 });
-                
+
                 const result = await response.json();
 
                 if (result.success && result.data && result.data.audioBase64) {
-                    statusDiv.innerHTML = "✅ Tạo xong! Có thể Pause/Play và kéo thanh thời gian.";
+                    if (statusEl) statusEl.innerHTML = "✅ Tạo xong! Có thể Pause/Play và kéo thanh thời gian.";
                     playAudioFromDataUri(result.data.audioBase64);
                 } else {
-                    // Trích xuất lỗi từ mọi ngóc ngách
                     let errorMsg = result.error || (result.data ? result.data.error : null) || "Không rõ nguyên nhân";
-                    statusDiv.innerHTML = "❌ Lỗi: " + errorMsg;
+                    if (statusEl) statusEl.innerHTML = "❌ Lỗi: " + errorMsg;
                 }
             } catch (err) {
-                // ĐÃ SỬA: trước khi báo lỗi hẳn, thử dò cache — phòng trường hợp
-                // audio đã tạo thành công (tốn quota rồi) nhưng response trả về bị lỗi JSON.
-                statusDiv.innerHTML = "⚠️ Phản hồi lỗi, đang kiểm tra xem audio đã tạo xong chưa...";
+                if (statusEl) statusEl.innerHTML = "⚠️ Phản hồi lỗi, đang kiểm tra xem audio đã tạo xong chưa...";
                 const recoveredDataUri = await tryRecoverFromCache();
                 if (recoveredDataUri) {
-                    statusDiv.innerHTML = "✅ Đã khôi phục audio từ cache (không tốn thêm quota).";
+                    if (statusEl) statusEl.innerHTML = "✅ Đã khôi phục audio từ cache (không tốn thêm quota).";
                     playAudioFromDataUri(recoveredDataUri);
-                } else {
-                    statusDiv.innerHTML = "❌ Lỗi kết nối: " + err.message;
+                } else if (statusEl) {
+                    statusEl.innerHTML = "❌ Lỗi kết nối: " + err.message;
                 }
             } finally {
-                // KHÔI PHỤC NÚT BẤM (CŨNG BỊ XÓA NHẦM)
-                btnPlay.disabled = false;
-                btnPlay.innerHTML = '<i class="fas fa-volume-up"></i> Nghe mẫu';
+                if (btnEl) { btnEl.disabled = false; btnEl.innerHTML = originalBtnHtml; }
             }
+        }
+        window.generateAndPlaySample = generateAndPlaySample;
+
+        document.getElementById('btn-play-sample')?.addEventListener('click', () => {
+            const voiceSelect = document.getElementById('voice-select');
+            // Lấy text đang hiển thị trong thẻ div
+            let textToSay = document.getElementById('read-aloud-prompt-text').innerText.trim();
+            generateAndPlaySample(textToSay, voiceSelect.value, {
+                btnId: 'btn-play-sample',
+                statusId: 'tts-status',
+                playerId: 'audio-player-sample',
+                speedId: 'tts-speed'
+            });
         });
         
         // LIÊN KẾT THANH TRƯỢT TỐC ĐỘ VỚI AUDIO PLAYER
