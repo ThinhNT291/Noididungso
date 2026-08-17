@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI EdTech Platform - Speaking & Writing</title>
+    <title>Training Zone - ThinhNT</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- ĐÃ THÊM: Google Identity Services — bắt buộc để hiện nút "Đăng nhập bằng Google" -->
@@ -19,7 +19,7 @@
     <div id="login-gate" class="modal">
         <div class="modal-content" style="max-width: 420px; text-align: center;">
             <h2 style="color:#2c3e50; margin-bottom: 10px;"><i class="fas fa-shield-alt"></i> Đăng nhập để tiếp tục</h2>
-            <p style="color:#7f8c8d; margin-bottom: 20px;">Vui lòng đăng nhập bằng tài khoản Google đã được cấp quyền để sử dụng công cụ.</p>
+            <p style="color:#7f8c8d; margin-bottom: 20px;">Đăng nhập để sử dụng công cụ.</p>
             <div id="login-gate-message" style="min-height: 20px; margin-bottom: 15px; font-weight: bold; color:#e74c3c;"></div>
             <div id="g_id_signin" style="display: inline-flex; justify-content: center;"></div>
             <div id="login-gate-spinner" class="hidden" style="margin-top: 15px; color:#7f8c8d;"><i class="fas fa-spinner fa-spin"></i> Đang xác thực...</div>
@@ -142,7 +142,7 @@
                 
                 <div id="writing-question-grid-container" class="content-box" style="background: #f4f7f6; border: none;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <h4 style="margin: 0; color: #2c3e50;"><i class="fas fa-th"></i> Ngân hàng đề Writing</h4>
+                        <h4 style="margin: 0; color: #2c3e50;"><i class="fas fa-th"></i> Ngân hàng đề </h4>
                         <button id="btn-free-writing" class="btn btn-save"><i class="fas fa-keyboard"></i> Viết tự do</button>
                     </div>
                     <p style="font-size: 0.9em; color: #7f8c8d; margin-bottom: 10px;">Chọn đề để xem gợi ý.</p>
@@ -462,7 +462,7 @@
                 if (statusEl) statusEl.innerHTML = "⚠️ Phản hồi lỗi, đang kiểm tra xem audio đã tạo xong chưa...";
                 const recoveredDataUri = await tryRecoverFromCache();
                 if (recoveredDataUri) {
-                    if (statusEl) statusEl.innerHTML = "✅ Đã khôi phục audio từ cache (không tốn thêm quota).";
+                    if (statusEl) statusEl.innerHTML = "✅ Đã tải xong audio.";
                     playAudioFromDataUri(recoveredDataUri);
                 } else if (statusEl) {
                     statusEl.innerHTML = "❌ Lỗi kết nối: " + err.message;
