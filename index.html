@@ -314,6 +314,10 @@
                 <button id="btn-open-progress" class="btn" style="width:100%; background:#2980b9; color:white; margin-bottom:12px;">
                     <i class="fas fa-chart-line"></i> Tiến độ học tập
                 </button>
+                <!-- ĐÃ THÊM: mở popup Thi thử 4 kỹ năng (Nghe/Đọc/Viết/Nói, có tính giờ) -->
+                <button id="btn-open-mocktest" class="btn" style="width:100%; background:#c0392b; color:white; margin-bottom:12px;">
+                    <i class="fas fa-stopwatch"></i> Thi thử 4 kỹ năng
+                </button>
                 <h2>Lịch sử</h2>
                 <ul id="history-list"></ul>
             </div>
@@ -389,6 +393,40 @@
         </div>
     </div>
     <div id="viz-tooltip" class="viz-tooltip"></div>
+
+    <!-- ĐÃ THÊM: POPUP THI THỬ 4 KỸ NĂNG — mô phỏng thi thật: Nghe → Đọc → Viết → Nói, mỗi phần tính
+         giờ riêng, hết giờ tự nộp phần đó. Nội dung từng phần render động bằng JS (app.js mục "15.
+         THI THỬ") vì mỗi kỹ năng có giao diện khác nhau (trắc nghiệm / textarea / ghi âm) — dùng
+         textContent/tạo phần tử DOM cho dữ liệu động, tự động an toàn XSS. -->
+    <div id="mocktest-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 700px;">
+            <span class="close-btn" id="mocktest-close-x">&times;</span>
+            <h2 style="color:#c0392b; margin-bottom: 10px;"><i class="fas fa-stopwatch"></i> Thi thử 4 kỹ năng</h2>
+
+            <div id="mocktest-intro">
+                <p style="color:#555;">Bài thi thử mô phỏng đề thi thật, gồm 4 phần theo đúng thứ tự <strong>Nghe → Đọc → Viết → Nói</strong>. Mỗi phần có giới hạn thời gian riêng — hết giờ, hệ thống tự nộp phần đó (dù chưa làm xong) rồi chuyển sang phần tiếp theo.</p>
+                <ul style="margin: 14px 0; padding-left: 20px; color:#555; font-size:0.92em; line-height:1.8;">
+                    <li>🔊 Nghe hiểu — 10 phút</li>
+                    <li>📖 Đọc hiểu — 15 phút</li>
+                    <li>✍️ Viết — 20 phút</li>
+                    <li>🎤 Nói — 5 phút</li>
+                </ul>
+                <button id="btn-mocktest-start" class="btn primary-btn"><i class="fas fa-play"></i> Bắt đầu thi thử</button>
+            </div>
+
+            <div id="mocktest-section-area" class="hidden">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid #eee; padding-bottom:10px;">
+                    <div id="mocktest-section-progress" style="font-weight:bold; color:#2c3e50;"></div>
+                    <div id="mocktest-timer" style="font-size:1.4em; font-weight:bold; color:#e74c3c; font-family:monospace;">00:00</div>
+                </div>
+                <h4 id="mocktest-section-title" style="color:#c0392b; margin-bottom:10px;"></h4>
+                <div id="mocktest-section-body"></div>
+                <button id="btn-mocktest-submit-section" class="btn primary-btn" style="margin-top:15px;"><i class="fas fa-arrow-right"></i> Nộp & Tiếp tục</button>
+            </div>
+
+            <div id="mocktest-report" class="hidden"></div>
+        </div>
+    </div>
 
     <!-- POPUP GỢI Ý ĐƯỢC ĐẶT Ở ĐÂY -->
     <div id="hints-modal" class="modal hidden">

@@ -2209,3 +2209,456 @@ async function saveComprehensionToHistory(result) {
     }
     await loadHistory();
 }
+
+// ==========================================
+// 15. THI THỬ 4 KỸ NĂNG (MOCK TEST — mô phỏng thi thật, có tính giờ)
+// ==========================================
+// Nghe → Đọc → Viết → Nói, mỗi phần tính giờ riêng, hết giờ tự nộp. THIẾT KẾ: Backend (Controller_
+// MockTest.gs) chỉ có 1 action 'start_mock_test' để lấy/sinh đủ 4 đề 1 lần — chấm điểm từng phần TÁI
+// DÙNG NGUYÊN VẸN 3 action đã có (submit_comprehension_answers/evaluate_writing/evaluate_speaking),
+// lưu lịch sử qua save_history_item y hệt luyện tập thường (chỉ thêm tiền tố "[Thi thử]") -> SRS/
+// Mastery/streak/heatmap tự động hoạt động, không cần code thêm ở các module đó.
+const mocktestModal = document.getElementById('mocktest-modal');
+const btnOpenMockTest = document.getElementById('btn-open-mocktest');
+const mocktestCloseX = document.getElementById('mocktest-close-x');
+const mocktestIntro = document.getElementById('mocktest-intro');
+const btnMockTestStart = document.getElementById('btn-mocktest-start');
+const mocktestSectionArea = document.getElementById('mocktest-section-area');
+const mocktestSectionProgress = document.getElementById('mocktest-section-progress');
+const mocktestTimerEl = document.getElementById('mocktest-timer');
+const mocktestSectionTitle = document.getElementById('mocktest-section-title');
+const mocktestSectionBody = document.getElementById('mocktest-section-body');
+const btnMockTestSubmitSection = document.getElementById('btn-mocktest-submit-section');
+const mocktestReport = document.getElementById('mocktest-report');
+
+const MOCKTEST_SECTION_LABELS = { listening: '🔊 Nghe hiểu', reading: '📖 Đọc hiểu', writing: '✍️ Viết', speaking: '🎤 Nói' };
+
+let mockTestData = null;            // { order, timeLimits, sections } — trả về từ start_mock_test
+let mockTestIndex = 0;
+let mockTestResults = {};           // { listening: gradedResult, reading:..., writing: assessment, speaking: assessment }
+let mockTestTimerInterval = null;
+let mockTestSelectedAnswers = [];   // đáp án đang chọn của phần Nghe/Đọc hiện tại
+let mockTestSubmitting = false;     // chặn nộp trùng khi hết giờ VÀ người dùng bấm nộp cùng lúc
+
+// --- Ghi âm riêng cho phần Nói trong Mock Test (KHÔNG dùng chung mediaRecorder của workspace Speaking
+// thường — tách biệt để không xung đột trạng thái nếu người dùng có bài Speaking dở dang trước đó). ---
+let mockTestMediaRecorder = null;
+let mockTestSpeakingChunks = [];
+let mockTestSpeakingBase64 = null;
+let mockTestSpeakingMimeType = 'audio/webm';
+let mockTestRecordingStopResolve = null;
+
+function resetMockTestUI() {
+    stopMockTestTimer();
+    mockTestData = null;
+    mockTestIndex = 0;
+    mockTestResults = {};
+    mockTestSelectedAnswers = [];
+    mockTestSpeakingBase64 = null;
+    if (mocktestIntro) mocktestIntro.classList.remove('hidden');
+    if (mocktestSectionArea) mocktestSectionArea.classList.add('hidden');
+    if (mocktestReport) { mocktestReport.classList.add('hidden'); mocktestReport.innerHTML = ''; }
+    if (btnMockTestStart) { btnMockTestStart.disabled = false; btnMockTestStart.innerHTML = '<i class="fas fa-play"></i> Bắt đầu thi thử'; }
+}
+
+btnOpenMockTest?.addEventListener('click', () => {
+    resetMockTestUI();
+    mocktestModal?.classList.remove('hidden');
+});
+
+mocktestCloseX?.addEventListener('click', () => {
+    stopMockTestTimer();
+    if (mockTestMediaRecorder && mockTestMediaRecorder.state === 'recording') {
+        mockTestMediaRecorder.stop();
+        mockTestMediaRecorder.stream.getTracks().forEach(t => t.stop());
+    }
+    mocktestModal?.classList.add('hidden');
+});
+
+async function startMockTest() {
+    if (!btnMockTestStart) return;
+    btnMockTestStart.disabled = true;
+    btnMockTestStart.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang chuẩn bị đề (Nghe/Đọc/Viết/Nói)...';
+
+    const payload = {
+        action: 'start_mock_test',
+        language: langSelect.value,
+        languageDisplayText: langSelect.options[langSelect.selectedIndex]?.text || ''
+    };
+    const data = await callBackendAPI(payload, '', false);
+
+    if (!data) {
+        alert('Không tạo được bài thi thử, vui lòng thử lại (có thể ngôn ngữ này chưa có đủ ngân hàng đề Nghe/Đọc).');
+        btnMockTestStart.disabled = false;
+        btnMockTestStart.innerHTML = '<i class="fas fa-play"></i> Bắt đầu thi thử';
+        return;
+    }
+
+    mockTestData = data;
+    mockTestIndex = 0;
+    mockTestResults = {};
+    mocktestIntro.classList.add('hidden');
+    mocktestSectionArea.classList.remove('hidden');
+    renderMockTestSection(mockTestIndex);
+}
+btnMockTestStart?.addEventListener('click', startMockTest);
+
+function renderMockTestSection(index) {
+    const type = mockTestData.order[index];
+    const section = mockTestData.sections[type];
+    mocktestSectionProgress.textContent = `Phần ${index + 1}/4 — ${MOCKTEST_SECTION_LABELS[type]}`;
+    mocktestSectionTitle.textContent = section.title || '';
+    mocktestSectionBody.innerHTML = '';
+    btnMockTestSubmitSection.disabled = false;
+    btnMockTestSubmitSection.innerHTML = '<i class="fas fa-arrow-right"></i> Nộp & Tiếp tục';
+
+    if (type === 'listening' || type === 'reading') {
+        renderMockTestComprehensionSection(type, section);
+    } else if (type === 'writing') {
+        renderMockTestWritingSection(section);
+    } else if (type === 'speaking') {
+        renderMockTestSpeakingSection(section);
+    }
+
+    startMockTestTimer(mockTestData.timeLimits[type]);
+}
+
+function renderMockTestComprehensionSection(type, section) {
+    mockTestSelectedAnswers = new Array(section.questions.length).fill(-1);
+    btnMockTestSubmitSection.disabled = true;
+
+    if (type === 'reading') {
+        const passageBox = document.createElement('div');
+        passageBox.className = 'preserve-format';
+        passageBox.style.cssText = 'font-size:1.02em; line-height:1.6; background:#fdfdfd; padding:14px; border-radius:8px; border:1px solid #eee; margin-bottom:14px;';
+        passageBox.textContent = section.content;
+        mocktestSectionBody.appendChild(passageBox);
+    } else {
+        const audioBox = document.createElement('div');
+        audioBox.style.cssText = 'background:#eafaf1; padding:14px; border-radius:8px; border:1px solid #a3e4d7; margin-bottom:14px; text-align:center;';
+        audioBox.innerHTML = `
+            <button id="btn-mocktest-play-audio" class="btn" style="background:#16a085; color:white;"><i class="fas fa-volume-up"></i> Nghe bài (có thể nghe lại)</button>
+            <div id="mocktest-audio-status" style="font-size:0.85em; color:#e67e22; font-style:italic; margin-top:8px;"></div>
+            <audio id="mocktest-audio-player" controls style="width:100%; margin-top:10px; display:none;"></audio>
+        `;
+        mocktestSectionBody.appendChild(audioBox);
+        document.getElementById('btn-mocktest-play-audio').onclick = () => {
+            window.generateAndPlaySample && window.generateAndPlaySample(section.content, 'Charon', {
+                btnId: 'btn-mocktest-play-audio', statusId: 'mocktest-audio-status', playerId: 'mocktest-audio-player'
+            });
+        };
+    }
+
+    section.questions.forEach((q, qIndex) => {
+        const qBox = document.createElement('div');
+        qBox.style.cssText = 'margin-bottom:14px; padding:12px; background:#fdfdfd; border:1px solid #eee; border-radius:8px;';
+        const qText = document.createElement('div');
+        qText.style.cssText = 'font-weight:bold; margin-bottom:8px; color:#2c3e50;';
+        qText.textContent = `Câu ${qIndex + 1}. ${q.question}`;
+        qBox.appendChild(qText);
+
+        const choicesWrap = document.createElement('div');
+        choicesWrap.style.cssText = 'display:flex; flex-direction:column; gap:6px;';
+        q.choices.forEach((choice, cIndex) => {
+            const btn = document.createElement('button');
+            btn.className = 'btn';
+            btn.style.cssText = 'text-align:left; justify-content:flex-start; background:#f4f7f6; color:#2c3e50; border:1px solid #ccc; padding:9px 12px; font-size:0.92em;';
+            btn.textContent = String.fromCharCode(65 + cIndex) + '. ' + choice;
+            btn.onclick = () => {
+                mockTestSelectedAnswers[qIndex] = cIndex;
+                choicesWrap.querySelectorAll('button').forEach((b, i) => {
+                    const sel = i === cIndex;
+                    b.style.background = sel ? '#2980b9' : '#f4f7f6';
+                    b.style.color = sel ? 'white' : '#2c3e50';
+                    b.style.borderColor = sel ? '#2980b9' : '#ccc';
+                });
+                btnMockTestSubmitSection.disabled = mockTestSelectedAnswers.some(a => a === -1);
+            };
+            choicesWrap.appendChild(btn);
+        });
+        qBox.appendChild(choicesWrap);
+        mocktestSectionBody.appendChild(qBox);
+    });
+}
+
+function renderMockTestWritingSection(section) {
+    const promptBox = document.createElement('div');
+    promptBox.className = 'preserve-format';
+    promptBox.style.cssText = 'font-size:1.02em; line-height:1.6; background:#fdfdfd; padding:14px; border-radius:8px; border:1px solid #eee; margin-bottom:14px;';
+    promptBox.innerHTML = safeMarkdown(section.promptText); // đề do AI sinh, đã qua safeMarkdown() (DOMPurify) giống mọi nơi khác
+
+    const textarea = document.createElement('textarea');
+    textarea.id = 'mocktest-writing-input';
+    textarea.placeholder = 'Bắt đầu gõ bài viết của bạn tại đây...';
+    textarea.style.cssText = 'width:100%; min-height:200px; padding:12px; font-size:1.05em; border-radius:8px; border:1px solid var(--border-color); resize:vertical; line-height:1.6;';
+
+    const wordCount = document.createElement('div');
+    wordCount.style.cssText = 'margin-top:8px; font-weight:bold; color:#7f8c8d;';
+    wordCount.textContent = 'Số từ: 0';
+    textarea.addEventListener('input', () => {
+        const words = textarea.value.trim().split(/\s+/).filter(Boolean).length;
+        wordCount.textContent = 'Số từ: ' + words;
+    });
+
+    mocktestSectionBody.appendChild(promptBox);
+    mocktestSectionBody.appendChild(textarea);
+    mocktestSectionBody.appendChild(wordCount);
+}
+
+function renderMockTestSpeakingSection(section) {
+    mockTestSpeakingBase64 = null;
+    btnMockTestSubmitSection.disabled = true;
+
+    const promptBox = document.createElement('div');
+    promptBox.className = 'preserve-format';
+    promptBox.style.cssText = 'font-size:1.02em; line-height:1.6; background:#fdfdfd; padding:14px; border-radius:8px; border:1px solid #eee; margin-bottom:14px;';
+    promptBox.innerHTML = safeMarkdown(section.promptText);
+
+    const controlsBox = document.createElement('div');
+    controlsBox.style.cssText = 'text-align:center; padding:10px 0;';
+    controlsBox.innerHTML = `
+        <button id="mocktest-btn-record" class="btn record-btn"><i class="fas fa-microphone"></i> Ghi âm</button>
+        <button id="mocktest-btn-stop" class="btn stop-btn" style="margin-left:10px;" disabled><i class="fas fa-stop"></i> Dừng</button>
+        <audio id="mocktest-audio-preview" controls style="display:none; width:100%; margin-top:12px;"></audio>
+    `;
+
+    mocktestSectionBody.appendChild(promptBox);
+    mocktestSectionBody.appendChild(controlsBox);
+
+    document.getElementById('mocktest-btn-record').onclick = startMockTestRecording;
+    document.getElementById('mocktest-btn-stop').onclick = stopMockTestRecording;
+}
+
+async function startMockTestRecording() {
+    const recordBtn = document.getElementById('mocktest-btn-record');
+    const stopBtn = document.getElementById('mocktest-btn-stop');
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mockTestMediaRecorder = new MediaRecorder(stream);
+        mockTestSpeakingChunks = [];
+        mockTestMediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) mockTestSpeakingChunks.push(e.data); };
+        mockTestMediaRecorder.onstop = () => {
+            const blob = new Blob(mockTestSpeakingChunks, { type: mockTestMediaRecorder.mimeType || 'audio/webm' });
+            mockTestSpeakingMimeType = blob.type;
+            const preview = document.getElementById('mocktest-audio-preview');
+            if (preview) { preview.src = URL.createObjectURL(blob); preview.style.display = 'block'; }
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                mockTestSpeakingBase64 = reader.result;
+                if (btnMockTestSubmitSection) btnMockTestSubmitSection.disabled = false;
+                if (mockTestRecordingStopResolve) { mockTestRecordingStopResolve(); mockTestRecordingStopResolve = null; }
+            };
+            reader.readAsDataURL(blob);
+        };
+        mockTestMediaRecorder.start();
+        if (recordBtn) { recordBtn.disabled = true; recordBtn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Đang thu...'; }
+        if (stopBtn) stopBtn.disabled = false;
+    } catch (err) { alert('Lỗi Micro: ' + err.message); }
+}
+
+function stopMockTestRecording() {
+    if (mockTestMediaRecorder && mockTestMediaRecorder.state === 'recording') {
+        mockTestMediaRecorder.stop();
+        mockTestMediaRecorder.stream.getTracks().forEach(t => t.stop());
+        const recordBtn = document.getElementById('mocktest-btn-record');
+        const stopBtn = document.getElementById('mocktest-btn-stop');
+        if (recordBtn) { recordBtn.disabled = false; recordBtn.innerHTML = '<i class="fas fa-microphone"></i> Ghi âm lại'; }
+        if (stopBtn) stopBtn.disabled = true;
+    }
+}
+
+// Nếu hết giờ ĐÚNG lúc đang ghi âm dở — tự dừng thu, đợi encode xong (FileReader trong onstop ở trên)
+// rồi mới cho phép nộp, thay vì mất trắng đoạn đang ghi.
+function waitForMockTestRecordingStop() {
+    return new Promise((resolve) => {
+        if (!mockTestMediaRecorder || mockTestMediaRecorder.state !== 'recording') { resolve(); return; }
+        mockTestRecordingStopResolve = resolve;
+        stopMockTestRecording();
+    });
+}
+
+function startMockTestTimer(seconds) {
+    stopMockTestTimer();
+    let remaining = seconds;
+    updateMockTestTimerDisplay(remaining);
+    mockTestTimerInterval = setInterval(() => {
+        remaining--;
+        updateMockTestTimerDisplay(remaining);
+        if (remaining <= 0) {
+            stopMockTestTimer();
+            submitMockTestSection(true); // hết giờ -> tự nộp phần đang làm
+        }
+    }, 1000);
+}
+
+function stopMockTestTimer() {
+    if (mockTestTimerInterval) { clearInterval(mockTestTimerInterval); mockTestTimerInterval = null; }
+}
+
+function updateMockTestTimerDisplay(seconds) {
+    const s = Math.max(0, seconds);
+    const mm = String(Math.floor(s / 60)).padStart(2, '0');
+    const ss = String(s % 60).padStart(2, '0');
+    if (mocktestTimerEl) {
+        mocktestTimerEl.textContent = `${mm}:${ss}`;
+        mocktestTimerEl.style.color = s <= 30 ? '#e74c3c' : '#2c3e50';
+    }
+}
+
+async function submitMockTestSection(isTimeout) {
+    if (mockTestSubmitting) return;
+    mockTestSubmitting = true;
+    stopMockTestTimer();
+
+    const type = mockTestData.order[mockTestIndex];
+    const section = mockTestData.sections[type];
+    btnMockTestSubmitSection.disabled = true;
+    btnMockTestSubmitSection.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang chấm...';
+
+    function backToEditable() {
+        mockTestSubmitting = false;
+        btnMockTestSubmitSection.disabled = false;
+        btnMockTestSubmitSection.innerHTML = '<i class="fas fa-arrow-right"></i> Nộp & Tiếp tục';
+    }
+
+    let result = null;
+
+    if (type === 'listening' || type === 'reading') {
+        // Nghe/Đọc: cứ nộp thẳng dù chưa chọn hết (câu chưa chọn tính -1 = sai) — Backend đã xử lý sẵn.
+        const payload = { action: 'submit_comprehension_answers', skill: type, language: langSelect.value, itemId: section.itemId, answers: mockTestSelectedAnswers };
+        result = await callBackendAPI(payload, '', false);
+    } else if (type === 'writing') {
+        const textarea = document.getElementById('mocktest-writing-input');
+        const text = textarea ? textarea.value.trim() : '';
+        if (!text || text.length < 5) {
+            if (!isTimeout) { alert('Bài viết quá ngắn, viết thêm trước khi nộp nhé.'); backToEditable(); return; }
+            result = { skipped: true, reason: 'Hết giờ, chưa nộp đủ bài viết.' };
+        } else {
+            const payload = { action: 'evaluate_writing', text: text, language: langSelect.options[langSelect.selectedIndex].text, promptText: section.promptText };
+            result = await callBackendAPI(payload, '', false);
+            if (result) result._mockTestText = text; // giữ lại để lưu vào History (writingText)
+        }
+    } else if (type === 'speaking') {
+        await waitForMockTestRecordingStop();
+        if (!mockTestSpeakingBase64) {
+            if (!isTimeout) { alert('Hãy ghi âm câu trả lời trước khi nộp.'); backToEditable(); return; }
+            result = { skipped: true, reason: 'Hết giờ, chưa ghi âm.' };
+        } else {
+            const payload = { action: 'evaluate_speaking', audio: mockTestSpeakingBase64, mimeType: mockTestSpeakingMimeType, language: langSelect.options[langSelect.selectedIndex].text, promptText: section.promptText };
+            result = await callBackendAPI(payload, '', false);
+        }
+    }
+
+    if (!result) {
+        // Lỗi mạng/API thật (không phải do hết giờ bỏ qua) -> cho thử lại, không ép qua phần tiếp theo.
+        alert('Chấm điểm phần này thất bại, vui lòng thử lại.');
+        backToEditable();
+        return;
+    }
+
+    mockTestResults[type] = result;
+    if (!result.skipped) await saveMockTestSectionToHistory(type, section, result);
+
+    mockTestSubmitting = false;
+    mockTestIndex++;
+
+    if (mockTestIndex >= mockTestData.order.length) {
+        finishMockTest();
+    } else {
+        renderMockTestSection(mockTestIndex);
+    }
+}
+btnMockTestSubmitSection?.addEventListener('click', () => submitMockTestSection(false));
+
+// ĐÃ SỬA: không tái dùng saveCurrentSessionToHistory()/saveComprehensionToHistory() — Mock Test lưu cả
+// 4 loại (listening/reading/writing/speaking) qua CÙNG 1 hàm, chỉ khác field nào áp dụng cho loại nào.
+async function saveMockTestSectionToHistory(type, section, result) {
+    const languageCode = langSelect.value;
+    const levelText = section.level ? levelDisplayText(languageCode, section.level) : (lastKnownLevelDisplayText || '');
+    const titleSuffix = (type === 'listening' || type === 'reading') ? (section.title || '') : (section.title || '');
+
+    const item = {
+        id: Date.now() + Math.floor(Math.random() * 1000), // +random: tránh trùng id nếu 2 phần nộp cùng millisecond
+        type: type,
+        title: `[Thi thử] ${MOCKTEST_SECTION_LABELS[type]} — ${titleSuffix}`,
+        date: new Date().toLocaleString('vi-VN'),
+        promptText: (type === 'listening' || type === 'reading') ? (result.itemTitle || titleSuffix) : (section.promptText || ''),
+        promptImage: null,
+        language: langSelect.options[langSelect.selectedIndex]?.text || '',
+        level: levelText,
+        writingText: type === 'writing' ? (result._mockTestText || '') : null,
+        driveAudio: null, // ĐÃ BỎ (v1): không upload audio Nói lên Drive trong Mock Test — giữ luồng gọn/nhanh, transcript AI vẫn được lưu trong assessment
+        assessment: result
+    };
+
+    try {
+        const payload = { action: 'save_history_item', idToken: getIdToken(), item: item };
+        const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
+        const apiResult = await response.json();
+        if (!apiResult.success) throw new Error(apiResult.error);
+        if (apiResult.data && apiResult.data.mastery && apiResult.data.mastery.changed) {
+            showLevelChangeToast(apiResult.data.mastery.direction, apiResult.data.mastery.newLevel);
+        }
+    } catch (err) {
+        console.warn('Không lưu được phần thi thử vào lịch sử:', err);
+    }
+}
+
+function buildMockTestReportHTML() {
+    const languageCode = langSelect.value;
+    const order = (LANGUAGE_LEVELS[languageCode] || LANGUAGE_LEVELS.english).map(l => l.value);
+    const orderIndex = {};
+    order.forEach((v, i) => { orderIndex[v] = i; });
+
+    let validIndices = [];
+    let sectionsHtml = '';
+
+    ['listening', 'reading', 'writing', 'speaking'].forEach(type => {
+        const result = mockTestResults[type];
+        sectionsHtml += `<div style="margin-bottom:14px; padding:12px 14px; background:#f9f9f9; border-radius:8px; border-left:4px solid #c0392b;">`;
+        sectionsHtml += `<div style="font-weight:bold; color:#2c3e50; margin-bottom:6px;">${MOCKTEST_SECTION_LABELS[type]}</div>`;
+        if (!result || result.skipped) {
+            sectionsHtml += `<div style="color:#e67e22; font-size:0.9em;"><i class="fas fa-exclamation-triangle"></i> ${escapeHtml((result && result.reason) || 'Chưa hoàn thành phần này.')}</div>`;
+        } else {
+            if (type === 'listening' || type === 'reading') {
+                sectionsHtml += `<div>${result.correct_count}/${result.total_questions} câu đúng (${result.score_percent}%)</div>`;
+            } else {
+                const s = result.scores || {};
+                const vals = Object.values(s).filter(v => typeof v === 'number');
+                const avg = vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : '-';
+                sectionsHtml += `<div>Điểm trung bình: ${avg}/10</div>`;
+            }
+            sectionsHtml += `<div style="font-size:0.85em; color:#7f8c8d; margin-top:4px;">Trình độ ước tính: ${escapeHtml(result.estimated_level || '')}</div>`;
+            if (typeof orderIndex[result.estimated_level] === 'number') validIndices.push(orderIndex[result.estimated_level]);
+        }
+        sectionsHtml += `</div>`;
+    });
+
+    let overallHtml = '';
+    if (validIndices.length) {
+        const avgIndex = Math.round(validIndices.reduce((a, b) => a + b, 0) / validIndices.length);
+        const overallLevel = order[Math.max(0, Math.min(order.length - 1, avgIndex))];
+        overallHtml = `
+            <div style="background:linear-gradient(135deg,#c0392b,#e74c3c); padding:16px; border-radius:8px; color:white; margin-bottom:16px;">
+                <div style="font-size:0.85em; opacity:0.9;">Trình độ tổng thể ước tính (trung bình 4 kỹ năng)</div>
+                <div style="font-size:1.4em; font-weight:bold;">${escapeHtml(levelDisplayText(languageCode, overallLevel))}</div>
+            </div>
+        `;
+    }
+
+    return `
+        <h3 style="color:#2c3e50; margin-bottom:12px;"><i class="fas fa-clipboard-check"></i> Kết quả thi thử</h3>
+        ${overallHtml}
+        ${sectionsHtml}
+        <button id="btn-mocktest-close-report" class="btn" style="width:100%; background:#7f8c8d; color:white; margin-top:10px;"><i class="fas fa-times"></i> Đóng</button>
+    `;
+}
+
+async function finishMockTest() {
+    mocktestSectionArea.classList.add('hidden');
+    mocktestReport.innerHTML = buildMockTestReportHTML();
+    mocktestReport.classList.remove('hidden');
+    document.getElementById('btn-mocktest-close-report')?.addEventListener('click', () => mocktestModal.classList.add('hidden'));
+    await loadHistory();
+    refreshCurrentLevel();
+}
