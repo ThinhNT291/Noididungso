@@ -34,7 +34,32 @@ function isAuthError(message) {
     return typeof message === 'string' && message.startsWith('AUTH_');
 }
 
-marked.setOptions({ breaks: true }); 
+marked.setOptions({ breaks: true });
+
+// ==========================================
+// ĐÃ THÊM: CHỐNG XSS — dữ liệu chấm điểm (transcript, lỗi sai, nhận xét...) đến từ AI, nhưng AI được
+// yêu cầu trích dẫn NGUYÊN VĂN lời nói/bài viết của học viên (vd transcript "verbatim"), tức là nội
+// dung học viên tự gõ/nói CÓ THỂ quay lại nguyên xi trong JSON trả về. Đề bài tự nhập (custom-prompt)
+// thì càng rõ ràng do chính người dùng tự gõ. Không có bước này, các giá trị đó bị nhét thẳng vào
+// innerHTML sẽ cho phép chạy HTML/JS tuỳ ý ngay trong phiên đăng nhập của chính học viên đó (đọc được
+// idToken trong sessionStorage, gọi API giả danh họ). MỌI nơi chèn text thuần (không phải markdown)
+// vào innerHTML phải qua escapeHtml(); mọi nơi chèn kết quả marked.parse() phải qua safeMarkdown().
+function escapeHtml(str) {
+    return String(str == null ? '' : str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+// marked.parse() KHÔNG tự lọc HTML thô trong markdown (đây là hành vi mặc định của thư viện, không
+// phải lỗi cấu hình) -> phải lọc qua DOMPurify trước khi gán innerHTML, để vẫn giữ được định dạng
+// markdown (đậm/nghiêng/danh sách...) như ý đồ ban đầu nhưng loại bỏ thẻ/script nguy hiểm.
+function safeMarkdown(text) {
+    const rawHtml = marked.parse(text || '');
+    return (window.DOMPurify) ? DOMPurify.sanitize(rawHtml) : escapeHtml(text);
+}
 
 const skillSelect = document.getElementById('skill-select');
 const langSelect = document.getElementById('language-select');
@@ -263,7 +288,7 @@ btnApplyCustom.addEventListener('click', async () => {
     if(currentSkill === 'speaking') {
         speakingQuestionGrid.querySelectorAll('.q-btn').forEach(b => b.classList.remove('active'));
         activeSpeakingPromptBox.classList.remove('hidden');
-        speakingPromptText.innerHTML = marked.parse(finalPromptText);
+        speakingPromptText.innerHTML = safeMarkdown(finalPromptText);
         
         const spkImage = document.getElementById('speaking-prompt-image');
         if (customImageBase64) { spkImage.src = customImageBase64; spkImage.classList.remove('hidden'); } 
@@ -271,7 +296,7 @@ btnApplyCustom.addEventListener('click', async () => {
     } else if(currentSkill === 'writing') {
         writingQuestionGrid.querySelectorAll('.q-btn').forEach(b => b.classList.remove('active')); 
         activeWritingPromptBox.classList.remove('hidden');
-        writingPromptText.innerHTML = marked.parse(finalPromptText);
+        writingPromptText.innerHTML = safeMarkdown(finalPromptText);
         
         if (customImageBase64) { writingPromptImage.src = customImageBase64; writingPromptImage.classList.remove('hidden'); } 
         else writingPromptImage.classList.add('hidden');
@@ -279,7 +304,7 @@ btnApplyCustom.addEventListener('click', async () => {
         preloadHintsLogic();
     } else if(currentSkill === 'read-aloud') {
         if(activeReadAloudPromptBox) activeReadAloudPromptBox.classList.remove('hidden');
-        if(readAloudPromptText) readAloudPromptText.innerHTML = marked.parse(finalPromptText);
+        if(readAloudPromptText) readAloudPromptText.innerHTML = safeMarkdown(finalPromptText);
     }
     startPrepTimer(); 
 });
@@ -312,7 +337,7 @@ async function callBackendAPI(payload, loadingMessage, isMainAssessment = true, 
             await new Promise(res => setTimeout(res, 1500));
             return callBackendAPI(payload, loadingMessage, isMainAssessment, retriesLeft - 1);
         }
-        if (isMainAssessment) assessmentBox.innerHTML = `<span style="color:red;"><i class="fas fa-exclamation-triangle"></i> Lỗi kết nối: ${err.message}</span>`;
+        if (isMainAssessment) assessmentBox.innerHTML = `<span style="color:red;"><i class="fas fa-exclamation-triangle"></i> Lỗi kết nối: ${escapeHtml(err.message)}</span>`;
         return null;
     }
 }
@@ -322,8 +347,10 @@ async function callBackendAPI(payload, loadingMessage, isMainAssessment = true, 
 // ==========================================
 async function fetchQuestionsFromGAS() {
     try {
-        // ĐÃ THÊM: idToken bắt buộc phải có (Backend chặn get_questions nếu thiếu/không hợp lệ)
-        const response = await fetch(GAS_WEB_APP_URL + "?action=get_questions&idToken=" + encodeURIComponent(getIdToken() || ''), { method: "GET", redirect: "follow" });
+        // ĐÃ SỬA (bảo mật): gọi qua POST thay vì GET-kèm-idToken-trên-URL — token xác thực không nên
+        // nằm trong query string (dễ lưu lại trong lịch sử trình duyệt / log truy cập). idToken bắt
+        // buộc phải có (Backend chặn get_questions nếu thiếu/không hợp lệ).
+        const response = await fetch(GAS_WEB_APP_URL, { method: "POST", body: JSON.stringify({ action: 'get_questions', idToken: getIdToken() }) });
         const result = await response.json();
         
         if(result.success) {
@@ -333,8 +360,8 @@ async function fetchQuestionsFromGAS() {
             renderGrid(writingQuestionGrid, systemQuestions.writing, 'writing');
         } else throw new Error(result.error);
     } catch(e) {
-        speakingQuestionGrid.innerHTML = `<span style="color:#e74c3c;">Lỗi: ${e.message}</span>`;
-        writingQuestionGrid.innerHTML = `<span style="color:#e74c3c;">Lỗi: ${e.message}</span>`;
+        speakingQuestionGrid.innerHTML = `<span style="color:#e74c3c;">Lỗi: ${escapeHtml(e.message)}</span>`;
+        writingQuestionGrid.innerHTML = `<span style="color:#e74c3c;">Lỗi: ${escapeHtml(e.message)}</span>`;
     }
 }
 
@@ -353,7 +380,7 @@ function renderGrid(container, groupedArray, skillType) {
     groupedArray.forEach((q, idx) => {
         let btn = document.createElement('button');
         btn.className = 'q-btn';
-        btn.innerHTML = q.title;
+        btn.innerHTML = escapeHtml(q.title); // q.title đến từ Google Sheet đề bài (admin quản lý), vẫn escape để phòng hờ
         btn.onclick = () => selectQuestion(skillType, idx, btn);
         container.appendChild(btn);
     });
@@ -374,8 +401,8 @@ function selectQuestion(skillType, index, btnElem) {
     };
 
     const tabsContainerId = skillType === 'speaking' ? 'speaking-tabs' : 'writing-tabs';
-    document.getElementById(tabsContainerId).innerHTML = currentSelectedGroup.parts.map((p, pIndex) => 
-        `<button class="tab-btn ${pIndex === 0 ? 'active' : ''}" onclick="switchTab('${skillType}', ${pIndex})">${p.partName}</button>`
+    document.getElementById(tabsContainerId).innerHTML = currentSelectedGroup.parts.map((p, pIndex) =>
+        `<button class="tab-btn ${pIndex === 0 ? 'active' : ''}" onclick="switchTab('${skillType}', ${pIndex})">${escapeHtml(p.partName)}</button>`
     ).join('');
 
     if (skillType === 'speaking') {
@@ -406,14 +433,14 @@ window.switchTab = (skillType, partIndex) => {
     }
 
     if (skillType === 'speaking') {
-        speakingPromptText.innerHTML = marked.parse(displayText);
+        speakingPromptText.innerHTML = safeMarkdown(displayText);
         if (hasMindmap) {
             speakingMindmapArea.classList.remove('hidden');
             let markdownContent = partData.content.substring(partData.content.indexOf('# '));
             drawMindmapToSVG(markdownContent, speakingMindmapSvg);
         } else speakingMindmapArea.classList.add('hidden');
     } else {
-        writingPromptText.innerHTML = marked.parse(displayText);
+        writingPromptText.innerHTML = safeMarkdown(displayText);
     }
 }
 
@@ -429,7 +456,7 @@ function drawMindmapToSVG(markdownText, svgElement) {
             spacingVertical: 40
         }, root);
     } catch (err) {
-        svgElement.innerHTML = `<text x="10" y="20" fill="red">Lỗi vẽ Sơ đồ: ${err.message}</text>`;
+        svgElement.innerHTML = `<text x="10" y="20" fill="red">Lỗi vẽ Sơ đồ: ${escapeHtml(err.message)}</text>`;
     }
 }
 
@@ -530,14 +557,16 @@ async function preloadHintsLogic() {
     }
 }
 
-const formatList = (data) => Array.isArray(data) ? `<ul class="hint-list">${data.map(item => `<li style="margin-bottom:6px;">${item}</li>`).join('')}</ul>` : `<p>${(data || "").replace(/\n/g, '<br>')}</p>`;
+// ĐÃ SỬA: escapeHtml() từng item trước khi nhét vào <li>/<p> — data ở đây là nhận xét/gợi ý do AI
+// sinh ra dựa trên đề bài/bài làm của học viên (có thể chứa lại nguyên văn nội dung học viên tự gõ).
+const formatList = (data) => Array.isArray(data) ? `<ul class="hint-list">${data.map(item => `<li style="margin-bottom:6px;">${escapeHtml(item)}</li>`).join('')}</ul>` : `<p>${escapeHtml(data || "").replace(/\n/g, '<br>')}</p>`;
 
 function renderHintsToModal(data) {
     hintsModalBody.innerHTML = `
         <div class="hint-section"><h4><i class="fas fa-search"></i> 1. Phân tích đề bài</h4>${formatList(data.analysis)}</div>
         <div class="hint-section"><h4><i class="fas fa-sitemap"></i> 2. Bố cục logic</h4>${formatList(data.organization)}</div>
         <div class="hint-section"><h4><i class="fas fa-chess-knight"></i> 3. Chiến lược đạt điểm cao</h4>${formatList(data.strategy?.advice)}
-            <div style="margin-top:10px;"><strong>Từ vựng:</strong><br> ${(data.strategy?.vocabulary || []).map(v => `<span class="hint-pill">${v}</span>`).join('')}</div>
+            <div style="margin-top:10px;"><strong>Từ vựng:</strong><br> ${(data.strategy?.vocabulary || []).map(v => `<span class="hint-pill">${escapeHtml(v)}</span>`).join('')}</div>
         </div>
         <div class="hint-section" style="background: #fdf2e9; padding: 15px; border-radius: 8px;"><h4><i class="fas fa-exclamation-triangle" style="color:#e74c3c;"></i> 4. Lỗi thường gặp</h4>${formatList(data.common_mistakes)}</div>
         <div class="hint-section"><h4><i class="fas fa-stopwatch"></i> 5. Kiểm tra 2 phút cuối</h4>${formatList(data.last_minute_check)}</div>
@@ -551,7 +580,7 @@ btnShowHints.addEventListener('click', () => {
     } else if (cachedWritingHints) {
         renderHintsToModal(cachedWritingHints);
     } else {
-        hintsModalBody.innerHTML = `<span style="color:red; font-weight:bold;">Lỗi gợi ý: ${cachedWritingHintsError || "Hệ thống AI không phản hồi đúng định dạng JSON."}</span><br><br><small style="color:#7f8c8d;">Hãy thử chọn lại đề bài hoặc tải lại trang.</small>`;
+        hintsModalBody.innerHTML = `<span style="color:red; font-weight:bold;">Lỗi gợi ý: ${escapeHtml(cachedWritingHintsError || "Hệ thống AI không phản hồi đúng định dạng JSON.")}</span><br><br><small style="color:#7f8c8d;">Hãy thử chọn lại đề bài hoặc tải lại trang.</small>`;
     }
 });
 
@@ -603,7 +632,7 @@ btnSubmitWriting.addEventListener('click', async () => {
     };
 
     lastWritingSubmittedText = text; // ĐÃ THÊM: lưu lại để dùng khi bấm "Lưu bài"
-    const data = await callBackendAPI(payload, "Đang chấm bài viết, vui lòng đợi một chút...");
+    const data = await callBackendAPI(payload, "Giám khảo AI đang chấm bài Viết...");
     if (data) renderWritingAssessment(data);
 });
 
@@ -652,7 +681,7 @@ function processAudioAndSend(blob) {
     reader.onloadend = async () => {
         currentAudioBase64 = reader.result;
         const payload = { action: 'evaluate_speaking', audio: reader.result, mimeType: blob.type, language: langSelect.options[langSelect.selectedIndex].text, level: levelSelect.options[levelSelect.selectedIndex].text, promptText: activePromptData.text, promptImage: activePromptData.image };
-        const data = await callBackendAPI(payload, "Đang phân tích bài nói của bạn, vui lòng đợi chút...");
+        const data = await callBackendAPI(payload, "Giám khảo AI đang phân tích âm thanh của bạn...");
         if (data) renderSpeakingAssessment(data);
     };
 }
@@ -788,7 +817,7 @@ async function processAudioReadAndSend(blob) {
         };
         
         if (resultSection) resultSection.classList.remove('hidden');
-        assessmentBox.innerHTML = `<span class="placeholder-text" style="color:#f39c12;"><i class="fas fa-spinner fa-spin"></i> Đang phân tích bài đọc của bạn, vui lòng chờ một chút...</span>`;
+        assessmentBox.innerHTML = `<span class="placeholder-text" style="color:#f39c12;"><i class="fas fa-spinner fa-spin"></i> Giám khảo AI đang đối chiếu từng từ trong bài Luyện đọc...</span>`;
         
         const data = await callBackendAPI(payload, "Đang phân tích độ chuẩn xác...", true);
         if (data) renderReadAloudAssessment(data);
@@ -799,27 +828,27 @@ async function processAudioReadAndSend(blob) {
 function buildReadAloudAssessmentHTML(data) {
     return `
         <div style="background: #2c3e50; padding: 20px; border-radius: 12px; color: white; margin-bottom: 20px;">
-            <h2 style="margin:0; color:#f1c40f;"><i class="fas fa-star"></i> Điểm bài đọc: ${data.score}/10</h2>
-            <p>Độ chính xác âm thanh: <strong>${data.accuracy_percent}%</strong></p>
+            <h2 style="margin:0; color:#f1c40f;"><i class="fas fa-star"></i> Điểm bài đọc: ${escapeHtml(data.score)}/10</h2>
+            <p>Độ chính xác âm thanh: <strong>${escapeHtml(data.accuracy_percent)}%</strong></p>
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
             <div style="background:#e8f8f5; padding:15px; border-radius:8px; border-left: 5px solid #27ae60;">
                 <h4 style="color:#27ae60; margin-top:0;">Điểm mạnh</h4>
-                <ul>${(data.strengths || []).map(s => `<li>${s}</li>`).join('')}</ul>
+                <ul>${(data.strengths || []).map(s => `<li>${escapeHtml(s)}</li>`).join('')}</ul>
             </div>
             <div style="background:#fdedec; padding:15px; border-radius:8px; border-left: 5px solid #e74c3c;">
                 <h4 style="color:#e74c3c; margin-top:0;">Cần cải thiện</h4>
-                <ul>${(data.weaknesses || []).map(w => `<li>${w}</li>`).join('')}</ul>
+                <ul>${(data.weaknesses || []).map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul>
             </div>
         </div>
         <div style="margin-bottom:20px;">
             <h4><i class="fas fa-comments"></i> Nhận xét chuyên sâu</h4>
-            <p style="background:#f4f4f4; padding:15px; border-radius:8px;">${data.detailed_feedback}</p>
+            <p style="background:#f4f4f4; padding:15px; border-radius:8px;">${escapeHtml(data.detailed_feedback)}</p>
         </div>
         <div style="background:#fff3cd; padding:15px; border-radius:8px; border: 1px solid #ffeeba;">
             <h4><i class="fas fa-chalkboard-teacher"></i> Bài tập khắc phục lỗi</h4>
-            <p><strong>Câu luyện tập:</strong> <em>${data.drill_sentence}</em></p>
-            <p>${data.roadmap}</p>
+            <p><strong>Câu luyện tập:</strong> <em>${escapeHtml(data.drill_sentence)}</em></p>
+            <p>${escapeHtml(data.roadmap)}</p>
         </div>
     `;
 }
@@ -838,7 +867,7 @@ function renderReadAloudAssessment(data) {
 function buildSpeakingAssessmentHTML(data) {
     return `
         <div style="background: linear-gradient(135deg, #2ecc71, #27ae60); padding: 15px; border-radius: 8px; color: white; margin-bottom: 20px;">
-            <h3 style="margin: 0 0 10px 0; color: white;"><i class="fas fa-award"></i> Trình độ ước tính: <span style="color: #ffeaa7;">${data.estimated_level}</span></h3>
+            <h3 style="margin: 0 0 10px 0; color: white;"><i class="fas fa-award"></i> Trình độ ước tính: <span style="color: #ffeaa7;">${escapeHtml(data.estimated_level)}</span></h3>
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                 <div style="flex:1; background:rgba(255,255,255,0.2); padding: 10px; border-radius:8px; text-align:center;"><small>Phát âm</small><br><strong>${data.scores?.pronunciation || 0}/10</strong></div>
                 <div style="flex:1; background:rgba(255,255,255,0.2); padding: 10px; border-radius:8px; text-align:center;"><small>Trôi chảy</small><br><strong>${data.scores?.fluency || 0}/10</strong></div>
@@ -847,7 +876,7 @@ function buildSpeakingAssessmentHTML(data) {
             </div>
         </div>
         <h4><i class="fas fa-quote-left"></i> Bản Transcript:</h4>
-        <p style="white-space: pre-wrap; background: #f8f9fa; padding: 15px; border-radius: 6px; font-style: italic; margin-bottom: 20px;">${data.transcript}</p>
+        <p style="white-space: pre-wrap; background: #f8f9fa; padding: 15px; border-radius: 6px; font-style: italic; margin-bottom: 20px;">${escapeHtml(data.transcript)}</p>
         <div style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
             <div style="flex: 1; min-width: 200px; border-left: 4px solid #27ae60; padding-left: 10px;">
                 <h4 style="color:#27ae60; margin-bottom: 5px;"><i class="fas fa-check-circle"></i> Điểm mạnh</h4>
@@ -860,13 +889,13 @@ function buildSpeakingAssessmentHTML(data) {
         </div>
         <h4 style="color:#d35400; border-bottom: 1px solid #ccc; padding-bottom: 5px;"><i class="fas fa-search"></i> Phân tích lỗi</h4>
         <ul style="padding-left: 0; list-style: none; margin-bottom: 20px;">
-            ${(data.errors && data.errors.length > 0) ? data.errors.map(err => `<li style="margin-bottom: 10px; background: #fdf2e9; padding: 10px; border-radius: 6px;"><del style="color:red; font-weight: bold;">${err.original_phrase}</del> &rarr; <strong style="color:green;">${err.correction}</strong><br><small style="color:#555;">${err.reason}</small></li>`).join('') : '<li style="color:green; padding: 10px;">Tuyệt vời! Không phát hiện lỗi nghiêm trọng.</li>'}
+            ${(data.errors && data.errors.length > 0) ? data.errors.map(err => `<li style="margin-bottom: 10px; background: #fdf2e9; padding: 10px; border-radius: 6px;"><del style="color:red; font-weight: bold;">${escapeHtml(err.original_phrase)}</del> &rarr; <strong style="color:green;">${escapeHtml(err.correction)}</strong><br><small style="color:#555;">${escapeHtml(err.reason)}</small></li>`).join('') : '<li style="color:green; padding: 10px;">Tuyệt vời! Không phát hiện lỗi nghiêm trọng.</li>'}
         </ul>
         <h4 style="color:#8e44ad;"><i class="fas fa-route"></i> Lộ trình thăng cấp</h4>
         ${formatList(data.how_to_improve)}
         <h4 style="color:#2980b9;"><i class="fas fa-magic"></i> Câu trả lời mẫu</h4>
-        <p style="white-space: pre-wrap; background:#eafaf1; padding: 15px; border-left: 4px solid #2980b9; border-radius: 4px; margin-bottom: 20px;">${data.better_version}</p>
-        <div style="white-space: pre-wrap; margin-bottom: 20px;"><strong>Nhận xét chung:</strong><br>${data.feedback}</div>
+        <p style="white-space: pre-wrap; background:#eafaf1; padding: 15px; border-left: 4px solid #2980b9; border-radius: 4px; margin-bottom: 20px;">${escapeHtml(data.better_version)}</p>
+        <div style="white-space: pre-wrap; margin-bottom: 20px;"><strong>Nhận xét chung:</strong><br>${escapeHtml(data.feedback)}</div>
     `;
 }
 
@@ -881,7 +910,7 @@ function renderSpeakingAssessment(data) {
 function buildWritingAssessmentHTML(data) {
     return `
         <div style="background: linear-gradient(135deg, #8e44ad, #9b59b6); padding: 15px; border-radius: 8px; color: white; margin-bottom: 20px;">
-            <h3 style="margin: 0 0 10px 0; color: white;"><i class="fas fa-award"></i> Trình độ ước tính: <span style="color: #ffeaa7;">${data.estimated_level}</span></h3>
+            <h3 style="margin: 0 0 10px 0; color: white;"><i class="fas fa-award"></i> Trình độ ước tính: <span style="color: #ffeaa7;">${escapeHtml(data.estimated_level)}</span></h3>
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                 <div style="flex:1; background:rgba(255,255,255,0.2); padding: 10px; border-radius:8px; text-align:center;"><small>Task</small><br><strong>${data.scores?.task_achievement || 0}/10</strong></div>
                 <div style="flex:1; background:rgba(255,255,255,0.2); padding: 10px; border-radius:8px; text-align:center;"><small>Coherence</small><br><strong>${data.scores?.coherence || 0}/10</strong></div>
@@ -934,18 +963,18 @@ document.getElementById('btn-random-prompt')?.addEventListener('click', async ()
             document.getElementById('speaking-question-grid-container').classList.add('hidden');
             activeSpeakingPromptBox.classList.remove('hidden');
             document.getElementById('speaking-tabs').innerHTML = '';
-            speakingPromptText.innerHTML = marked.parse(titleHtml);
+            speakingPromptText.innerHTML = safeMarkdown(titleHtml);
             document.getElementById('speaking-prompt-image').classList.add('hidden');
         } else if(currentSkill === 'writing') {
             document.getElementById('writing-question-grid-container').classList.add('hidden');
             activeWritingPromptBox.classList.remove('hidden');
             document.getElementById('writing-tabs').innerHTML = '';
-            writingPromptText.innerHTML = marked.parse(titleHtml);
+            writingPromptText.innerHTML = safeMarkdown(titleHtml);
             writingPromptImage.classList.add('hidden');
             preloadHintsLogic();
         } else if(currentSkill === 'read-aloud') {
             if(activeReadAloudPromptBox) activeReadAloudPromptBox.classList.remove('hidden');
-            if(readAloudPromptText) readAloudPromptText.innerHTML = marked.parse(titleHtml);
+            if(readAloudPromptText) readAloudPromptText.innerHTML = safeMarkdown(titleHtml);
         }
         startPrepTimer();
     } else { 
@@ -969,7 +998,7 @@ async function loadHistory() {
         if (result.success) history = result.data || [];
         else throw new Error(result.error);
     } catch (err) {
-        historyList.innerHTML = `<li class="history-item empty-history" style="color:#e74c3c;">Lỗi tải lịch sử: ${err.message}</li>`;
+        historyList.innerHTML = `<li class="history-item empty-history" style="color:#e74c3c;">Lỗi tải lịch sử: ${escapeHtml(err.message)}</li>`;
         return;
     }
 
@@ -979,7 +1008,7 @@ async function loadHistory() {
     [...history].reverse().forEach(item => {
         historyList.innerHTML += `
             <li class="history-item" onclick="openHistoryItem(${item.id})" style="cursor:pointer;">
-                <div class="history-title">${item.title}<br><small style="color:#7f8c8d; font-weight:normal;">${item.date}</small></div>
+                <div class="history-title">${escapeHtml(item.title)}<br><small style="color:#7f8c8d; font-weight:normal;">${escapeHtml(item.date)}</small></div>
                 <i class="fas fa-ellipsis-v history-actions" onclick="event.stopPropagation(); document.getElementById('menu-${item.id}').style.display = document.getElementById('menu-${item.id}').style.display === 'block' ? 'none' : 'block'"></i>
                 <div class="action-menu" id="menu-${item.id}">
                     <button onclick="event.stopPropagation(); deleteItem(${item.id})" style="color:red;"><i class="fas fa-trash"></i> Xóa</button>
@@ -1122,20 +1151,20 @@ window.openHistoryItem = (id) => {
     }
 
     const promptImageHtml = item.promptImage
-        ? `<img src="${item.promptImage}" style="max-width:100%; border-radius:8px; margin-bottom:15px;">`
+        ? `<img src="${escapeHtml(item.promptImage)}" style="max-width:100%; border-radius:8px; margin-bottom:15px;">`
         : '';
 
     const writingHtml = (item.type === 'writing' && item.writingText)
         ? `<h4 style="margin-bottom:8px;"><i class="fas fa-file-alt"></i> Bài viết đã nộp:</h4>
-           <div class="content-box" style="margin-bottom:15px; white-space:pre-wrap;">${item.writingText.replace(/</g, '&lt;')}</div>`
+           <div class="content-box" style="margin-bottom:15px; white-space:pre-wrap;">${escapeHtml(item.writingText)}</div>`
         : '';
 
     historyModalBody.innerHTML = `
         <span class="close-btn" onclick="document.getElementById('history-modal').classList.add('hidden')" style="position:static; float:right;">&times;</span>
-        <h2 style="color:#2c3e50; margin-bottom:5px; clear:both;">${item.title}</h2>
-        <p style="color:#7f8c8d; font-size:0.85em; margin-bottom:15px;">${item.date} • ${item.language} • ${item.level}</p>
+        <h2 style="color:#2c3e50; margin-bottom:5px; clear:both;">${escapeHtml(item.title)}</h2>
+        <p style="color:#7f8c8d; font-size:0.85em; margin-bottom:15px;">${escapeHtml(item.date)} • ${escapeHtml(item.language)} • ${escapeHtml(item.level)}</p>
         <h4 style="margin-bottom:8px;"><i class="fas fa-file-signature"></i> Đề bài:</h4>
-        <div class="content-box preserve-format" style="margin-bottom:15px;">${marked.parse(item.promptText || '')}</div>
+        <div class="content-box preserve-format" style="margin-bottom:15px;">${safeMarkdown(item.promptText || '')}</div>
         ${promptImageHtml}
         ${sampleAudioHtml}
         ${audioHtml}
@@ -1148,13 +1177,13 @@ window.openHistoryItem = (id) => {
 };
 
 // ĐÃ THÊM: chuyển văn bản Markdown gốc (item.promptText) sang text thuần theo ĐÚNG cách Backend
-// đã dùng để tính khoá cache lúc luyện tập trực tiếp (marked.parse() rồi lấy .innerText của phần
+// đã dùng để tính khoá cache lúc luyện tập trực tiếp (safeMarkdown() rồi lấy .innerText của phần
 // tử đã render) — bắt buộc phải khớp y hệt, vì khoá cache là hash(text, voice); lệch 1 ký tự cũng
 // tính là cache miss và tạo audio mới tốn quota.
 function getPlainTextLikeLivePrompt_(rawMarkdown) {
     const tempEl = document.createElement('div');
     tempEl.style.cssText = 'position:absolute; left:-9999px; top:-9999px; visibility:hidden;';
-    tempEl.innerHTML = marked.parse(rawMarkdown || '');
+    tempEl.innerHTML = safeMarkdown(rawMarkdown || '');
     document.body.appendChild(tempEl);
     const text = tempEl.innerText.trim();
     document.body.removeChild(tempEl);
@@ -1261,13 +1290,13 @@ function setupFreeMode(skill) {
         document.getElementById('speaking-question-grid-container').classList.add('hidden');
         document.getElementById('active-speaking-prompt-box').classList.remove('hidden');
         document.getElementById('speaking-tabs').innerHTML = ''; 
-        speakingPromptText.innerHTML = marked.parse("🎤 **Chế độ Nói Tự Do:** Bấm Ghi âm để bắt đầu tính giờ làm bài!");
+        speakingPromptText.innerHTML = safeMarkdown("🎤 **Chế độ Nói Tự Do:** Bấm Ghi âm để bắt đầu tính giờ làm bài!");
         document.getElementById('speaking-prompt-image').classList.add('hidden');
     } else {
         document.getElementById('writing-question-grid-container').classList.add('hidden');
         document.getElementById('active-writing-prompt-box').classList.remove('hidden');
         document.getElementById('writing-tabs').innerHTML = ''; 
-        writingPromptText.innerHTML = marked.parse("✍️ **Chế độ Viết Tự Do:** Gõ bài viết của bạn bên dưới, hệ thống sẽ tự bắt đầu tính giờ.");
+        writingPromptText.innerHTML = safeMarkdown("✍️ **Chế độ Viết Tự Do:** Gõ bài viết của bạn bên dưới, hệ thống sẽ tự bắt đầu tính giờ.");
         document.getElementById('writing-prompt-image').classList.add('hidden');
         btnShowHints.disabled = true; 
     }

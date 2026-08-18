@@ -12,6 +12,9 @@
     <script src="https://cdn.jsdelivr.net/npm/markmap-view"></script>
     <script src="https://cdn.jsdelivr.net/npm/markmap-lib"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- ĐÃ THÊM: DOMPurify — lọc HTML thô nguy hiểm (XSS) khỏi kết quả marked.parse() trước khi
+         gán vào innerHTML. marked KHÔNG tự lọc HTML thô trong markdown, nên bắt buộc phải có bước này. -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.4.12/purify.min.js"></script>
 </head>
 <body>
     <!-- ĐÃ THÊM: CỔNG ĐĂNG NHẬP GOOGLE — che toàn bộ app cho tới khi có phiên hợp lệ.
@@ -352,6 +355,10 @@
             if (result.success && result.data) {
                 if (result.data.alreadyAllowed) {
                     setLoginGateMessage('✅ Tài khoản này đã có quyền truy cập, hãy đăng nhập lại bình thường.');
+                } else if (result.data.alreadyPending) {
+                    // ĐÃ THÊM: Backend vừa chặn spam (tối đa 1 yêu cầu / 15 phút / email) — báo lại cho
+                    // người dùng biết yêu cầu trước đó vẫn còn hiệu lực, không cần gửi lại ngay.
+                    setLoginGateMessage('⏳ Bạn vừa gửi yêu cầu rồi, vui lòng chờ admin duyệt (không cần gửi lại ngay).');
                 } else {
                     setLoginGateMessage('✅ Đã gửi yêu cầu. Vui lòng chờ được cấp quyền.');
                 }
