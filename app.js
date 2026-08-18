@@ -828,6 +828,7 @@ function renderReadAloudAssessment(data) {
     assessmentBox.innerHTML = buildReadAloudAssessmentHTML(data);
     currentSessionData = { type: 'read-aloud', ...data };
     if (btnSave) btnSave.classList.remove('hidden');
+    scheduleFeedbackPopup(); // ĐÃ THÊM: chấm điểm thành công -> hẹn giờ bật popup xin phản hồi
 }
 
 // ==========================================
@@ -873,6 +874,7 @@ function renderSpeakingAssessment(data) {
     assessmentBox.innerHTML = buildSpeakingAssessmentHTML(data);
     currentSessionData = { type: 'speaking', ...data };
     if (btnSave) btnSave.classList.remove('hidden');
+    scheduleFeedbackPopup(); // ĐÃ THÊM: chấm điểm thành công -> hẹn giờ bật popup xin phản hồi
 }
 
 // ĐÃ SỬA: tách phần dựng HTML ra hàm riêng để tái dùng được khi xem lại lịch sử
@@ -904,6 +906,7 @@ function renderWritingAssessment(data) {
     assessmentBox.innerHTML = buildWritingAssessmentHTML(data);
     currentSessionData = { type: 'writing', ...data };
     if (btnSave) btnSave.classList.remove('hidden');
+    scheduleFeedbackPopup(); // ĐÃ THÊM: chấm điểm thành công -> hẹn giờ bật popup xin phản hồi
 }
 
 // ==========================================
@@ -1230,6 +1233,7 @@ function resetWorkspace(skill) {
     if(assessmentBox) assessmentBox.innerHTML = '<span class="placeholder-text">Đợi một tý, kết quả phân tích chi tiết sẽ có ngay...</span>';
     if(btnSave) btnSave.classList.add('hidden');
     currentSessionData = null; // ĐÃ THÊM: tránh lưu nhầm kết quả cũ vào lịch sử sau khi reset
+    cancelFeedbackPopup(); // ĐÃ THÊM: làm lại/chọn đề khác giữa chừng -> huỷ hẹn giờ popup phản hồi cũ (nếu có)
 
     if (skill === 'speaking') {
         audioChunks = []; currentAudioBase64 = null; if(audioPlayback) audioPlayback.classList.add('hidden');
@@ -1271,3 +1275,55 @@ function setupFreeMode(skill) {
 }
 document.getElementById('btn-free-speaking')?.addEventListener('click', () => setupFreeMode('speaking'));
 document.getElementById('btn-free-writing')?.addEventListener('click', () => setupFreeMode('writing'));
+
+// ==========================================
+// 10. POPUP XIN PHẢN HỒI TRẢI NGHIỆM (~15s SAU KHI CHẤM ĐIỂM THÀNH CÔNG)
+// ==========================================
+// Sau mỗi lần render*Assessment() (Speaking/Writing/Read-aloud) thành công, hẹn giờ 15s rồi tự bật
+// popup xin nhận xét. Bấm "Gửi" (khi có nội dung), hoặc bấm "Đóng"/dấu X khi ô ĐÃ có nội dung, đều
+// gửi nội dung đó về Google Chat qua Backend (action 'send_feedback' — Backend mới là nơi gọi thẳng
+// webhook Google Chat, tránh CORS khi gọi trực tiếp từ trình duyệt). Đóng khi ô trống thì không gửi gì.
+const feedbackModal = document.getElementById('feedback-modal');
+const feedbackTextarea = document.getElementById('feedback-textarea');
+const feedbackBtnSend = document.getElementById('feedback-btn-send');
+const feedbackBtnClose = document.getElementById('feedback-btn-close');
+const feedbackCloseX = document.getElementById('feedback-close-x');
+let feedbackPopupTimer = null;
+const FEEDBACK_POPUP_DELAY_MS = 15000;
+
+function scheduleFeedbackPopup() {
+    if (!feedbackModal) return;
+    cancelFeedbackPopup(); // tránh chồng nhiều lượt hẹn giờ nếu người dùng chấm điểm nhiều lần liên tiếp
+    feedbackPopupTimer = setTimeout(() => {
+        feedbackPopupTimer = null;
+        if (feedbackTextarea) feedbackTextarea.value = '';
+        feedbackModal.classList.remove('hidden');
+    }, FEEDBACK_POPUP_DELAY_MS);
+}
+
+function cancelFeedbackPopup() {
+    if (feedbackPopupTimer) { clearTimeout(feedbackPopupTimer); feedbackPopupTimer = null; }
+    if (feedbackModal) feedbackModal.classList.add('hidden');
+}
+
+async function sendFeedbackToChat(message) {
+    try {
+        const payload = { action: 'send_feedback', message: message, skill: currentSkill, idToken: getIdToken() };
+        const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
+        const result = await response.json();
+        if (!result.success) console.warn("Gửi phản hồi thất bại:", result.error);
+    } catch (err) {
+        console.warn("Lỗi kết nối khi gửi phản hồi:", err);
+    }
+}
+
+// dùng chung cho cả nút "Gửi" và nút "Đóng"/dấu X — chỉ khác nhau ở chỗ "Đóng" khi ô trống thì thoát êm, không cần confirm gì thêm
+function handleFeedbackDismiss() {
+    const content = feedbackTextarea ? feedbackTextarea.value.trim() : '';
+    if (content) sendFeedbackToChat(content);
+    if (feedbackModal) feedbackModal.classList.add('hidden');
+}
+
+feedbackBtnSend?.addEventListener('click', handleFeedbackDismiss);
+feedbackBtnClose?.addEventListener('click', handleFeedbackDismiss);
+feedbackCloseX?.addEventListener('click', handleFeedbackDismiss);

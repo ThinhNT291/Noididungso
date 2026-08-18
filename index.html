@@ -21,7 +21,14 @@
             <h2 style="color:#2c3e50; margin-bottom: 10px;"><i class="fas fa-shield-alt"></i> Đăng nhập để tiếp tục</h2>
             <p style="color:#7f8c8d; margin-bottom: 20px;">Đăng nhập để sử dụng công cụ.</p>
             <div id="login-gate-message" style="min-height: 20px; margin-bottom: 15px; font-weight: bold; color:#e74c3c;"></div>
-            <div id="g_id_signin" style="display: inline-flex; justify-content: center;"></div>
+            <div style="display:flex; justify-content:center; align-items:center; gap:14px; flex-wrap:wrap;">
+                <div id="g_id_signin" style="display: inline-flex; justify-content: center;"></div>
+                <!-- ĐÃ THÊM: nút "Request access" — dành cho tài khoản Google chưa nằm trong whitelist,
+                     bấm vào sẽ mở lại hộp thoại chọn tài khoản Google rồi gửi yêu cầu cấp quyền lên Backend. -->
+                <button type="button" id="btnRequestAccess" style="height:40px; box-sizing:border-box; display:inline-flex; align-items:center; justify-content:center; background:none; border:1px solid #999; color:#555; padding:0 18px; border-radius:20px; font-size:14px; font-family:'Google Sans',Roboto,Arial,sans-serif; font-weight:500; line-height:1; cursor:pointer;">
+                    🔓 Request access
+                </button>
+            </div>
             <div id="login-gate-spinner" class="hidden" style="margin-top: 15px; color:#7f8c8d;"><i class="fas fa-spinner fa-spin"></i> Đang xác thực...</div>
         </div>
     </div>
@@ -283,6 +290,21 @@
         </div>
     </div>
 
+    <!-- ĐÃ THÊM: POPUP XIN NHẬN XÉT TRẢI NGHIỆM — tự bật ~15s sau khi có kết quả chấm điểm thành công
+         (xem scheduleFeedbackPopup() trong app.js). Bấm Gửi, hoặc bấm Đóng khi ô đã có nội dung, đều
+         bắn nội dung về Google Chat qua Backend (action 'send_feedback'). -->
+    <div id="feedback-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 480px;">
+            <span class="close-btn" id="feedback-close-x">&times;</span>
+            <h2 style="color:#2c3e50; margin-bottom: 15px;"><i class="fas fa-comment-dots"></i> Góp ý trải nghiệm</h2>
+            <textarea id="feedback-textarea" rows="5" placeholder="Bạn ơi cho mình một chút nhận xét về trải nghiệm hoặc mô tả lỗi nếu gặp phải để mình sửa nhé, cảm ơn bạn rất nhiều." style="width:100%; padding:10px; border-radius:6px; border:1px solid var(--border-color); resize:vertical; font-size:14px; line-height:1.5; margin-bottom:15px;"></textarea>
+            <div style="display:flex; justify-content:flex-end; gap:10px;">
+                <button type="button" id="feedback-btn-close" class="btn" style="background:#95a5a6; color:white;">Đóng</button>
+                <button type="button" id="feedback-btn-send" class="btn primary-btn" style="width:auto;"><i class="fas fa-paper-plane"></i> Gửi</button>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 
 <!-- ĐÃ THÊM: ĐĂNG NHẬP GOOGLE (Google Identity Services) -->
@@ -300,6 +322,59 @@
     function setLoginGateMessage(msg) {
         loginGateMessageEl.textContent = msg || '';
     }
+
+    // ĐÃ THÊM: NÚT "REQUEST ACCESS" — cờ đánh dấu lượt chọn tài khoản Google TIẾP THEO là để xin
+    // cấp quyền (KHÔNG phải đăng nhập bình thường). handleGoogleCredentialResponse() sẽ đọc cờ này
+    // để rẽ nhánh sang processAccessRequest() thay vì verifyAndStartSession().
+    let __isRequestAccessFlow = false;
+
+    // Giải mã nhanh email từ JWT chỉ để hiển thị xác nhận cho người dùng — Backend vẫn tự xác minh
+    // lại chữ ký/thông tin token thật khi nhận request_access, nên không cần decode UTF-8 cầu kỳ ở đây.
+    function decodeJwtEmailQuick_(idToken) {
+        try {
+            const base64 = idToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+            return JSON.parse(atob(base64)).email || null;
+        } catch (e) { return null; }
+    }
+
+    async function processAccessRequest(idToken) {
+        const email = decodeJwtEmailQuick_(idToken) || '(không đọc được email)';
+        if (!confirm(`Gửi yêu cầu quyền truy cập bằng tài khoản:\n${email}?`)) return;
+
+        setLoginGateMessage('⏳ Đang gửi yêu cầu cấp quyền...');
+        loginGateMessageEl.style.color = '#0288d1';
+        try {
+            const response = await fetch(GAS_WEB_APP_URL, {
+                method: 'POST',
+                body: JSON.stringify({ action: 'request_access', idToken: idToken })
+            });
+            const result = await response.json();
+            if (result.success && result.data) {
+                if (result.data.alreadyAllowed) {
+                    setLoginGateMessage('✅ Tài khoản này đã có quyền truy cập, hãy đăng nhập lại bình thường.');
+                } else {
+                    setLoginGateMessage('✅ Đã gửi yêu cầu. Vui lòng chờ được cấp quyền.');
+                }
+                loginGateMessageEl.style.color = '#2e7d32';
+            } else {
+                setLoginGateMessage(result.error || 'Gửi yêu cầu thất bại.');
+                loginGateMessageEl.style.color = '#e74c3c';
+            }
+        } catch (err) {
+            setLoginGateMessage('Lỗi kết nối, vui lòng thử lại: ' + err.message);
+            loginGateMessageEl.style.color = '#e74c3c';
+        }
+    }
+
+    document.getElementById('btnRequestAccess')?.addEventListener('click', () => {
+        __isRequestAccessFlow = true;
+        if (window.google && google.accounts && google.accounts.id) {
+            google.accounts.id.prompt(); // Bật lại hộp thoại chọn tài khoản Google
+        } else {
+            __isRequestAccessFlow = false;
+            alert('Không thể khởi tạo đăng nhập Google, vui lòng tải lại trang.');
+        }
+    });
 
     // Cho phép app.js (callBackendAPI) gọi lại khi phiên hết hạn giữa chừng
     window.showLoginGate = function(message) {
@@ -342,6 +417,13 @@
     }
 
     function handleGoogleCredentialResponse(response) {
+        // ĐÃ THÊM: nếu lượt chọn tài khoản này đến từ nút "Request access", rẽ nhánh sang xin cấp
+        // quyền thay vì cố đăng nhập bình thường (lúc này tài khoản gần như chắc chắn CHƯA có quyền).
+        if (__isRequestAccessFlow) {
+            __isRequestAccessFlow = false;
+            processAccessRequest(response.credential);
+            return;
+        }
         verifyAndStartSession(response.credential);
     }
 
