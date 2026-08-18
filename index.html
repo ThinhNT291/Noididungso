@@ -51,6 +51,8 @@
                         <option value="read-aloud">🎧 Luyện đọc (Shadowing)</option>
                         <option value="listening">🔊 Nghe hiểu (Listening)</option>
                         <option value="reading">📖 Đọc hiểu (Reading)</option>
+                        <option value="ci-reading">📚 Đọc mở rộng (CI)</option>
+                        <option value="ci-listening">🎧 Nghe mở rộng (CI)</option>
                     </select>
                 </div>
 
@@ -288,6 +290,43 @@
     </div>
 
     <div id="comprehension-result-box" class="content-box hidden" style="border-left: 4px solid #2980b9;"></div>
+</div>
+
+<!-- ========================================== -->
+<!-- MODULE: ĐỌC MỞ RỘNG + NGHE MỞ RỘNG (Comprehensible Input) — KHÁC HẲN Nghe hiểu/Đọc hiểu ở trên:
+     KHÔNG có trắc nghiệm, KHÔNG chấm điểm. Người học đọc/nghe tự nhiên, bấm vào TỪNG TỪ trong bài để
+     tra nghĩa theo đúng ngữ cảnh câu đó (click-to-gloss) — mỗi lần tra tự động tạo 1 thẻ ôn tập SRS
+     ở Backend, không cần thao tác gì thêm. 1-2 câu hỏi kiểm tra hiểu bài ở cuối chỉ mang tính gợi mở,
+     có nút "Xem gợi ý trả lời" chứ không nộp bài để chấm. -->
+<!-- ========================================== -->
+<div id="ci-workspace" class="workspace hidden">
+    <div id="ci-intro-box" class="content-box" style="background: #f4f7f6; border: none;">
+        <h4 style="margin: 0 0 8px; color: #2c3e50;"><i class="fas fa-book-reader"></i> <span id="ci-skill-label">Đọc/Nghe mở rộng</span></h4>
+        <p style="font-size: 0.9em; color: #7f8c8d; margin-bottom: 12px;">Nội dung đúng trình độ hiện tại của bạn, không chấm điểm — cứ đọc/nghe tự nhiên. Bấm vào 1 từ bất kỳ trong bài để tra nghĩa theo ngữ cảnh, từ đó tự động được thêm vào ôn tập.</p>
+        <button id="btn-start-ci" class="btn primary-btn"><i class="fas fa-play"></i> Lấy bài mới</button>
+    </div>
+
+    <div id="active-ci-box" class="content-box hidden" style="border-left: 4px solid #8e44ad;">
+        <h4 id="ci-item-title" style="color: #8e44ad; margin-bottom: 10px;"></h4>
+
+        <!-- Nghe mở rộng: có thêm player audio TTS phát song song với transcript hiện bên dưới (đọc
+             theo, khác Nghe hiểu chấm điểm — ở đây KHÔNG giấu chữ vì mục đích là tiếp nhận, không phải
+             kiểm tra khả năng nghe). -->
+        <div id="ci-audio-box" class="hidden" style="background:#f4ecf7; padding:15px; border-radius:8px; border:1px solid #d7bde2; margin-bottom:15px; text-align:center;">
+            <button id="btn-ci-play-audio" class="btn" style="background:#8e44ad; color:white;"><i class="fas fa-volume-up"></i> Nghe bài (có thể bấm nghe lại nhiều lần)</button>
+            <div id="ci-audio-status" style="font-size:0.85em; color:#e67e22; font-style:italic; margin-top:8px;"></div>
+            <audio id="ci-audio-player" controls style="width:100%; margin-top:10px; display:none;"></audio>
+        </div>
+
+        <p style="font-size:0.82em; color:#8e44ad; margin-bottom:8px;"><i class="fas fa-hand-pointer"></i> Bấm vào 1 từ trong bài để tra nghĩa theo đúng câu đó.</p>
+        <div id="ci-content-box" class="preserve-format" style="font-size: 1.08em; line-height: 1.9; background:#fdfdfd; padding:15px; border-radius:8px; border:1px solid #eee; margin-bottom:12px;"></div>
+
+        <div id="ci-gloss-result" class="hidden" style="background:#eafaf1; border:1px solid #a3e4d7; border-radius:8px; padding:12px 14px; margin-bottom:15px;"></div>
+
+        <div id="ci-questions-list" style="margin-bottom:12px;"></div>
+
+        <button id="btn-ci-mark-done" class="btn primary-btn"><i class="fas fa-check-circle"></i> Xong bài này, lấy bài khác</button>
+    </div>
 </div>
 
             <!-- BÁO CÁO ĐÁNH GIÁ -->

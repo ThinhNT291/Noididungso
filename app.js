@@ -76,6 +76,7 @@ const speakingWorkspace = document.getElementById('speaking-workspace');
 const writingWorkspace = document.getElementById('writing-workspace');
 const readAloudWorkspace = document.getElementById('read-aloud-workspace');
 const comprehensionWorkspace = document.getElementById('comprehension-workspace'); // ĐÃ THÊM: Nghe/Đọc hiểu
+const ciWorkspace = document.getElementById('ci-workspace'); // ĐÃ THÊM: Đọc/Nghe mở rộng (Comprehensible Input)
 const assessmentBox = document.getElementById('assessment-box');
 const resultSection = document.getElementById('result-section');
 const btnSave = document.getElementById('btn-save');
@@ -203,6 +204,7 @@ skillSelect.addEventListener('change', (e) => {
     writingWorkspace.classList.add('hidden');
     readAloudWorkspace.classList.add('hidden');
     comprehensionWorkspace?.classList.add('hidden');
+    ciWorkspace?.classList.add('hidden');
 
     if (currentSkill === 'writing') {
         writingWorkspace.classList.remove('hidden');
@@ -214,6 +216,10 @@ skillSelect.addEventListener('change', (e) => {
         // ĐÃ THÊM: Nghe hiểu/Đọc hiểu (mục 14 bên dưới) — dùng chung 1 workspace cho cả 2 kỹ năng.
         comprehensionWorkspace?.classList.remove('hidden');
         setupComprehensionIntro();
+    } else if (currentSkill === 'ci-reading' || currentSkill === 'ci-listening') {
+        // ĐÃ THÊM: Đọc/Nghe mở rộng (mục 16 bên dưới, Comprehensible Input) — dùng chung 1 workspace.
+        ciWorkspace?.classList.remove('hidden');
+        setupCIIntro();
     }
     refreshCurrentLevel(); // ĐÃ THÊM (Mastery): đổi kỹ năng -> cấp độ theo dõi cũng đổi theo
 });
@@ -1046,6 +1052,8 @@ function skillLabel(type) {
     if (type === 'read-aloud') return 'Đọc (Shadowing)';
     if (type === 'listening') return 'Nghe hiểu';
     if (type === 'reading') return 'Đọc hiểu';
+    if (type === 'ci-reading') return 'Đọc mở rộng (CI)';
+    if (type === 'ci-listening') return 'Nghe mở rộng (CI)';
     return type;
 }
 
@@ -1150,6 +1158,7 @@ window.openHistoryItem = (id) => {
     else if (item.type === 'writing') assessmentHtml = buildWritingAssessmentHTML(item.assessment);
     else if (item.type === 'read-aloud') assessmentHtml = buildReadAloudAssessmentHTML(item.assessment);
     else if (item.type === 'listening' || item.type === 'reading') assessmentHtml = buildComprehensionAssessmentHTML(item.assessment);
+    else if (item.type === 'ci-reading' || item.type === 'ci-listening') assessmentHtml = buildCIAssessmentHTML(item.assessment);
 
     // ĐÃ SỬA: link uc?export=download không hỗ trợ tốt Range request nên thẻ <audio> không tua được.
     // Đổi sang nhúng trình phát có sẵn của Google Drive (/preview) — hỗ trợ tua đầy đủ như mở trực tiếp trên Drive.
@@ -1298,6 +1307,9 @@ function resetWorkspace(skill) {
     } else if (skill === 'listening' || skill === 'reading') {
         // ĐÃ THÊM: Nghe hiểu/Đọc hiểu (mục 14) — reset về màn hình giới thiệu, huỷ bài đang làm dở.
         resetComprehensionState();
+    } else if (skill === 'ci-reading' || skill === 'ci-listening') {
+        // ĐÃ THÊM: Đọc/Nghe mở rộng (mục 16, Comprehensible Input) — reset về màn hình giới thiệu.
+        resetCIState();
     }
 }
 
@@ -1433,7 +1445,7 @@ function showCurrentSrsCard() {
     srsProgressEl.textContent = `Thẻ ${srsCurrentIndex + 1}/${srsQueue.length}`;
     // ĐÃ SỬA: trước đây chỉ có 2 nhánh (speaking/writing) — giờ thẻ SRS còn có thể đến từ Listening/
     // Reading (mục 14), nên đổi sang tra nhãn đầy đủ thay vì ternary nhị phân.
-    const srsSkillIcons = { speaking: '🎤 Speaking', writing: '✍️ Writing', listening: '🔊 Listening', reading: '📖 Reading' };
+    const srsSkillIcons = { speaking: '🎤 Speaking', writing: '✍️ Writing', listening: '🔊 Listening', reading: '📖 Reading', 'ci-reading': '📚 CI Đọc', 'ci-listening': '🎧 CI Nghe' };
     srsCardSkillEl.textContent = (srsSkillIcons[card.skill] || card.skill) + (card.language ? ' • ' + card.language : '');
     srsCardPhraseEl.textContent = card.original_phrase;
     srsCardCorrectionEl.textContent = card.correction;
@@ -1515,9 +1527,15 @@ function levelDisplayText(languageCode, value) {
     return found ? found.text : value;
 }
 
+// ĐÃ THÊM: Đọc/Nghe mở rộng (CI) không tự theo dõi Mastery riêng — nội dung CI dùng CHUNG đúng cấp độ
+// đang theo dõi của "reading"/"listening" (đọc, không ghi). Map ở đây để badge hiện cấp độ THẬT đang
+// dùng để chọn bài, không phải cấp mặc định (nếu gọi thẳng skill 'ci-reading' thì Backend coi là
+// untracked -> luôn trả cấp giữa bảng, sai với cấp thực tế Controller_CIContent.gs đang dùng).
+const CI_SKILL_TRACKED_MAP = { 'ci-reading': 'reading', 'ci-listening': 'listening' };
+
 async function refreshCurrentLevel() {
     if (!levelBadge || !getIdToken()) return; // chưa đăng nhập thì chưa gọi được (Backend chặn action chưa auth)
-    const skill = currentSkill;
+    const skill = CI_SKILL_TRACKED_MAP[currentSkill] || currentSkill;
     const languageCode = langSelect.value; // "english" | "chinese" | "russian" — khớp key LANGUAGE_LEVELS
     levelBadge.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tải...';
     if (levelProgressText) levelProgressText.textContent = '';
@@ -2661,4 +2679,289 @@ async function finishMockTest() {
     document.getElementById('btn-mocktest-close-report')?.addEventListener('click', () => mocktestModal.classList.add('hidden'));
     await loadHistory();
     refreshCurrentLevel();
+}
+
+// ==========================================
+// 16. ĐỌC MỞ RỘNG + NGHE MỞ RỘNG (Comprehensible Input — Krashen's i+1)
+// ==========================================
+// KHÁC HẲN mục 14 (Nghe hiểu/Đọc hiểu có chấm điểm trắc nghiệm): ở đây KHÔNG chấm điểm, người học chỉ
+// đọc/nghe tự nhiên đúng trình độ hiện tại. Điểm khác biệt chính là TÍNH NĂNG BẤM-VÀO-TỪ-ĐỂ-TRA
+// (click-to-gloss): mỗi từ trong bài được bọc trong 1 <span> riêng, bấm vào sẽ gọi Backend dịch nghĩa
+// THEO ĐÚNG CÂU chứa từ đó (Controller_CIVocab.gs) và tự động thêm 1 thẻ ôn tập SRS — không cần thao
+// tác gì thêm từ người học. Nghe mở rộng hiện transcript SONG SONG với audio (khác mục 14, nơi
+// transcript bị giấu để đúng bản chất luyện Nghe) vì mục đích ở đây là tiếp nhận (input), không phải
+// kiểm tra khả năng nghe.
+const ciSkillLabelEl = document.getElementById('ci-skill-label');
+const ciIntroBox = document.getElementById('ci-intro-box');
+const activeCIBox = document.getElementById('active-ci-box');
+const ciItemTitleEl = document.getElementById('ci-item-title');
+const ciAudioBox = document.getElementById('ci-audio-box');
+const ciAudioStatus = document.getElementById('ci-audio-status');
+const ciAudioPlayer = document.getElementById('ci-audio-player');
+const btnCIPlayAudio = document.getElementById('btn-ci-play-audio');
+const ciContentBox = document.getElementById('ci-content-box');
+const ciGlossResult = document.getElementById('ci-gloss-result');
+const ciQuestionsList = document.getElementById('ci-questions-list');
+const btnCIMarkDone = document.getElementById('btn-ci-mark-done');
+const btnStartCI = document.getElementById('btn-start-ci');
+
+let ciCurrentItem = null;      // {itemId, title, content, level, checkQuestions:[{question,modelAnswer}]}
+let ciLastActiveWordSpan = null; // span của từ vừa bấm gần nhất — để bỏ highlight khi bấm từ khác
+
+function setupCIIntro() {
+    resetCIState();
+    if (ciSkillLabelEl) {
+        ciSkillLabelEl.textContent = currentSkill === 'ci-listening'
+            ? 'Nghe mở rộng (Comprehensible Input)'
+            : 'Đọc mở rộng (Comprehensible Input)';
+    }
+}
+
+function resetCIState() {
+    ciCurrentItem = null;
+    ciLastActiveWordSpan = null;
+    if (ciIntroBox) ciIntroBox.classList.remove('hidden');
+    if (activeCIBox) activeCIBox.classList.add('hidden');
+    if (ciGlossResult) { ciGlossResult.classList.add('hidden'); ciGlossResult.innerHTML = ''; }
+    if (ciAudioPlayer) { ciAudioPlayer.pause(); ciAudioPlayer.style.display = 'none'; ciAudioPlayer.src = ''; }
+    if (ciAudioStatus) ciAudioStatus.textContent = '';
+    if (ciContentBox) ciContentBox.innerHTML = '';
+    if (ciQuestionsList) ciQuestionsList.innerHTML = '';
+}
+
+async function startCISession() {
+    if (!btnStartCI) return;
+    const originalHtml = btnStartCI.innerHTML;
+    btnStartCI.disabled = true;
+    btnStartCI.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tải bài...';
+
+    // Không gửi "level" — Backend tự tra cấp độ Mastery hiện tại của reading/listening (đọc, không
+    // ghi) để chọn đúng băng nội dung CI (xem Controller_CIContent.gs).
+    const payload = { action: 'get_ci_item', skill: currentSkill, language: langSelect.value };
+    const data = await callBackendAPI(payload, '', false);
+
+    btnStartCI.disabled = false;
+    btnStartCI.innerHTML = originalHtml;
+
+    if (!data) { alert('Không lấy được bài, vui lòng thử lại (có thể ngôn ngữ này chưa có nội dung).'); return; }
+
+    ciCurrentItem = data;
+    renderCIItem(data);
+}
+btnStartCI?.addEventListener('click', startCISession);
+
+function renderCIItem(data) {
+    ciIntroBox?.classList.add('hidden');
+    activeCIBox?.classList.remove('hidden');
+    if (ciGlossResult) { ciGlossResult.classList.add('hidden'); ciGlossResult.innerHTML = ''; }
+    ciLastActiveWordSpan = null;
+
+    if (ciItemTitleEl) ciItemTitleEl.textContent = data.title || '';
+
+    if (currentSkill === 'ci-listening') {
+        ciAudioBox?.classList.remove('hidden');
+        if (ciAudioPlayer) { ciAudioPlayer.style.display = 'none'; ciAudioPlayer.src = ''; }
+        if (ciAudioStatus) ciAudioStatus.textContent = '';
+    } else {
+        ciAudioBox?.classList.add('hidden');
+    }
+
+    if (ciContentBox) renderClickableCIContent(ciContentBox, data.content);
+
+    if (ciQuestionsList) {
+        ciQuestionsList.innerHTML = '';
+        (data.checkQuestions || []).forEach((q, qIndex) => {
+            const qBox = document.createElement('div');
+            qBox.style.cssText = 'margin-bottom:10px; padding:10px 12px; background:#fdfdfd; border:1px solid #eee; border-radius:8px;';
+
+            const qText = document.createElement('div');
+            qText.style.cssText = 'font-weight:bold; color:#2c3e50; margin-bottom:6px;';
+            qText.textContent = `Câu hỏi gợi mở ${qIndex + 1}. ${q.question}`;
+            qBox.appendChild(qText);
+
+            const revealBtn = document.createElement('button');
+            revealBtn.className = 'btn';
+            revealBtn.style.cssText = 'font-size:0.82em; padding:5px 10px; background:#f4f7f6; color:#7f8c8d; border:1px solid #ccc;';
+            revealBtn.innerHTML = '<i class="fas fa-eye"></i> Xem gợi ý trả lời';
+
+            const answerBox = document.createElement('div');
+            answerBox.className = 'hidden';
+            answerBox.style.cssText = 'margin-top:6px; font-size:0.9em; color:#16a085; font-style:italic;';
+            answerBox.textContent = q.modelAnswer || '';
+
+            revealBtn.addEventListener('click', () => {
+                answerBox.classList.toggle('hidden');
+                revealBtn.innerHTML = answerBox.classList.contains('hidden')
+                    ? '<i class="fas fa-eye"></i> Xem gợi ý trả lời'
+                    : '<i class="fas fa-eye-slash"></i> Ẩn gợi ý';
+            });
+
+            qBox.appendChild(revealBtn);
+            qBox.appendChild(answerBox);
+            ciQuestionsList.appendChild(qBox);
+        });
+    }
+}
+
+// Dựng nội dung bài đọc/transcript thành các <span> bấm-được cho từng từ (click-to-gloss). Luôn dùng
+// createElement/textContent (không innerHTML) cho dữ liệu động, đúng quy ước XSS của toàn bộ dự án.
+// Ngữ cảnh gửi kèm khi tra 1 từ là CÂU chứa từ đó (tách theo dấu .!? cuối câu), không phải cả đoạn —
+// giúp Gemini dịch đúng nghĩa theo ngữ cảnh hẹp thay vì mơ hồ.
+function renderClickableCIContent(container, text) {
+    container.innerHTML = '';
+    const lines = String(text || '').split(/\n+/);
+    lines.forEach((line, lineIdx) => {
+        if (lineIdx > 0) container.appendChild(document.createElement('br'));
+        if (!line.trim()) return;
+
+        // Tách câu trong dòng (giữ khoảng trắng phía sau mỗi câu) để làm ngữ cảnh tra từ.
+        const sentences = line.match(/[^.!?]+[.!?]*(\s+|$)/g) || [line];
+        sentences.forEach(sentence => {
+            const trimmedSentence = sentence.trim();
+            const tokens = sentence.split(/(\s+)/); // giữ lại khoảng trắng để hiện đúng văn bản gốc
+
+            tokens.forEach(token => {
+                if (!token) return;
+                if (/^\s+$/.test(token)) {
+                    container.appendChild(document.createTextNode(token));
+                    return;
+                }
+                const span = document.createElement('span');
+                span.className = 'ci-word';
+                span.textContent = token;
+                span.addEventListener('click', () => {
+                    // \p{L}\p{N} bao trọn chữ cái/số của MỌI ngôn ngữ (Latin/Cyrillic/Hán...), không
+                    // chỉ tiếng Anh — để sẵn sàng khi Chinese/Russian có ngân hàng CI ở đợt sau.
+                    const cleanWord = token.replace(/^[^\p{L}\p{N}']+|[^\p{L}\p{N}']+$/gu, '');
+                    if (!cleanWord) return;
+                    handleCIWordClick(cleanWord, trimmedSentence, span);
+                });
+                container.appendChild(span);
+            });
+        });
+    });
+}
+
+btnCIPlayAudio?.addEventListener('click', () => {
+    if (!ciCurrentItem || !window.generateAndPlaySample) return;
+    // Tái dùng NGUYÊN VẸN hàm phát TTS đã có (index.html) — KHÁC mục 14: ở đây transcript vẫn hiện
+    // song song với audio (chủ đích: "nghe + đọc theo", không phải bài kiểm tra khả năng nghe).
+    window.generateAndPlaySample(ciCurrentItem.content, 'Charon', {
+        btnId: 'btn-ci-play-audio',
+        statusId: 'ci-audio-status',
+        playerId: 'ci-audio-player'
+    });
+});
+
+async function handleCIWordClick(word, contextSentence, spanEl) {
+    if (ciLastActiveWordSpan) ciLastActiveWordSpan.classList.remove('ci-word-active');
+    spanEl.classList.add('ci-word-active');
+    ciLastActiveWordSpan = spanEl;
+
+    if (!ciGlossResult) return;
+    ciGlossResult.classList.remove('hidden');
+    ciGlossResult.innerHTML = '';
+    const loadingEl = document.createElement('div');
+    loadingEl.style.cssText = 'color:#7f8c8d; font-size:0.9em;';
+    loadingEl.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Đang tra "${escapeHtml(word)}"...`;
+    ciGlossResult.appendChild(loadingEl);
+
+    const payload = {
+        action: 'translate_word_in_context',
+        word: word,
+        contextSentence: contextSentence,
+        language: langSelect.value,
+        skill: currentSkill
+    };
+    const result = await callBackendAPI(payload, '', false);
+
+    ciGlossResult.innerHTML = '';
+    if (!result) {
+        const errEl = document.createElement('div');
+        errEl.style.cssText = 'color:#e74c3c; font-size:0.9em;';
+        errEl.textContent = 'Tra từ thất bại, thử lại nhé.';
+        ciGlossResult.appendChild(errEl);
+        return;
+    }
+
+    const wordLine = document.createElement('div');
+    wordLine.style.cssText = 'font-weight:bold; color:#16a085; margin-bottom:4px;';
+    wordLine.textContent = word + (result.part_of_speech ? ' (' + result.part_of_speech + ')' : '');
+    ciGlossResult.appendChild(wordLine);
+
+    const translationLine = document.createElement('div');
+    translationLine.style.cssText = 'color:#2c3e50; margin-bottom:4px;';
+    translationLine.textContent = result.translation || '';
+    ciGlossResult.appendChild(translationLine);
+
+    if (result.note) {
+        const noteLine = document.createElement('div');
+        noteLine.style.cssText = 'color:#7f8c8d; font-size:0.85em; font-style:italic; margin-bottom:6px;';
+        noteLine.textContent = result.note;
+        ciGlossResult.appendChild(noteLine);
+    }
+
+    const srsNote = document.createElement('div');
+    srsNote.style.cssText = 'color:#27ae60; font-size:0.8em;';
+    srsNote.innerHTML = '<i class="fas fa-check"></i> Đã thêm vào ôn tập SRS.';
+    ciGlossResult.appendChild(srsNote);
+
+    refreshSrsDueCount(); // ĐÃ THÊM: cập nhật ngay badge số thẻ cần ôn (mỗi lần tra từ tạo thêm 1 thẻ)
+}
+
+// ĐÃ THÊM: "Xong bài này" — lưu 1 bản ghi TỐI GIẢN vào Lịch sử (không có điểm số/assessment chấm
+// điểm gì cả, chỉ để tính vào streak/heatmap qua logActivity_() vốn đã gọi KHÔNG ĐIỀU KIỆN cho MỌI
+// loại bài — xem handleSaveHistoryItem() ở Router.gs) rồi tự động tải luôn bài tiếp theo.
+async function markCIDone() {
+    if (!ciCurrentItem) return;
+    if (btnCIMarkDone) { btnCIMarkDone.disabled = true; btnCIMarkDone.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang lưu...'; }
+
+    const item = {
+        id: Date.now(),
+        type: currentSkill, // 'ci-reading' | 'ci-listening'
+        title: `[${skillLabel(currentSkill)}] ${ciCurrentItem.title || ''}`,
+        date: new Date().toLocaleString('vi-VN'),
+        promptText: ciCurrentItem.title || '',
+        promptImage: null,
+        language: langSelect.options[langSelect.selectedIndex]?.text || '',
+        level: ciCurrentItem.level || lastKnownLevelDisplayText || '',
+        writingText: null,
+        driveAudio: null,
+        // KHÔNG có score/estimated_level — CI không chấm điểm. Lưu lại content/checkQuestions để xem
+        // lại được ở Lịch sử (buildCIAssessmentHTML), giống cách Nghe/Đọc hiểu lưu lại "content" gốc.
+        assessment: { content: ciCurrentItem.content, level: ciCurrentItem.level, checkQuestions: ciCurrentItem.checkQuestions }
+    };
+
+    try {
+        const payload = { action: 'save_history_item', idToken: getIdToken(), item: item };
+        const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
+        const apiResult = await response.json();
+        if (!apiResult.success) throw new Error(apiResult.error);
+    } catch (err) {
+        console.warn("Không lưu được bài Đọc/Nghe mở rộng vào lịch sử:", err);
+    }
+    await loadHistory();
+
+    if (btnCIMarkDone) { btnCIMarkDone.disabled = false; btnCIMarkDone.innerHTML = '<i class="fas fa-check-circle"></i> Xong bài này, lấy bài khác'; }
+    await startCISession(); // tự động tải bài tiếp theo, giữ mạch đọc/nghe liên tục
+}
+btnCIMarkDone?.addEventListener('click', markCIDone);
+
+// Dựng lại HTML khi xem 1 bài CI đã lưu trong Lịch sử — hiện lại nội dung gốc + câu hỏi gợi mở kèm
+// LUÔN đáp án mẫu (khác lúc làm bài, ở đây không cần nút "Xem gợi ý" vì chỉ là xem lại).
+function buildCIAssessmentHTML(data) {
+    if (!data) return '<p style="color:#e74c3c;">Không có dữ liệu.</p>';
+    let html = `
+        <h4 style="margin-top:15px; color:#8e44ad;"><i class="fas fa-align-left"></i> Nội dung bài:</h4>
+        <div class="preserve-format" style="white-space:pre-wrap; background:#fdfdfd; padding:12px; border-radius:6px; border:1px solid #eee; margin-bottom:12px;">${escapeHtml(data.content || '')}</div>
+    `;
+    (data.checkQuestions || []).forEach((q, i) => {
+        html += `
+            <div style="margin-bottom:10px; padding:10px 12px; background:#f9f9f9; border-left:4px solid #8e44ad; border-radius:4px;">
+                <div style="font-weight:bold; margin-bottom:4px;">Câu hỏi gợi mở ${i + 1}. ${escapeHtml(q.question)}</div>
+                <div style="font-size:0.9em; color:#16a085; font-style:italic;">${escapeHtml(q.modelAnswer || '')}</div>
+            </div>
+        `;
+    });
+    return html;
 }

@@ -416,4 +416,9 @@ h4 { font-size: 1.05em; }
 .viz-timeline-icon { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 0.75em; flex-shrink: 0; }
 .viz-timeline-icon.up { background: var(--viz-good); }
 .viz-timeline-icon.down { background: var(--viz-serious); }
+
+/* ĐÃ THÊM: bấm-vào-từ-để-tra (click-to-gloss) cho nội dung Đọc/Nghe mở rộng (Comprehensible Input) */
+.ci-word { transition: background-color 0.15s ease, color 0.15s ease; }
+.ci-word:hover { background: #f4ecf7; color: #8e44ad; }
+.ci-word.ci-word-active { background: #8e44ad; color: #fff; }
 .viz-empty-note { color: var(--viz-text-muted); font-style: italic; font-size: 0.88em; padding: 10px 0; }
