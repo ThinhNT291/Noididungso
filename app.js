@@ -1630,3 +1630,312 @@ placementBtnSkip?.addEventListener('click', async () => {
     currentPlacementId = null;
     refreshCurrentLevel();
 });
+
+// ==========================================
+// 13. BIỂU ĐỒ TIẾN ĐỘ (streak, heatmap hoạt động, đồ thị điểm số, mốc lên cấp, tổng quan SRS)
+// ==========================================
+// Toàn bộ được vẽ tay bằng DOM/SVG thuần (không thêm thư viện chart ngoài) để tự kiểm soát đúng bộ
+// màu + mark spec đã dùng (xem style.css khối ".viz-*"). Mọi text động đều gán qua textContent,
+// không phải innerHTML, nên tự động an toàn XSS.
+const progressModal = document.getElementById('progress-modal');
+const progressBody = document.getElementById('progress-body');
+const progressCloseX = document.getElementById('progress-close-x');
+const btnOpenProgress = document.getElementById('btn-open-progress');
+const vizTooltip = document.getElementById('viz-tooltip');
+
+function showVizTooltip(x, y, lines) {
+    if (!vizTooltip) return;
+    vizTooltip.innerHTML = '';
+    lines.forEach((line, i) => {
+        const row = document.createElement('div');
+        row.textContent = line;
+        if (i === 0) { row.style.fontWeight = '700'; row.style.marginBottom = '2px'; }
+        vizTooltip.appendChild(row);
+    });
+    vizTooltip.style.display = 'block';
+    const rect = vizTooltip.getBoundingClientRect();
+    let left = x + 12, top = y - rect.height - 10;
+    if (left + rect.width > window.innerWidth - 8) left = x - rect.width - 12;
+    if (top < 8) top = y + 14;
+    vizTooltip.style.left = left + 'px';
+    vizTooltip.style.top = top + 'px';
+}
+function hideVizTooltip() { if (vizTooltip) vizTooltip.style.display = 'none'; }
+
+async function openProgressModal() {
+    if (!progressModal) return;
+    progressModal.classList.remove('hidden');
+    progressBody.innerHTML = '<span class="placeholder-text"><i class="fas fa-spinner fa-spin"></i> Đang tải...</span>';
+    try {
+        const payload = { action: 'get_progress_stats', idToken: getIdToken() };
+        const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error);
+        renderProgressDashboard(result.data);
+    } catch (err) {
+        progressBody.innerHTML = `<span style="color:red;">Lỗi tải tiến độ: ${escapeHtml(err.message)}</span>`;
+    }
+}
+
+function buildStatTile(label, value) {
+    const tile = document.createElement('div');
+    tile.className = 'viz-stat-tile';
+    const labelEl = document.createElement('div');
+    labelEl.className = 'viz-stat-label';
+    labelEl.textContent = label;
+    const valueEl = document.createElement('div');
+    valueEl.className = 'viz-stat-value';
+    valueEl.textContent = value;
+    tile.appendChild(labelEl);
+    tile.appendChild(valueEl);
+    return tile;
+}
+
+// 5 mức đậm nhạt (giống GitHub contribution graph) theo số hoạt động/ngày — ngưỡng chọn tay cho phù
+// hợp quy mô cá nhân (không cần chia theo phân vị thống kê phức tạp cho MVP này).
+function heatmapLevelForCount(count) {
+    if (!count || count <= 0) return 0;
+    if (count === 1) return 1;
+    if (count === 2) return 2;
+    if (count <= 4) return 3;
+    if (count <= 7) return 4;
+    return 5;
+}
+
+function buildHeatmap(heatmapData, windowDays) {
+    const scroll = document.createElement('div');
+    scroll.className = 'viz-heatmap-scroll';
+    const grid = document.createElement('div');
+    grid.className = 'viz-heatmap';
+
+    const countByDate = {};
+    heatmapData.forEach(d => { countByDate[d.date] = d.count; });
+
+    const today = new Date();
+    const start = new Date(today);
+    start.setDate(start.getDate() - (windowDays - 1));
+
+    // grid-auto-flow:column + 7 hàng -> điền theo cột (mỗi cột 1 tuần), đúng thứ tự thời gian trái->
+    // phải vì mình append từ ngày cũ nhất đến mới nhất. Không căn chính xác theo đúng Chủ nhật/Thứ 2
+    // như GitHub thật — đủ dùng cho MVP, có thể tinh chỉnh sau nếu cần.
+    for (let i = 0; i < windowDays; i++) {
+        const d = new Date(start);
+        d.setDate(d.getDate() + i);
+        const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        const count = countByDate[key] || 0;
+        const cell = document.createElement('div');
+        cell.className = 'viz-heatmap-cell';
+        cell.dataset.level = heatmapLevelForCount(count);
+        const onHover = (e) => showVizTooltip(e.clientX, e.clientY, [key, count + ' hoạt động']);
+        cell.addEventListener('mouseenter', onHover);
+        cell.addEventListener('mousemove', onHover);
+        cell.addEventListener('mouseleave', hideVizTooltip);
+        grid.appendChild(cell);
+    }
+    scroll.appendChild(grid);
+    return scroll;
+}
+
+function buildScoreTrendChart(scoreTrend) {
+    const container = document.createElement('div');
+    const allSeries = [
+        { key: 'speaking', label: 'Speaking', hex: '#2a78d6' },
+        { key: 'writing', label: 'Writing', hex: '#eb6834' },
+        { key: 'read-aloud', label: 'Read-aloud', hex: '#1baf7a' }
+    ];
+    const activeSeries = allSeries.filter(s => (scoreTrend[s.key] || []).length > 0);
+
+    if (activeSeries.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'viz-empty-note';
+        empty.textContent = 'Chưa có đủ dữ liệu điểm số để vẽ biểu đồ — luyện tập thêm vài bài nhé.';
+        container.appendChild(empty);
+        return container;
+    }
+
+    // Legend — luôn hiện vì có >= 2 series khi nhiều hơn 1 kỹ năng có dữ liệu (đúng quy tắc: legend
+    // cho >=2 series, 1 series thì không cần vì tiêu đề mục đã nói rõ đang vẽ gì).
+    if (activeSeries.length > 1) {
+        const legend = document.createElement('div');
+        legend.className = 'viz-legend';
+        activeSeries.forEach(s => {
+            const item = document.createElement('div');
+            item.className = 'viz-legend-item';
+            const swatch = document.createElement('span');
+            swatch.className = 'viz-legend-swatch';
+            swatch.style.background = s.hex;
+            const text = document.createElement('span');
+            text.textContent = s.label;
+            item.appendChild(swatch);
+            item.appendChild(text);
+            legend.appendChild(item);
+        });
+        container.appendChild(legend);
+    }
+
+    const allDates = Array.from(new Set(activeSeries.flatMap(s => scoreTrend[s.key].map(p => p.date)))).sort();
+    const width = 640, height = 220, padding = { top: 10, right: 16, bottom: 24, left: 30 };
+    const plotW = width - padding.left - padding.right;
+    const plotH = height - padding.top - padding.bottom;
+
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(svgNS, 'svg');
+    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    svg.style.width = '100%';
+    svg.style.height = 'auto';
+    svg.style.display = 'block';
+
+    // Gridline hairline ngang, mỗi 2.5 điểm (thang 0-10)
+    [0, 2.5, 5, 7.5, 10].forEach(v => {
+        const y = padding.top + plotH - (v / 10) * plotH;
+        const line = document.createElementNS(svgNS, 'line');
+        line.setAttribute('x1', padding.left); line.setAttribute('x2', width - padding.right);
+        line.setAttribute('y1', y); line.setAttribute('y2', y);
+        line.setAttribute('stroke', '#e1e0d9'); line.setAttribute('stroke-width', '1');
+        svg.appendChild(line);
+        const label = document.createElementNS(svgNS, 'text');
+        label.setAttribute('x', padding.left - 6); label.setAttribute('y', y + 3);
+        label.setAttribute('text-anchor', 'end'); label.setAttribute('font-size', '9');
+        label.setAttribute('fill', '#898781'); label.textContent = v;
+        svg.appendChild(label);
+    });
+
+    const xForDate = (dateStr) => {
+        if (allDates.length <= 1) return padding.left + plotW / 2;
+        return padding.left + (allDates.indexOf(dateStr) / (allDates.length - 1)) * plotW;
+    };
+    const yForScore = (score) => padding.top + plotH - (score / 10) * plotH;
+
+    if (allDates.length > 0) {
+        const firstLabel = document.createElementNS(svgNS, 'text');
+        firstLabel.setAttribute('x', padding.left); firstLabel.setAttribute('y', height - 6);
+        firstLabel.setAttribute('font-size', '9'); firstLabel.setAttribute('fill', '#898781');
+        firstLabel.textContent = allDates[0];
+        svg.appendChild(firstLabel);
+        const lastLabel = document.createElementNS(svgNS, 'text');
+        lastLabel.setAttribute('x', width - padding.right); lastLabel.setAttribute('y', height - 6);
+        lastLabel.setAttribute('text-anchor', 'end'); lastLabel.setAttribute('font-size', '9');
+        lastLabel.setAttribute('fill', '#898781');
+        lastLabel.textContent = allDates[allDates.length - 1];
+        svg.appendChild(lastLabel);
+    }
+
+    activeSeries.forEach(s => {
+        const points = scoreTrend[s.key];
+        if (points.length > 1) {
+            const polyline = document.createElementNS(svgNS, 'polyline');
+            polyline.setAttribute('points', points.map(p => `${xForDate(p.date)},${yForScore(p.score)}`).join(' '));
+            polyline.setAttribute('fill', 'none');
+            polyline.setAttribute('stroke', s.hex);
+            polyline.setAttribute('stroke-width', '2');
+            polyline.setAttribute('stroke-linejoin', 'round');
+            polyline.setAttribute('stroke-linecap', 'round');
+            svg.appendChild(polyline);
+        }
+        points.forEach(p => {
+            const cx = xForDate(p.date), cy = yForScore(p.score);
+            // Hit target lớn hơn chấm thật (r=12, chấm thật r=4) — theo interaction.md, tránh chấm quá nhỏ khó trúng khi hover.
+            const hit = document.createElementNS(svgNS, 'circle');
+            hit.setAttribute('cx', cx); hit.setAttribute('cy', cy); hit.setAttribute('r', '12');
+            hit.setAttribute('fill', 'transparent');
+            hit.style.cursor = 'pointer';
+            hit.addEventListener('mousemove', (e) => showVizTooltip(e.clientX, e.clientY, [s.label + ' • ' + p.date, 'Điểm: ' + p.score]));
+            hit.addEventListener('mouseleave', hideVizTooltip);
+            svg.appendChild(hit);
+            const dot = document.createElementNS(svgNS, 'circle');
+            dot.setAttribute('cx', cx); dot.setAttribute('cy', cy); dot.setAttribute('r', '4');
+            dot.setAttribute('fill', s.hex);
+            dot.setAttribute('stroke', '#fcfcfb'); dot.setAttribute('stroke-width', '2');
+            dot.style.pointerEvents = 'none';
+            svg.appendChild(dot);
+        });
+    });
+
+    container.appendChild(svg);
+    return container;
+}
+
+function buildSrsMeter(srs) {
+    const wrap = document.createElement('div');
+    if (srs.total === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'viz-empty-note';
+        empty.textContent = 'Chưa có thẻ ôn tập lỗi sai nào.';
+        wrap.appendChild(empty);
+        return wrap;
+    }
+    const pct = Math.round((srs.mastered / srs.total) * 100);
+    const track = document.createElement('div');
+    track.className = 'viz-meter-track';
+    const fill = document.createElement('div');
+    fill.className = 'viz-meter-fill';
+    fill.style.width = pct + '%';
+    track.appendChild(fill);
+    wrap.appendChild(track);
+    const label = document.createElement('div');
+    label.className = 'viz-meter-label';
+    const left = document.createElement('span');
+    left.textContent = `${srs.mastered}/${srs.total} thẻ đã thuộc (${pct}%)`;
+    const right = document.createElement('span');
+    right.textContent = `${srs.active} đang ôn`;
+    label.appendChild(left);
+    label.appendChild(right);
+    wrap.appendChild(label);
+    return wrap;
+}
+
+function buildLevelTimeline(levelEvents) {
+    if (!levelEvents || levelEvents.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'viz-empty-note';
+        empty.textContent = 'Chưa có lần đổi cấp độ nào.';
+        return empty;
+    }
+    const list = document.createElement('ul');
+    list.className = 'viz-timeline';
+    levelEvents.forEach(ev => {
+        const li = document.createElement('li');
+        const icon = document.createElement('div');
+        icon.className = 'viz-timeline-icon ' + (ev.direction === 'up' ? 'up' : 'down');
+        icon.innerHTML = ev.direction === 'up' ? '<i class="fas fa-arrow-up"></i>' : '<i class="fas fa-arrow-down"></i>'; // icon tĩnh, không phải dữ liệu người dùng
+        const text = document.createElement('div');
+        const skillText = ev.skill === 'speaking' ? 'Speaking' : 'Writing';
+        text.textContent = `${ev.date} • ${skillText} (${ev.language}): ${ev.fromLevel} → ${ev.toLevel}`;
+        li.appendChild(icon);
+        li.appendChild(text);
+        list.appendChild(li);
+    });
+    return list;
+}
+
+function addSectionTitle(container, text) {
+    const title = document.createElement('div');
+    title.className = 'viz-section-title';
+    title.textContent = text;
+    container.appendChild(title);
+}
+
+function renderProgressDashboard(data) {
+    progressBody.innerHTML = '';
+
+    const statRow = document.createElement('div');
+    statRow.className = 'viz-stat-row';
+    statRow.appendChild(buildStatTile('🔥 Chuỗi ngày liên tiếp', data.streak.current + ' ngày'));
+    statRow.appendChild(buildStatTile(`🏆 Chuỗi dài nhất (${data.windowDays} ngày qua)`, data.streak.best + ' ngày'));
+    progressBody.appendChild(statRow);
+
+    addSectionTitle(progressBody, `Hoạt động ${data.windowDays} ngày qua`);
+    progressBody.appendChild(buildHeatmap(data.heatmap, data.windowDays));
+
+    addSectionTitle(progressBody, 'Điểm số theo thời gian');
+    progressBody.appendChild(buildScoreTrendChart(data.scoreTrend));
+
+    addSectionTitle(progressBody, 'Ôn tập lỗi sai (SRS)');
+    progressBody.appendChild(buildSrsMeter(data.srs));
+
+    addSectionTitle(progressBody, 'Mốc thay đổi cấp độ');
+    progressBody.appendChild(buildLevelTimeline(data.levelEvents));
+}
+
+btnOpenProgress?.addEventListener('click', openProgressModal);
+progressCloseX?.addEventListener('click', () => progressModal.classList.add('hidden'));

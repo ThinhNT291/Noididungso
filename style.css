@@ -356,3 +356,64 @@ h4 { font-size: 1.05em; }
 .preserve-format p { margin-bottom: 10px; }
 .preserve-format ul, .preserve-format ol { margin-left: 20px; margin-bottom: 10px; }
 .preserve-format strong { color: #d35400; } /* Làm nổi bật chữ in đậm */
+
+/* =========================================
+   ĐÃ THÊM: BIỂU ĐỒ TIẾN ĐỘ (progress dashboard) — bộ màu tham chiếu theo skill dataviz nội bộ,
+   chỉ dùng bản light (khớp với phần còn lại của app hiện không có dark mode). Sequential = 1 hue
+   (xanh dương) nhạt->đậm cho heatmap; categorical 3 slot đầu (xanh dương/cam/ngọc) cho 3 kỹ năng.
+========================================= */
+.viz-root {
+    --viz-surface: #fcfcfb;
+    --viz-text-primary: #0b0b0b;
+    --viz-text-secondary: #52514e;
+    --viz-text-muted: #898781;
+    --viz-gridline: #e1e0d9;
+    --viz-baseline: #c3c2b7;
+    --viz-series-speaking: #2a78d6;
+    --viz-series-writing: #eb6834;
+    --viz-series-readaloud: #1baf7a;
+    --viz-seq-100: #cde2fb;
+    --viz-seq-150: #b7d3f6;
+    --viz-seq-300: #6da7ec;
+    --viz-seq-450: #2a78d6;
+    --viz-seq-600: #184f95;
+    --viz-good: #006300;
+    --viz-serious: #ec835a;
+    color: var(--viz-text-primary);
+}
+
+.viz-stat-row { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
+.viz-stat-tile { flex: 1; min-width: 140px; background: var(--viz-surface); border: 1px solid var(--viz-gridline); border-radius: 10px; padding: 14px 16px; }
+.viz-stat-label { font-size: 0.8em; color: var(--viz-text-secondary); margin-bottom: 4px; }
+.viz-stat-value { font-size: 1.8em; font-weight: 600; color: var(--viz-text-primary); }
+.viz-stat-sub { font-size: 0.78em; color: var(--viz-text-muted); margin-top: 2px; }
+
+.viz-section-title { font-size: 0.95em; font-weight: 600; color: var(--viz-text-primary); margin: 22px 0 10px; }
+
+.viz-heatmap-scroll { overflow-x: auto; padding-bottom: 6px; }
+.viz-heatmap { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 11px); gap: 3px; }
+.viz-heatmap-cell { width: 11px; height: 11px; border-radius: 2px; background: var(--viz-gridline); cursor: pointer; }
+.viz-heatmap-cell[data-level="1"] { background: var(--viz-seq-100); }
+.viz-heatmap-cell[data-level="2"] { background: var(--viz-seq-150); }
+.viz-heatmap-cell[data-level="3"] { background: var(--viz-seq-300); }
+.viz-heatmap-cell[data-level="4"] { background: var(--viz-seq-450); }
+.viz-heatmap-cell[data-level="5"] { background: var(--viz-seq-600); }
+
+.viz-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; font-size: 0.82em; color: var(--viz-text-secondary); }
+.viz-legend-item { display: flex; align-items: center; gap: 6px; }
+.viz-legend-swatch { width: 14px; height: 2px; border-radius: 1px; display: inline-block; }
+
+.viz-tooltip { position: fixed; z-index: 10001; background: var(--viz-text-primary); color: #fff; font-size: 0.78em; padding: 6px 10px; border-radius: 6px; pointer-events: none; box-shadow: 0 4px 10px rgba(0,0,0,0.25); display: none; white-space: nowrap; }
+.viz-tooltip .viz-tooltip-value { font-weight: 700; }
+
+.viz-meter-track { background: var(--viz-seq-100); border-radius: 8px; height: 14px; overflow: hidden; }
+.viz-meter-fill { background: var(--viz-series-speaking); height: 100%; border-radius: 8px; transition: width 0.4s ease; }
+.viz-meter-label { display: flex; justify-content: space-between; font-size: 0.82em; color: var(--viz-text-secondary); margin-top: 6px; }
+
+.viz-timeline { list-style: none; padding: 0; margin: 0; }
+.viz-timeline li { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--viz-gridline); font-size: 0.85em; }
+.viz-timeline li:last-child { border-bottom: none; }
+.viz-timeline-icon { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 0.75em; flex-shrink: 0; }
+.viz-timeline-icon.up { background: var(--viz-good); }
+.viz-timeline-icon.down { background: var(--viz-serious); }
+.viz-empty-note { color: var(--viz-text-muted); font-style: italic; font-size: 0.88em; padding: 10px 0; }

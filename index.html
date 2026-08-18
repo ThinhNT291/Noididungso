@@ -274,6 +274,10 @@
                 <button id="btn-open-srs-review" class="btn" style="display:none; width:100%; background:#f39c12; color:white; margin-bottom:12px; align-items:center; justify-content:center; gap:6px;">
                     <i class="fas fa-brain"></i> Ôn tập lỗi sai (<span id="srs-due-count">0</span>)
                 </button>
+                <!-- ĐÃ THÊM: mở popup Biểu đồ tiến độ (streak, heatmap hoạt động, đồ thị điểm số, mốc lên cấp, tổng quan SRS) -->
+                <button id="btn-open-progress" class="btn" style="width:100%; background:#2980b9; color:white; margin-bottom:12px;">
+                    <i class="fas fa-chart-line"></i> Tiến độ học tập
+                </button>
                 <h2>Lịch sử</h2>
                 <ul id="history-list"></ul>
             </div>
@@ -334,6 +338,21 @@
             </div>
         </div>
     </div>
+
+    <!-- ĐÃ THÊM: POPUP BIỂU ĐỒ TIẾN ĐỘ — streak, heatmap hoạt động 365 ngày, đồ thị điểm số theo
+         kỹ năng, mốc lên/hạ cấp Mastery, tổng quan thẻ ôn tập SRS. Toàn bộ nội dung động render bằng
+         JS (app.js mục "13. BIỂU ĐỒ TIẾN ĐỘ") — dùng textContent/tạo phần tử DOM, KHÔNG innerHTML
+         với dữ liệu người dùng nên tự động an toàn XSS. -->
+    <div id="progress-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 760px;">
+            <span class="close-btn" id="progress-close-x">&times;</span>
+            <h2 style="color:#2c3e50; margin-bottom: 15px;"><i class="fas fa-chart-line"></i> Tiến độ học tập</h2>
+            <div id="progress-body" class="viz-root">
+                <span class="placeholder-text"><i class="fas fa-spinner fa-spin"></i> Đang tải...</span>
+            </div>
+        </div>
+    </div>
+    <div id="viz-tooltip" class="viz-tooltip"></div>
 
     <!-- POPUP GỢI Ý ĐƯỢC ĐẶT Ở ĐÂY -->
     <div id="hints-modal" class="modal hidden">
