@@ -23,6 +23,7 @@ window.setAuthSession = function(idToken, email) {
     loadHistory();
     fetchQuestionsFromGAS();
     refreshSrsDueCount(); // ĐÃ THÊM: hiện badge số thẻ ôn tập lỗi sai cần ôn hôm nay
+    refreshCurrentLevel(); // ĐÃ THÊM (Mastery): hiện badge cấp độ hiện tại, tự bật đặt trình độ nếu cần
 };
 
 window.clearAuthSession = function() {
@@ -64,7 +65,6 @@ function safeMarkdown(text) {
 
 const skillSelect = document.getElementById('skill-select');
 const langSelect = document.getElementById('language-select');
-const levelSelect = document.getElementById('level-select');
 const btnToggleCustom = document.getElementById('btn-toggle-custom');
 const customPromptArea = document.getElementById('custom-prompt-area');
 const customPromptText = document.getElementById('custom-prompt-text');
@@ -160,52 +160,44 @@ let isMainRunning = false;
 // ==========================================
 // 2. KHỞI TẠO & CHUYỂN ĐỔI KỸ NĂNG
 // ==========================================
+// ĐÃ SỬA (Mastery): không còn dùng để đổ vào dropdown nữa (dropdown "Cấp độ mục tiêu" đã bị gỡ) —
+// giờ chỉ dùng để tra "value" (mã cấp độ Backend trả về) sang "text" (tên hiển thị đẹp) cho badge
+// và popup đặt trình độ. Key của object (english/chinese/russian) khớp đúng value của <select id=
+// "language-select">, và mảng "value" từng cấp khớp NGUYÊN VĂN với MASTERY_LEVEL_ORDER bên Backend.
 const LANGUAGE_LEVELS = {
     english: [
         { value: "A1-A2 (Beginner)", text: "A1-A2 (Sơ cấp / IELTS 3.0-4.0)" },
         { value: "B1 (Intermediate)", text: "B1 (Trung cấp / IELTS 4.5-5.0)" },
-        { value: "B2 (Upper-Intermediate)", text: "B2 (Trung cao / IELTS 5.5-6.5)", selected: true },
+        { value: "B2 (Upper-Intermediate)", text: "B2 (Trung cao / IELTS 5.5-6.5)" },
         { value: "C1 (Advanced)", text: "C1 (Cao cấp / IELTS 7.0-8.0)" },
         { value: "C2 (Proficient)", text: "C2 (Thành thạo / IELTS 8.5+)" }
     ],
     chinese: [
         { value: "HSK 1-2 (Sơ cấp)", text: "HSK 1 - HSK 2 (Sơ cấp)" },
-        { value: "HSK 3-4 (Trung cấp)", text: "HSK 3 - HSK 4 (Trung cấp)", selected: true },
+        { value: "HSK 3-4 (Trung cấp)", text: "HSK 3 - HSK 4 (Trung cấp)" },
         { value: "HSK 5 (Cao cấp)", text: "HSK 5 (Cao cấp)" },
         { value: "HSK 6 (Thành thạo)", text: "HSK 6 (Thành thạo)" }
     ],
     russian: [
         { value: "TORFL A1-A2 (Elementary)", text: "Элементарный (A1-A2 / Sơ cấp)" },
-        { value: "TORFL B1 (TRKI-1)", text: "ТРКИ-1 (B1 / Trung cấp)", selected: true },
+        { value: "TORFL B1 (TRKI-1)", text: "ТРКИ-1 (B1 / Trung cấp)" },
         { value: "TORFL B2 (TRKI-2)", text: "ТРКИ-2 (B2 / Trung cao)" },
         { value: "TORFL C1-C2 (TRKI-3/4)", text: "ТРКИ-3/4 (C1-C2 / Cao cấp)" }
     ]
 };
 
-function updateLevelOptions(lang) {
-    levelSelect.innerHTML = '';
-    const levels = LANGUAGE_LEVELS[lang] || LANGUAGE_LEVELS.english;
-    levels.forEach(lvl => {
-        let opt = document.createElement('option');
-        opt.value = lvl.value;
-        opt.textContent = lvl.text;
-        if (lvl.selected) opt.selected = true;
-        levelSelect.appendChild(opt);
-    });
-}
-
 document.addEventListener('DOMContentLoaded', () => {
     skillSelect.value = 'speaking';
     // ĐÃ SỬA: không gọi loadHistory()/fetchQuestionsFromGAS() ở đây nữa — Backend giờ yêu cầu đăng nhập
-    // trước, 2 hàm này được gọi lại trong setAuthSession() ngay sau khi xác thực Google thành công.
-    langSelect.addEventListener('change', (e) => updateLevelOptions(e.target.value));
-    updateLevelOptions(langSelect.value);
+    // trước, các hàm này được gọi lại trong setAuthSession() ngay sau khi xác thực Google thành công.
+    // ĐÃ SỬA (Mastery): đổi ngôn ngữ -> tải lại badge cấp độ (có thể tự bật popup đặt trình độ nếu cần).
+    langSelect.addEventListener('change', () => refreshCurrentLevel());
 });
 
 skillSelect.addEventListener('change', (e) => {
     currentSkill = e.target.value;
     resetWorkspace(currentSkill);
-    
+
     speakingWorkspace.classList.add('hidden');
     writingWorkspace.classList.add('hidden');
     readAloudWorkspace.classList.add('hidden');
@@ -217,6 +209,7 @@ skillSelect.addEventListener('change', (e) => {
     } else if (currentSkill === 'read-aloud') {
         readAloudWorkspace.classList.remove('hidden');
     }
+    refreshCurrentLevel(); // ĐÃ THÊM (Mastery): đổi kỹ năng -> cấp độ theo dõi cũng đổi theo
 });
 
 document.getElementById('toggle-left')?.addEventListener('click', () => {
@@ -529,11 +522,11 @@ async function preloadHintsLogic() {
     btnShowMindmap.disabled = false;
     btnShowHints.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang nạp Gợi ý ngầm...';
     
-    const payload = { 
+    const payload = {
         action: 'get_writing_hints',
-        language: langSelect.options[langSelect.selectedIndex].text, 
-        level: levelSelect.options[levelSelect.selectedIndex].text,
-        promptText: activePromptData.text, 
+        language: langSelect.options[langSelect.selectedIndex].text,
+        // ĐÃ SỬA (Mastery): không còn gửi "level" — Backend tự tra cấp độ hiện tại (injectAutoLevel_).
+        promptText: activePromptData.text,
         promptImage: activePromptData.image,
         idToken: getIdToken() // ĐÃ THÊM
     };
@@ -627,7 +620,7 @@ btnSubmitWriting.addEventListener('click', async () => {
         action: 'evaluate_writing',
         text: text,
         language: langSelect.options[langSelect.selectedIndex].text,
-        level: levelSelect.options[levelSelect.selectedIndex].text,
+        // ĐÃ SỬA (Mastery): không còn gửi "level" — Backend tự tra cấp độ hiện tại (injectAutoLevel_).
         promptText: activePromptData.text,
         promptImage: activePromptData.image
     };
@@ -681,7 +674,8 @@ function processAudioAndSend(blob) {
     reader.readAsDataURL(blob);
     reader.onloadend = async () => {
         currentAudioBase64 = reader.result;
-        const payload = { action: 'evaluate_speaking', audio: reader.result, mimeType: blob.type, language: langSelect.options[langSelect.selectedIndex].text, level: levelSelect.options[levelSelect.selectedIndex].text, promptText: activePromptData.text, promptImage: activePromptData.image };
+        // ĐÃ SỬA (Mastery): không còn gửi "level" — Backend tự tra cấp độ hiện tại (injectAutoLevel_).
+        const payload = { action: 'evaluate_speaking', audio: reader.result, mimeType: blob.type, language: langSelect.options[langSelect.selectedIndex].text, promptText: activePromptData.text, promptImage: activePromptData.image };
         const data = await callBackendAPI(payload, "Giám khảo AI đang phân tích âm thanh của bạn...");
         if (data) renderSpeakingAssessment(data);
     };
@@ -808,13 +802,14 @@ async function processAudioReadAndSend(blob) {
     reader.onloadend = async () => {
         const base64Audio = reader.result;
         currentReadAloudAudioBase64 = base64Audio; // ĐÃ THÊM: lưu lại để dùng khi bấm "Lưu bài"
-        const payload = { 
-            action: 'evaluate_read_aloud', 
-            audio: base64Audio, 
-            mimeType: blob.type, 
-            language: langSelect.options[langSelect.selectedIndex].text, 
-            level: levelSelect.options[levelSelect.selectedIndex].text, 
-            promptText: activePromptData.text 
+        // ĐÃ SỬA (Mastery): không còn gửi "level" — Shadowing không theo dõi mastery, nhưng để không
+        // đổi hành vi Controller_Shadowing.gs (vốn không dùng payload.level), cứ để nguyên không gửi.
+        const payload = {
+            action: 'evaluate_read_aloud',
+            audio: base64Audio,
+            mimeType: blob.type,
+            language: langSelect.options[langSelect.selectedIndex].text,
+            promptText: activePromptData.text
         };
         
         if (resultSection) resultSection.classList.remove('hidden');
@@ -956,7 +951,8 @@ document.getElementById('btn-random-prompt')?.addEventListener('click', async ()
     btnRandom.disabled = true;
     resetWorkspace(currentSkill);
     
-    const payload = { action: 'get_random_prompt', language: langSelect.options[langSelect.selectedIndex].text, skill: currentSkill, level: levelSelect.options[levelSelect.selectedIndex].text };
+    // ĐÃ SỬA (Mastery): không còn gửi "level" — Backend tự tra cấp độ hiện tại (injectAutoLevel_).
+    const payload = { action: 'get_random_prompt', language: langSelect.options[langSelect.selectedIndex].text, skill: currentSkill };
     const data = await callBackendAPI(payload, "Đang nhờ AI sáng tác đề ngẫu nhiên...", false);
     btnRandom.innerHTML = originalText; 
     btnRandom.disabled = false;
@@ -1097,7 +1093,9 @@ async function saveCurrentSessionToHistory() {
         promptText: activePromptData.text || '',
         promptImage: activePromptData.image || null,
         language: langSelect.options[langSelect.selectedIndex]?.text || '',
-        level: levelSelect.options[levelSelect.selectedIndex]?.text || '',
+        // ĐÃ SỬA (Mastery): không còn dropdown "Cấp độ mục tiêu" — dùng cấp độ tự động đang hiển thị
+        // trên badge (lastKnownLevelDisplayText, cập nhật trong refreshCurrentLevel() ở mục 12 bên dưới).
+        level: lastKnownLevelDisplayText || '',
         writingText: type === 'writing' ? (lastWritingSubmittedText || '') : null,
         driveAudio: driveAudio,
         assessment: currentSessionData
@@ -1109,6 +1107,12 @@ async function saveCurrentSessionToHistory() {
         const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
         const result = await response.json();
         if (!result.success) throw new Error(result.error);
+        // ĐÃ THÊM (Mastery): Backend báo lại nếu cấp độ vừa đổi (updateMasteryAfterAssessment_) ->
+        // hiện toast chúc mừng/thông báo + tải lại badge cho khớp cấp mới.
+        if (result.data && result.data.mastery && result.data.mastery.changed) {
+            showLevelChangeToast(result.data.mastery.direction, result.data.mastery.newLevel);
+            refreshCurrentLevel();
+        }
     } catch (err) {
         if (btnSave) btnSave.disabled = false;
         return alert("Không lưu được bài: " + err.message);
@@ -1463,3 +1467,166 @@ srsBtnReveal?.addEventListener('click', () => {
     srsRatingButtons.classList.remove('hidden');
 });
 srsCloseX?.addEventListener('click', () => srsModal.classList.add('hidden'));
+
+// ==========================================
+// 12. HỆ THỐNG CẤP ĐỘ TỰ ĐỘNG (MASTERY — chôm ý tưởng Khan Academy + Duolingo Test)
+// ==========================================
+// Thay cho dropdown "Cấp độ mục tiêu" đã bị gỡ: badge bên trái hiện cấp độ hiện tại (đọc từ
+// Backend, KHÔNG cho tự chọn), và popup đặt trình độ (bài test thích ứng 12 câu kiểu staircase)
+// tự bật khi đổi sang 1 kỹ năng+ngôn ngữ chưa từng luyện. Toàn bộ nội dung câu hỏi hiển thị qua
+// textContent (không phải innerHTML) nên tự động an toàn XSS, không cần escapeHtml() ở đây.
+const levelBadge = document.getElementById('level-badge');
+const levelProgressText = document.getElementById('level-progress-text');
+const placementModal = document.getElementById('placement-modal');
+const placementProgress = document.getElementById('placement-progress');
+const placementQuestionBody = document.getElementById('placement-question-body');
+const placementPassage = document.getElementById('placement-passage');
+const placementQuestionText = document.getElementById('placement-question-text');
+const placementChoices = document.getElementById('placement-choices');
+const placementResult = document.getElementById('placement-result');
+const placementFinalLevel = document.getElementById('placement-final-level');
+const placementBtnStartPractice = document.getElementById('placement-btn-start-practice');
+const placementBtnSkip = document.getElementById('placement-btn-skip');
+
+let currentPlacementId = null;
+let lastKnownLevelDisplayText = ''; // dùng khi lưu lịch sử (item.level) — xem saveCurrentSessionToHistory ở trên
+
+// Tra "value" (mã cấp độ Backend trả về, vd "B2 (Upper-Intermediate)") sang "text" hiển thị đẹp
+// (vd "B2 (Trung cao / IELTS 5.5-6.5)"). Nếu không tìm thấy (ngôn ngữ chưa có trong LANGUAGE_LEVELS
+// hoặc giá trị lạ) thì hiện thẳng value gốc, còn hơn hiện trống.
+function levelDisplayText(languageCode, value) {
+    const levels = LANGUAGE_LEVELS[languageCode] || LANGUAGE_LEVELS.english;
+    const found = levels.find(l => l.value === value);
+    return found ? found.text : value;
+}
+
+async function refreshCurrentLevel() {
+    if (!levelBadge || !getIdToken()) return; // chưa đăng nhập thì chưa gọi được (Backend chặn action chưa auth)
+    const skill = currentSkill;
+    const languageCode = langSelect.value; // "english" | "chinese" | "russian" — khớp key LANGUAGE_LEVELS
+    levelBadge.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tải...';
+    if (levelProgressText) levelProgressText.textContent = '';
+    try {
+        const payload = { action: 'get_current_level', skill: skill, language: languageCode, idToken: getIdToken() };
+        const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error);
+        const data = result.data;
+
+        if (data.needsPlacement) {
+            levelBadge.innerHTML = '<i class="fas fa-question-circle"></i> Chưa xác định';
+            openPlacementTest(skill, languageCode);
+            return;
+        }
+
+        lastKnownLevelDisplayText = levelDisplayText(languageCode, data.level);
+        levelBadge.innerHTML = `<i class="fas fa-award"></i> ${escapeHtml(lastKnownLevelDisplayText)}`;
+        if (levelProgressText) {
+            levelProgressText.textContent = (data.tracked && data.progress && data.progress.windowSize > 0)
+                ? `${data.progress.passed}/${data.progress.windowSize} bài gần nhất để đổi cấp`
+                : '';
+        }
+    } catch (err) {
+        levelBadge.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Lỗi tải cấp độ';
+        console.warn("Không tải được cấp độ hiện tại:", err);
+    }
+}
+
+// Toast nhỏ góc màn hình khi lên/hạ cấp — tự ẩn sau vài giây, không chặn thao tác gì khác.
+function showLevelChangeToast(direction, newLevelValue) {
+    const languageCode = langSelect.value;
+    const text = levelDisplayText(languageCode, newLevelValue);
+    const isUp = direction === 'up';
+    const toast = document.createElement('div');
+    toast.style.cssText = `position:fixed; bottom:20px; right:20px; z-index:9999; background:${isUp ? '#27ae60' : '#e67e22'}; color:white; padding:14px 20px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.2); font-weight:bold; max-width:320px;`;
+    toast.innerHTML = isUp
+        ? `<i class="fas fa-arrow-up"></i> Chúc mừng! Bạn đã lên cấp: ${escapeHtml(text)}`
+        : `<i class="fas fa-arrow-down"></i> Cấp độ điều chỉnh xuống: ${escapeHtml(text)} — luyện thêm để lên lại nhé!`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 6000);
+}
+
+async function openPlacementTest(skill, languageCode) {
+    if (!placementModal) return;
+    placementModal.classList.remove('hidden');
+    placementResult.classList.add('hidden');
+    placementQuestionBody.classList.remove('hidden');
+    placementProgress.textContent = 'Đang chuẩn bị bài test...';
+    placementChoices.innerHTML = '';
+    try {
+        const payload = { action: 'start_placement_test', skill: skill, language: languageCode, idToken: getIdToken() };
+        const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error);
+        currentPlacementId = result.data.placementId;
+        renderPlacementQuestion(result.data);
+    } catch (err) {
+        placementProgress.textContent = 'Lỗi tải bài test: ' + err.message;
+    }
+}
+
+function renderPlacementQuestion(data) {
+    placementProgress.textContent = `Câu ${data.step}/${data.totalSteps}`;
+    const q = data.question;
+    if (q.passage) {
+        placementPassage.textContent = q.passage;
+        placementPassage.classList.remove('hidden');
+    } else {
+        placementPassage.classList.add('hidden');
+    }
+    placementQuestionText.textContent = q.question;
+    placementChoices.innerHTML = '';
+    (q.choices || []).forEach((choice, idx) => {
+        const btn = document.createElement('button');
+        btn.className = 'btn';
+        // ĐÃ SỬA: .btn trong style.css là "display:inline-flex; justify-content:center" -> chỉ đặt
+        // text-align:left KHÔNG đủ để căn trái (justify-content mới quyết định vị trí nội dung trong
+        // flex container), phải override cả justify-content thì đáp án nhiều chữ mới đọc dễ.
+        btn.style.cssText = 'text-align:left; justify-content:flex-start; background:#f4f7f6; color:#2c3e50; border:1px solid #ccc; padding:10px 14px;';
+        btn.textContent = choice;
+        btn.onclick = () => submitPlacementAnswer(idx);
+        placementChoices.appendChild(btn);
+    });
+}
+
+async function submitPlacementAnswer(selectedIndex) {
+    placementChoices.querySelectorAll('button').forEach(b => b.disabled = true);
+    try {
+        const payload = { action: 'answer_placement_question', placementId: currentPlacementId, selectedIndex: selectedIndex, idToken: getIdToken() };
+        const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error);
+        if (result.data.finished) {
+            finishPlacementTest(result.data.finalLevel);
+        } else {
+            renderPlacementQuestion(result.data);
+        }
+    } catch (err) {
+        placementProgress.textContent = 'Lỗi: ' + err.message;
+        placementChoices.querySelectorAll('button').forEach(b => b.disabled = false);
+    }
+}
+
+function finishPlacementTest(finalLevelValue) {
+    placementQuestionBody.classList.add('hidden');
+    placementResult.classList.remove('hidden');
+    placementFinalLevel.textContent = levelDisplayText(langSelect.value, finalLevelValue);
+    currentPlacementId = null;
+}
+
+placementBtnStartPractice?.addEventListener('click', () => {
+    placementModal.classList.add('hidden');
+    refreshCurrentLevel();
+});
+
+placementBtnSkip?.addEventListener('click', async () => {
+    try {
+        const payload = { action: 'skip_placement_test', skill: currentSkill, language: langSelect.value, idToken: getIdToken() };
+        await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
+    } catch (err) {
+        console.warn("Không bỏ qua được bài đặt trình độ:", err);
+    }
+    placementModal.classList.add('hidden');
+    currentPlacementId = null;
+    refreshCurrentLevel();
+});

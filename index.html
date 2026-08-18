@@ -61,15 +61,15 @@
                     </select>
                 </div>
 
+                <!-- ĐÃ SỬA (Mastery): bỏ dropdown tự chọn cấp độ — hệ thống giờ tự đặt trình độ (bài
+                     test thích ứng khi cần) và tự nâng/hạ cấp theo kết quả chấm điểm thực tế. Chỗ này
+                     chỉ còn hiển thị (read-only), xem app.js mục "12. HỆ THỐNG CẤP ĐỘ TỰ ĐỘNG". -->
                 <div class="setting-group">
-                    <label>Cấp độ mục tiêu:</label>
-                    <select id="level-select">
-                        <option value="A1-A2 (Beginner)">A1-A2 (Sơ cấp)</option>
-                        <option value="B1 (Intermediate)">B1 (Trung cấp / IELTS 4.5-5.0)</option>
-                        <option value="B2 (Upper-Intermediate)" selected>B2 (Trung cao / IELTS 5.5-6.5)</option>
-                        <option value="C1 (Advanced)">C1 (Cao cấp / IELTS 7.0-8.0)</option>
-                        <option value="C2 (Proficient)">C2 (Chuyên gia / IELTS 8.5+)</option>
-                    </select>
+                    <label>Cấp độ hiện tại:</label>
+                    <div id="level-badge" style="background:#eafaf1; border:1px solid #a3e4d7; border-radius:6px; padding:8px 10px; font-weight:bold; color:#27ae60; text-align:center;">
+                        <i class="fas fa-spinner fa-spin"></i> Đang tải...
+                    </div>
+                    <div id="level-progress-text" style="font-size:0.78em; color:#7f8c8d; text-align:center; margin-top:4px;"></div>
                 </div>
 
                 <!-- NÚT MỞ KHUNG TỰ NHẬP ĐỀ -->
@@ -305,6 +305,32 @@
             <div id="srs-empty-state" class="hidden" style="padding:20px; color:#27ae60;">
                 <i class="fas fa-check-circle fa-2x"></i>
                 <p style="margin-top:10px;">Bạn đã ôn hết thẻ hôm nay! 🎉</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ĐÃ THÊM: POPUP BÀI ĐẶT TRÌNH ĐỘ (PLACEMENT TEST) — tự bật khi đổi sang 1 kỹ năng+ngôn ngữ
+         chưa có "cấp độ hiện tại" (xem refreshCurrentLevel() ở app.js). 12 câu thích ứng kiểu
+         staircase: đúng thì câu sau khó hơn, sai thì câu sau dễ hơn (Controller_Mastery.gs).
+         Toàn bộ nội dung câu hỏi hiển thị qua textContent nên tự động an toàn XSS. -->
+    <div id="placement-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 560px;">
+            <h2 style="color:#2c3e50; margin-bottom:5px;"><i class="fas fa-tasks"></i> Đặt trình độ ban đầu</h2>
+            <p id="placement-progress" style="color:#7f8c8d; font-size:0.85em; margin-bottom:15px;"></p>
+
+            <div id="placement-question-body">
+                <div id="placement-passage" class="hidden" style="background:#f4f4f4; padding:12px; border-radius:6px; margin-bottom:12px; font-style:italic; white-space:pre-wrap; max-height:180px; overflow-y:auto;"></div>
+                <div id="placement-question-text" style="font-weight:bold; margin-bottom:12px;"></div>
+                <div id="placement-choices" style="display:flex; flex-direction:column; gap:8px;"></div>
+                <div style="text-align:center; margin-top:15px;">
+                    <button id="placement-btn-skip" class="btn" style="background:none; color:#7f8c8d; text-decoration:underline; font-size:0.85em;">Bỏ qua, dùng cấp mặc định</button>
+                </div>
+            </div>
+
+            <div id="placement-result" class="hidden" style="text-align:center; padding:20px;">
+                <i class="fas fa-flag-checkered fa-2x" style="color:#27ae60;"></i>
+                <p style="margin-top:10px; font-size:1.1em;">Đã xác định cấp độ khởi điểm: <strong id="placement-final-level"></strong></p>
+                <button id="placement-btn-start-practice" class="btn primary-btn" style="margin-top:10px;">Bắt đầu luyện tập</button>
             </div>
         </div>
     </div>
