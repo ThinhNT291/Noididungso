@@ -603,7 +603,7 @@ btnSubmitWriting.addEventListener('click', async () => {
     };
 
     lastWritingSubmittedText = text; // ĐÃ THÊM: lưu lại để dùng khi bấm "Lưu bài"
-    const data = await callBackendAPI(payload, "Giám khảo AI đang chấm bài Viết...");
+    const data = await callBackendAPI(payload, "Đang chấm bài viết, vui lòng đợi một chút...");
     if (data) renderWritingAssessment(data);
 });
 
@@ -652,7 +652,7 @@ function processAudioAndSend(blob) {
     reader.onloadend = async () => {
         currentAudioBase64 = reader.result;
         const payload = { action: 'evaluate_speaking', audio: reader.result, mimeType: blob.type, language: langSelect.options[langSelect.selectedIndex].text, level: levelSelect.options[levelSelect.selectedIndex].text, promptText: activePromptData.text, promptImage: activePromptData.image };
-        const data = await callBackendAPI(payload, "Giám khảo AI đang phân tích âm thanh của bạn...");
+        const data = await callBackendAPI(payload, "Đang phân tích bài nói của bạn, vui lòng đợi chút...");
         if (data) renderSpeakingAssessment(data);
     };
 }
@@ -788,7 +788,7 @@ async function processAudioReadAndSend(blob) {
         };
         
         if (resultSection) resultSection.classList.remove('hidden');
-        assessmentBox.innerHTML = `<span class="placeholder-text" style="color:#f39c12;"><i class="fas fa-spinner fa-spin"></i> Giám khảo AI đang đối chiếu từng từ trong bài Luyện đọc...</span>`;
+        assessmentBox.innerHTML = `<span class="placeholder-text" style="color:#f39c12;"><i class="fas fa-spinner fa-spin"></i> Đang phân tích bài đọc của bạn, vui lòng chờ một chút...</span>`;
         
         const data = await callBackendAPI(payload, "Đang phân tích độ chuẩn xác...", true);
         if (data) renderReadAloudAssessment(data);
