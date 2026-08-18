@@ -49,6 +49,8 @@
                         <option value="speaking">Luyện Nói (Speaking)</option>
                         <option value="writing">Luyện Viết (Writing)</option>
                         <option value="read-aloud">🎧 Luyện đọc (Shadowing)</option>
+                        <option value="listening">🔊 Nghe hiểu (Listening)</option>
+                        <option value="reading">📖 Đọc hiểu (Reading)</option>
                     </select>
                 </div>
 
@@ -253,7 +255,41 @@
         </div>
     </div>
 </div>
-            
+
+<!-- ========================================== -->
+<!-- MODULE: NGHE HIỂU (Listening) + ĐỌC HIỂU (Reading) — dùng chung 1 workspace, chỉ khác cách hiện
+     nội dung (audio phát TTS vs đoạn văn hiện trực tiếp). Trắc nghiệm tự chấm ngay, không qua khung
+     "Báo cáo Đánh giá" AI chung bên dưới (result-section) — có khung kết quả riêng vì đây là kết quả
+     trắc nghiệm khách quan (đúng/sai + %), không phải nhận xét chủ quan của AI. -->
+<!-- ========================================== -->
+<div id="comprehension-workspace" class="workspace hidden">
+    <div id="comprehension-intro-box" class="content-box" style="background: #f4f7f6; border: none;">
+        <h4 style="margin: 0 0 8px; color: #2c3e50;"><i class="fas fa-tasks"></i> <span id="comprehension-skill-label">Luyện tập</span></h4>
+        <p style="font-size: 0.9em; color: #7f8c8d; margin-bottom: 12px;">Hệ thống tự chọn 1 đề trắc nghiệm đúng cấp độ hiện tại của bạn, chấm điểm ngay sau khi nộp bài.</p>
+        <button id="btn-start-comprehension" class="btn primary-btn"><i class="fas fa-play"></i> Bắt đầu bài mới</button>
+    </div>
+
+    <div id="active-comprehension-box" class="content-box hidden" style="border-left: 4px solid #16a085;">
+        <h4 id="comprehension-item-title" style="color: #16a085; margin-bottom: 10px;"></h4>
+
+        <!-- Đọc hiểu: hiện đoạn văn trực tiếp -->
+        <div id="comprehension-passage-box" class="preserve-format hidden" style="font-size: 1.05em; line-height: 1.6; background:#fdfdfd; padding:15px; border-radius:8px; border:1px solid #eee; margin-bottom:15px;"></div>
+
+        <!-- Nghe hiểu: CHỈ hiện player audio, KHÔNG hiện transcript chữ (giữ đúng bản chất luyện nghe) -->
+        <div id="comprehension-audio-box" class="hidden" style="background:#eafaf1; padding:15px; border-radius:8px; border:1px solid #a3e4d7; margin-bottom:15px; text-align:center;">
+            <button id="btn-comprehension-play-audio" class="btn" style="background:#16a085; color:white;"><i class="fas fa-volume-up"></i> Nghe bài (có thể bấm nghe lại nhiều lần)</button>
+            <div id="comprehension-audio-status" style="font-size:0.85em; color:#e67e22; font-style:italic; margin-top:8px;"></div>
+            <audio id="comprehension-audio-player" controls style="width:100%; margin-top:10px; display:none;"></audio>
+        </div>
+
+        <div id="comprehension-questions-list"></div>
+
+        <button id="btn-submit-comprehension" class="btn primary-btn" style="margin-top:10px;" disabled><i class="fas fa-check-circle"></i> Nộp bài</button>
+    </div>
+
+    <div id="comprehension-result-box" class="content-box hidden" style="border-left: 4px solid #2980b9;"></div>
+</div>
+
             <!-- BÁO CÁO ĐÁNH GIÁ -->
             <div class="assessment-section hidden" id="result-section">
                 <div style="display: flex; justify-content: space-between; align-items: center;">

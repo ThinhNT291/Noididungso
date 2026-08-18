@@ -75,6 +75,7 @@ const btnApplyCustom = document.getElementById('btn-apply-custom');
 const speakingWorkspace = document.getElementById('speaking-workspace');
 const writingWorkspace = document.getElementById('writing-workspace');
 const readAloudWorkspace = document.getElementById('read-aloud-workspace');
+const comprehensionWorkspace = document.getElementById('comprehension-workspace'); // ĐÃ THÊM: Nghe/Đọc hiểu
 const assessmentBox = document.getElementById('assessment-box');
 const resultSection = document.getElementById('result-section');
 const btnSave = document.getElementById('btn-save');
@@ -201,6 +202,7 @@ skillSelect.addEventListener('change', (e) => {
     speakingWorkspace.classList.add('hidden');
     writingWorkspace.classList.add('hidden');
     readAloudWorkspace.classList.add('hidden');
+    comprehensionWorkspace?.classList.add('hidden');
 
     if (currentSkill === 'writing') {
         writingWorkspace.classList.remove('hidden');
@@ -208,6 +210,10 @@ skillSelect.addEventListener('change', (e) => {
         speakingWorkspace.classList.remove('hidden');
     } else if (currentSkill === 'read-aloud') {
         readAloudWorkspace.classList.remove('hidden');
+    } else if (currentSkill === 'listening' || currentSkill === 'reading') {
+        // ĐÃ THÊM: Nghe hiểu/Đọc hiểu (mục 14 bên dưới) — dùng chung 1 workspace cho cả 2 kỹ năng.
+        comprehensionWorkspace?.classList.remove('hidden');
+        setupComprehensionIntro();
     }
     refreshCurrentLevel(); // ĐÃ THÊM (Mastery): đổi kỹ năng -> cấp độ theo dõi cũng đổi theo
 });
@@ -1038,6 +1044,8 @@ function skillLabel(type) {
     if (type === 'speaking') return 'Nói';
     if (type === 'writing') return 'Viết';
     if (type === 'read-aloud') return 'Đọc (Shadowing)';
+    if (type === 'listening') return 'Nghe hiểu';
+    if (type === 'reading') return 'Đọc hiểu';
     return type;
 }
 
@@ -1141,6 +1149,7 @@ window.openHistoryItem = (id) => {
     if (item.type === 'speaking') assessmentHtml = buildSpeakingAssessmentHTML(item.assessment);
     else if (item.type === 'writing') assessmentHtml = buildWritingAssessmentHTML(item.assessment);
     else if (item.type === 'read-aloud') assessmentHtml = buildReadAloudAssessmentHTML(item.assessment);
+    else if (item.type === 'listening' || item.type === 'reading') assessmentHtml = buildComprehensionAssessmentHTML(item.assessment);
 
     // ĐÃ SỬA: link uc?export=download không hỗ trợ tốt Range request nên thẻ <audio> không tua được.
     // Đổi sang nhúng trình phát có sẵn của Google Drive (/preview) — hỗ trợ tua đầy đủ như mở trực tiếp trên Drive.
@@ -1286,6 +1295,9 @@ function resetWorkspace(skill) {
         // ĐÃ THÊM: nhánh này trước đây chưa tồn tại — audio/bản ghi cũ của Shadowing không được dọn khi Reset
         audioChunksRead = []; currentBlobRead = null; currentReadAloudAudioBase64 = null;
         if (audioPlaybackRead) audioPlaybackRead.classList.add('hidden');
+    } else if (skill === 'listening' || skill === 'reading') {
+        // ĐÃ THÊM: Nghe hiểu/Đọc hiểu (mục 14) — reset về màn hình giới thiệu, huỷ bài đang làm dở.
+        resetComprehensionState();
     }
 }
 
@@ -1419,7 +1431,10 @@ function showCurrentSrsCard() {
     }
     const card = srsQueue[srsCurrentIndex];
     srsProgressEl.textContent = `Thẻ ${srsCurrentIndex + 1}/${srsQueue.length}`;
-    srsCardSkillEl.textContent = (card.skill === 'speaking' ? '🎤 Speaking' : '✍️ Writing') + (card.language ? ' • ' + card.language : '');
+    // ĐÃ SỬA: trước đây chỉ có 2 nhánh (speaking/writing) — giờ thẻ SRS còn có thể đến từ Listening/
+    // Reading (mục 14), nên đổi sang tra nhãn đầy đủ thay vì ternary nhị phân.
+    const srsSkillIcons = { speaking: '🎤 Speaking', writing: '✍️ Writing', listening: '🔊 Listening', reading: '📖 Reading' };
+    srsCardSkillEl.textContent = (srsSkillIcons[card.skill] || card.skill) + (card.language ? ' • ' + card.language : '');
     srsCardPhraseEl.textContent = card.original_phrase;
     srsCardCorrectionEl.textContent = card.correction;
     srsCardReasonEl.textContent = card.reason;
@@ -1738,10 +1753,14 @@ function buildHeatmap(heatmapData, windowDays) {
 
 function buildScoreTrendChart(scoreTrend) {
     const container = document.createElement('div');
+    // Thứ tự màu categorical CỐ ĐỊNH theo palette đã validate (không đảo/không cycle khi thêm series
+    // mới) — slot 1-3 dùng cho 3 kỹ năng cũ, slot 4-5 (vàng/magenta) dùng cho Listening/Reading mới.
     const allSeries = [
         { key: 'speaking', label: 'Speaking', hex: '#2a78d6' },
         { key: 'writing', label: 'Writing', hex: '#eb6834' },
-        { key: 'read-aloud', label: 'Read-aloud', hex: '#1baf7a' }
+        { key: 'read-aloud', label: 'Read-aloud', hex: '#1baf7a' },
+        { key: 'listening', label: 'Listening', hex: '#eda100' },
+        { key: 'reading', label: 'Reading', hex: '#e87ba4' }
     ];
     const activeSeries = allSeries.filter(s => (scoreTrend[s.key] || []).length > 0);
 
@@ -1939,3 +1958,254 @@ function renderProgressDashboard(data) {
 
 btnOpenProgress?.addEventListener('click', openProgressModal);
 progressCloseX?.addEventListener('click', () => progressModal.classList.add('hidden'));
+
+// ==========================================
+// 14. NGHE HIỂU (Listening) + ĐỌC HIỂU (Reading)
+// ==========================================
+// 2 kỹ năng mới, đủ bộ 4 kỹ năng chuẩn (Nghe/Nói/Đọc/Viết), dùng CHUNG 1 workspace (chỉ khác cách
+// hiện nội dung: audio TTS vs đoạn văn hiện trực tiếp). Trắc nghiệm 4 lựa chọn, tự chấm ngay tại
+// server (Controller_Comprehension.gs) — không gọi AI, không có độ trễ. Nghe hiểu tái dùng nguyên hàm
+// generateAndPlaySample() đã có sẵn trong index.html (dùng cho Shadowing) để phát audio TTS.
+// Toàn bộ nội dung câu hỏi/đáp án hiển thị qua textContent (không phải innerHTML), tự động an toàn XSS.
+const comprehensionSkillLabelEl = document.getElementById('comprehension-skill-label');
+const comprehensionIntroBox = document.getElementById('comprehension-intro-box');
+const activeComprehensionBox = document.getElementById('active-comprehension-box');
+const comprehensionItemTitleEl = document.getElementById('comprehension-item-title');
+const comprehensionPassageBox = document.getElementById('comprehension-passage-box');
+const comprehensionAudioBox = document.getElementById('comprehension-audio-box');
+const comprehensionAudioStatus = document.getElementById('comprehension-audio-status');
+const comprehensionAudioPlayer = document.getElementById('comprehension-audio-player');
+const btnComprehensionPlayAudio = document.getElementById('btn-comprehension-play-audio');
+const comprehensionQuestionsList = document.getElementById('comprehension-questions-list');
+const btnSubmitComprehension = document.getElementById('btn-submit-comprehension');
+const comprehensionResultBox = document.getElementById('comprehension-result-box');
+const btnStartComprehension = document.getElementById('btn-start-comprehension');
+
+let comprehensionCurrentItem = null;    // {itemId, title, content, level, questions:[{question,choices}]}
+let comprehensionSelectedAnswers = [];  // mảng selectedIndex song song với questions, -1 = chưa chọn
+
+// Gọi khi chuyển sang tab Nghe/Đọc hiểu — chỉ đổi tiêu đề + reset về màn hình giới thiệu, KHÔNG tự
+// động tải đề (để người học chủ động bấm "Bắt đầu bài mới" khi sẵn sàng, giống các kỹ năng khác).
+function setupComprehensionIntro() {
+    resetComprehensionState();
+    if (comprehensionSkillLabelEl) {
+        comprehensionSkillLabelEl.textContent = currentSkill === 'listening'
+            ? 'Luyện Nghe hiểu (Listening)'
+            : 'Luyện Đọc hiểu (Reading)';
+    }
+}
+
+function resetComprehensionState() {
+    comprehensionCurrentItem = null;
+    comprehensionSelectedAnswers = [];
+    if (comprehensionIntroBox) comprehensionIntroBox.classList.remove('hidden');
+    if (activeComprehensionBox) activeComprehensionBox.classList.add('hidden');
+    if (comprehensionResultBox) { comprehensionResultBox.classList.add('hidden'); comprehensionResultBox.innerHTML = ''; }
+    if (comprehensionAudioPlayer) { comprehensionAudioPlayer.pause(); comprehensionAudioPlayer.style.display = 'none'; comprehensionAudioPlayer.src = ''; }
+    if (comprehensionAudioStatus) comprehensionAudioStatus.textContent = '';
+    if (btnSubmitComprehension) btnSubmitComprehension.disabled = true;
+}
+
+async function startComprehensionSession() {
+    if (!btnStartComprehension) return;
+    const originalHtml = btnStartComprehension.innerHTML;
+    btnStartComprehension.disabled = true;
+    btnStartComprehension.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tải đề...';
+
+    // ĐÃ SỬA (Mastery): không gửi "level" — Backend tự tra cấp độ hiện tại (injectAutoLevel_), giống
+    // hệt cách evaluate_speaking/evaluate_writing đang làm.
+    const payload = { action: 'get_comprehension_item', skill: currentSkill, language: langSelect.value };
+    const data = await callBackendAPI(payload, '', false);
+
+    btnStartComprehension.disabled = false;
+    btnStartComprehension.innerHTML = originalHtml;
+
+    if (!data) { alert('Không lấy được đề bài, vui lòng thử lại.'); return; }
+
+    comprehensionCurrentItem = data;
+    comprehensionSelectedAnswers = new Array(data.questions.length).fill(-1);
+    renderComprehensionItem(data);
+}
+btnStartComprehension?.addEventListener('click', startComprehensionSession);
+
+function renderComprehensionItem(data) {
+    comprehensionIntroBox?.classList.add('hidden');
+    activeComprehensionBox?.classList.remove('hidden');
+    comprehensionResultBox?.classList.add('hidden');
+    if (comprehensionResultBox) comprehensionResultBox.innerHTML = '';
+
+    if (comprehensionItemTitleEl) comprehensionItemTitleEl.textContent = data.title || '';
+
+    if (currentSkill === 'reading') {
+        if (comprehensionPassageBox) {
+            comprehensionPassageBox.textContent = data.content;
+            comprehensionPassageBox.classList.remove('hidden');
+        }
+        comprehensionAudioBox?.classList.add('hidden');
+    } else {
+        comprehensionPassageBox?.classList.add('hidden');
+        comprehensionAudioBox?.classList.remove('hidden');
+        if (comprehensionAudioPlayer) { comprehensionAudioPlayer.style.display = 'none'; comprehensionAudioPlayer.src = ''; }
+        if (comprehensionAudioStatus) comprehensionAudioStatus.textContent = '';
+    }
+
+    if (comprehensionQuestionsList) {
+        comprehensionQuestionsList.innerHTML = '';
+        data.questions.forEach((q, qIndex) => {
+            const qBox = document.createElement('div');
+            qBox.style.cssText = 'margin-bottom:16px; padding:12px; background:#fdfdfd; border:1px solid #eee; border-radius:8px;';
+
+            const qText = document.createElement('div');
+            qText.style.cssText = 'font-weight:bold; margin-bottom:8px; color:#2c3e50;';
+            qText.textContent = `Câu ${qIndex + 1}. ${q.question}`;
+            qBox.appendChild(qText);
+
+            const choicesWrap = document.createElement('div');
+            choicesWrap.style.cssText = 'display:flex; flex-direction:column; gap:6px;';
+            q.choices.forEach((choice, cIndex) => {
+                const btn = document.createElement('button');
+                btn.className = 'btn';
+                // .btn là display:inline-flex; justify-content:center -> phải override justify-content
+                // (không chỉ text-align) mới căn trái được đáp án nhiều chữ (bug đã gặp ở Placement Test).
+                btn.style.cssText = 'text-align:left; justify-content:flex-start; background:#f4f7f6; color:#2c3e50; border:1px solid #ccc; padding:9px 12px; font-size:0.92em;';
+                btn.textContent = String.fromCharCode(65 + cIndex) + '. ' + choice;
+                btn.onclick = () => selectComprehensionAnswer(qIndex, cIndex, choicesWrap);
+                choicesWrap.appendChild(btn);
+            });
+            qBox.appendChild(choicesWrap);
+            comprehensionQuestionsList.appendChild(qBox);
+        });
+    }
+
+    if (btnSubmitComprehension) {
+        btnSubmitComprehension.disabled = true;
+        btnSubmitComprehension.innerHTML = '<i class="fas fa-check-circle"></i> Nộp bài';
+    }
+}
+
+function selectComprehensionAnswer(qIndex, cIndex, choicesWrap) {
+    comprehensionSelectedAnswers[qIndex] = cIndex;
+    choicesWrap.querySelectorAll('button').forEach((b, i) => {
+        const isSelected = i === cIndex;
+        b.style.background = isSelected ? '#2980b9' : '#f4f7f6';
+        b.style.color = isSelected ? 'white' : '#2c3e50';
+        b.style.borderColor = isSelected ? '#2980b9' : '#ccc';
+    });
+    if (btnSubmitComprehension) btnSubmitComprehension.disabled = comprehensionSelectedAnswers.some(a => a === -1);
+}
+
+btnComprehensionPlayAudio?.addEventListener('click', () => {
+    if (!comprehensionCurrentItem || !window.generateAndPlaySample) return;
+    // Tái dùng NGUYÊN VẸN hàm phát TTS đã có cho Shadowing (index.html) — transcript CHỈ dùng để tạo
+    // audio, không hiện ra chữ (đúng bản chất luyện Nghe, khác Shadowing là luyện đọc theo mẫu).
+    window.generateAndPlaySample(comprehensionCurrentItem.content, 'Charon', {
+        btnId: 'btn-comprehension-play-audio',
+        statusId: 'comprehension-audio-status',
+        playerId: 'comprehension-audio-player'
+    });
+});
+
+async function submitComprehensionAnswers() {
+    if (!comprehensionCurrentItem) return;
+    if (btnSubmitComprehension) {
+        btnSubmitComprehension.disabled = true;
+        btnSubmitComprehension.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang chấm...';
+    }
+
+    const payload = {
+        action: 'submit_comprehension_answers',
+        skill: currentSkill,
+        language: langSelect.value,
+        itemId: comprehensionCurrentItem.itemId,
+        answers: comprehensionSelectedAnswers
+    };
+    const result = await callBackendAPI(payload, '', false);
+
+    if (!result) {
+        alert('Chấm điểm thất bại, vui lòng thử lại.');
+        if (btnSubmitComprehension) { btnSubmitComprehension.disabled = false; btnSubmitComprehension.innerHTML = '<i class="fas fa-check-circle"></i> Nộp bài'; }
+        return;
+    }
+
+    renderComprehensionResult(result);
+    await saveComprehensionToHistory(result);
+}
+btnSubmitComprehension?.addEventListener('click', submitComprehensionAnswers);
+
+// ĐÃ SỬA: tách phần dựng HTML ra hàm riêng để tái dùng được khi xem lại lịch sử (giống pattern
+// buildSpeakingAssessmentHTML/buildWritingAssessmentHTML/buildReadAloudAssessmentHTML ở trên).
+function buildComprehensionAssessmentHTML(data) {
+    if (!data) return '<p style="color:#e74c3c;">Không có dữ liệu kết quả.</p>';
+    const passRate = data.score_percent || 0;
+    const color = passRate >= 75 ? '#27ae60' : (passRate >= 50 ? '#f39c12' : '#e74c3c');
+    let html = `
+        <div style="background:${color}; padding:15px; border-radius:8px; color:white; margin-bottom:15px;">
+            <h3 style="margin:0 0 6px; color:white;"><i class="fas fa-poll"></i> Kết quả: ${data.correct_count}/${data.total_questions} câu đúng (${passRate}%)</h3>
+            <div style="font-size:0.9em;">Cấp độ đề: ${escapeHtml(data.level || '')}</div>
+        </div>
+    `;
+    (data.results || []).forEach((r, i) => {
+        const borderColor = r.isCorrect ? '#27ae60' : '#e74c3c';
+        const chosenText = r.selectedIndex >= 0 && r.choices[r.selectedIndex] !== undefined ? r.choices[r.selectedIndex] : '(chưa chọn)';
+        html += `
+            <div style="margin-bottom:12px; padding:10px 12px; border-left:4px solid ${borderColor}; background:#f9f9f9; border-radius:4px;">
+                <div style="font-weight:bold; margin-bottom:4px;">Câu ${i + 1}. ${escapeHtml(r.question)}</div>
+                <div style="font-size:0.9em; color:${r.isCorrect ? '#27ae60' : '#e74c3c'};">
+                    <i class="fas ${r.isCorrect ? 'fa-check' : 'fa-times'}"></i>
+                    Bạn chọn: ${escapeHtml(chosenText)}
+                    ${r.isCorrect ? '' : ' — Đáp án đúng: ' + escapeHtml(r.choices[r.correctIndex])}
+                </div>
+                ${r.explanation ? `<div style="font-size:0.85em; color:#7f8c8d; margin-top:4px;">${escapeHtml(r.explanation)}</div>` : ''}
+            </div>
+        `;
+    });
+    if (data.content) {
+        html += `
+            <h4 style="margin-top:15px; color:#16a085;"><i class="fas fa-align-left"></i> Xem lại nội dung gốc:</h4>
+            <div class="preserve-format" style="white-space:pre-wrap; background:#fdfdfd; padding:12px; border-radius:6px; border:1px solid #eee;">${escapeHtml(data.content)}</div>
+        `;
+    }
+    return html;
+}
+
+function renderComprehensionResult(result) {
+    if (comprehensionResultBox) {
+        comprehensionResultBox.innerHTML = buildComprehensionAssessmentHTML(result);
+        comprehensionResultBox.classList.remove('hidden');
+    }
+    activeComprehensionBox?.classList.add('hidden');
+}
+
+// ĐÃ SỬA: không tái dùng saveCurrentSessionToHistory() (được viết riêng cho luồng audio/text +
+// nút "Lưu bài" thủ công) — Nghe/Đọc hiểu tự lưu NGAY sau khi chấm xong (không cần người dùng bấm Lưu,
+// vì kết quả trắc nghiệm đã chốt, không có gì để "xem rồi mới quyết định lưu" như Speaking/Writing).
+async function saveComprehensionToHistory(result) {
+    const item = {
+        id: Date.now(),
+        type: currentSkill, // 'listening' | 'reading'
+        title: `[${skillLabel(currentSkill)}] ${result.itemTitle || comprehensionCurrentItem?.title || ''}`,
+        date: new Date().toLocaleString('vi-VN'),
+        promptText: result.itemTitle || '',
+        promptImage: null,
+        language: langSelect.options[langSelect.selectedIndex]?.text || '',
+        level: result.level || lastKnownLevelDisplayText || '',
+        writingText: null,
+        driveAudio: null,
+        assessment: result
+    };
+
+    try {
+        const payload = { action: 'save_history_item', idToken: getIdToken(), item: item };
+        const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
+        const apiResult = await response.json();
+        if (!apiResult.success) throw new Error(apiResult.error);
+        // ĐÃ THÊM (Mastery): giống hệt saveCurrentSessionToHistory() — báo lên/hạ cấp nếu có.
+        if (apiResult.data && apiResult.data.mastery && apiResult.data.mastery.changed) {
+            showLevelChangeToast(apiResult.data.mastery.direction, apiResult.data.mastery.newLevel);
+            refreshCurrentLevel();
+        }
+    } catch (err) {
+        console.warn("Không lưu được bài Nghe/Đọc hiểu vào lịch sử:", err);
+    }
+    await loadHistory();
+}
