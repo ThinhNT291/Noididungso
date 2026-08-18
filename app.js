@@ -22,6 +22,7 @@ window.setAuthSession = function(idToken, email) {
     // Có phiên hợp lệ rồi mới bắt đầu tải dữ liệu — trước đó backend sẽ từ chối mọi request.
     loadHistory();
     fetchQuestionsFromGAS();
+    refreshSrsDueCount(); // ĐÃ THÊM: hiện badge số thẻ ôn tập lỗi sai cần ôn hôm nay
 };
 
 window.clearAuthSession = function() {
@@ -928,6 +929,12 @@ function buildWritingAssessmentHTML(data) {
                 ${formatList(data.analysis?.weaknesses)}
             </div>
         </div>
+        <!-- ĐÃ THÊM: AI đã trả về errors[] từ trước nhưng chưa từng được hiển thị ra đây — giờ show
+             ra giống bên Speaking, đồng thời đây cũng chính là nguồn dữ liệu nạp vào thẻ ôn tập SRS. -->
+        <h4 style="color:#d35400; border-bottom: 1px solid #ccc; padding-bottom: 5px;"><i class="fas fa-search"></i> Phân tích lỗi</h4>
+        <ul style="padding-left: 0; list-style: none; margin-bottom: 20px;">
+            ${(data.errors && data.errors.length > 0) ? data.errors.map(err => `<li style="margin-bottom: 10px; background: #fdf2e9; padding: 10px; border-radius: 6px;"><del style="color:red; font-weight: bold;">${escapeHtml(err.original_phrase)}</del> &rarr; <strong style="color:green;">${escapeHtml(err.correction)}</strong><br><small style="color:#555;">${escapeHtml(err.reason)}</small></li>`).join('') : '<li style="color:green; padding: 10px;">Tuyệt vời! Không phát hiện lỗi nghiêm trọng.</li>'}
+        </ul>
     `;
 }
 
@@ -1356,3 +1363,103 @@ function handleFeedbackDismiss() {
 feedbackBtnSend?.addEventListener('click', handleFeedbackDismiss);
 feedbackBtnClose?.addEventListener('click', handleFeedbackDismiss);
 feedbackCloseX?.addEventListener('click', handleFeedbackDismiss);
+
+// ==========================================
+// 11. ÔN TẬP LỖI SAI (SRS — SPACED REPETITION)
+// ==========================================
+// Mỗi khi lưu bài Speaking/Writing, Backend (Controller_Srs.gs) tự trích errors[] AI vừa chấm
+// thành các thẻ ôn tập trong spreadsheet Traininghistory. Ở đây chỉ là giao diện: hiện badge số thẻ
+// đến hạn, và luồng flashcard (xem lỗi -> bấm Xem đáp án -> tự chấm mức nhớ -> qua thẻ tiếp theo).
+// Toàn bộ nội dung thẻ hiển thị qua textContent (không phải innerHTML) nên tự động an toàn XSS,
+// không cần escapeHtml() ở đây.
+let srsQueue = [];
+let srsCurrentIndex = 0;
+const srsModal = document.getElementById('srs-modal');
+const btnOpenSrsReview = document.getElementById('btn-open-srs-review');
+const srsDueCountEl = document.getElementById('srs-due-count');
+const srsProgressEl = document.getElementById('srs-progress');
+const srsCardSkillEl = document.getElementById('srs-card-skill');
+const srsCardPhraseEl = document.getElementById('srs-card-phrase');
+const srsCardAnswerEl = document.getElementById('srs-card-answer');
+const srsCardCorrectionEl = document.getElementById('srs-card-correction');
+const srsCardReasonEl = document.getElementById('srs-card-reason');
+const srsBtnReveal = document.getElementById('srs-btn-reveal');
+const srsRatingButtons = document.getElementById('srs-rating-buttons');
+const srsEmptyState = document.getElementById('srs-empty-state');
+const srsCardBody = document.getElementById('srs-card-body');
+const srsCloseX = document.getElementById('srs-close-x');
+
+async function refreshSrsDueCount() {
+    if (!btnOpenSrsReview) return;
+    try {
+        const payload = { action: 'get_srs_due_cards', idToken: getIdToken() };
+        const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
+        const result = await response.json();
+        const count = (result.success && result.data) ? (result.data.total || 0) : 0;
+        btnOpenSrsReview.style.display = count > 0 ? 'flex' : 'none';
+        if (srsDueCountEl) srsDueCountEl.textContent = count;
+    } catch (err) {
+        console.warn("Không tải được số thẻ ôn tập:", err);
+    }
+}
+
+function showCurrentSrsCard() {
+    if (srsCurrentIndex >= srsQueue.length) {
+        srsCardBody.classList.add('hidden');
+        srsBtnReveal.classList.add('hidden');
+        srsRatingButtons.classList.add('hidden');
+        srsEmptyState.classList.remove('hidden');
+        srsProgressEl.textContent = '';
+        refreshSrsDueCount();
+        return;
+    }
+    const card = srsQueue[srsCurrentIndex];
+    srsProgressEl.textContent = `Thẻ ${srsCurrentIndex + 1}/${srsQueue.length}`;
+    srsCardSkillEl.textContent = (card.skill === 'speaking' ? '🎤 Speaking' : '✍️ Writing') + (card.language ? ' • ' + card.language : '');
+    srsCardPhraseEl.textContent = card.original_phrase;
+    srsCardCorrectionEl.textContent = card.correction;
+    srsCardReasonEl.textContent = card.reason;
+    srsCardAnswerEl.classList.add('hidden');
+    srsBtnReveal.classList.remove('hidden');
+    srsRatingButtons.classList.add('hidden');
+}
+
+async function openSrsReview() {
+    if (!srsModal) return;
+    srsModal.classList.remove('hidden');
+    srsCardBody.classList.remove('hidden');
+    srsEmptyState.classList.add('hidden');
+    srsProgressEl.textContent = 'Đang tải...';
+    try {
+        const payload = { action: 'get_srs_due_cards', idToken: getIdToken() };
+        const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
+        const result = await response.json();
+        srsQueue = (result.success && result.data && result.data.cards) ? result.data.cards : [];
+        srsCurrentIndex = 0;
+        showCurrentSrsCard();
+    } catch (err) {
+        srsProgressEl.textContent = 'Lỗi tải thẻ ôn tập: ' + err.message;
+    }
+}
+
+window.reviewSrsCard = async (quality) => {
+    const card = srsQueue[srsCurrentIndex];
+    if (!card) return;
+    srsRatingButtons.classList.add('hidden');
+    try {
+        const payload = { action: 'review_srs_card', cardId: card.id, quality: quality, idToken: getIdToken() };
+        await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
+    } catch (err) {
+        console.warn("Không lưu được kết quả ôn tập:", err);
+    }
+    srsCurrentIndex++;
+    showCurrentSrsCard();
+};
+
+btnOpenSrsReview?.addEventListener('click', openSrsReview);
+srsBtnReveal?.addEventListener('click', () => {
+    srsCardAnswerEl.classList.remove('hidden');
+    srsBtnReveal.classList.add('hidden');
+    srsRatingButtons.classList.remove('hidden');
+});
+srsCloseX?.addEventListener('click', () => srsModal.classList.add('hidden'));

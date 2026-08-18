@@ -270,10 +270,43 @@
         <aside class="sidebar-right" id="sidebar-right">
             <button id="toggle-right" class="toggle-btn"><i class="fas fa-chevron-right"></i></button>
             <div class="sidebar-content">
+                <!-- ĐÃ THÊM: badge mở popup Ôn tập lỗi sai (SRS) — chỉ hiện khi có thẻ đến hạn ôn (JS bật/tắt display) -->
+                <button id="btn-open-srs-review" class="btn" style="display:none; width:100%; background:#f39c12; color:white; margin-bottom:12px; align-items:center; justify-content:center; gap:6px;">
+                    <i class="fas fa-brain"></i> Ôn tập lỗi sai (<span id="srs-due-count">0</span>)
+                </button>
                 <h2>Lịch sử</h2>
                 <ul id="history-list"></ul>
             </div>
         </aside>
+    </div>
+
+    <!-- ĐÃ THÊM: POPUP ÔN TẬP LỖI SAI (SRS) — flashcard: xem lỗi -> Xem đáp án -> tự chấm mức nhớ -->
+    <div id="srs-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 480px; text-align:center;">
+            <span class="close-btn" id="srs-close-x">&times;</span>
+            <h2 style="color:#2c3e50; margin-bottom:5px;"><i class="fas fa-brain"></i> Ôn tập lỗi sai</h2>
+            <p id="srs-progress" style="color:#7f8c8d; font-size:0.85em; margin-bottom:15px;"></p>
+
+            <div id="srs-card-body" style="background:#fdf2e9; border-radius:8px; padding:20px; margin-bottom:15px; min-height:120px;">
+                <div id="srs-card-skill" style="font-size:0.8em; color:#e67e22; font-weight:bold; margin-bottom:8px;"></div>
+                <div id="srs-card-phrase" style="font-size:1.15em; font-weight:bold; color:#c0392b;"></div>
+                <div id="srs-card-answer" class="hidden" style="margin-top:15px; text-align:left; border-top:1px dashed #e67e22; padding-top:12px;">
+                    <div><strong style="color:#27ae60;">Sửa đúng:</strong> <span id="srs-card-correction"></span></div>
+                    <div id="srs-card-reason" style="margin-top:8px; font-size:0.9em; color:#555;"></div>
+                </div>
+            </div>
+
+            <button id="srs-btn-reveal" class="btn primary-btn" style="width:100%; margin-bottom:10px;">👀 Xem đáp án</button>
+            <div id="srs-rating-buttons" class="hidden" style="display:flex; gap:8px;">
+                <button class="btn" style="flex:1; background:#e74c3c; color:white;" onclick="reviewSrsCard(0)">😵 Quên rồi</button>
+                <button class="btn" style="flex:1; background:#f39c12; color:white;" onclick="reviewSrsCard(3)">🤔 Mù mờ</button>
+                <button class="btn" style="flex:1; background:#27ae60; color:white;" onclick="reviewSrsCard(5)">😎 Nhớ rõ</button>
+            </div>
+            <div id="srs-empty-state" class="hidden" style="padding:20px; color:#27ae60;">
+                <i class="fas fa-check-circle fa-2x"></i>
+                <p style="margin-top:10px;">Bạn đã ôn hết thẻ hôm nay! 🎉</p>
+            </div>
+        </div>
     </div>
 
     <!-- POPUP GỢI Ý ĐƯỢC ĐẶT Ở ĐÂY -->
