@@ -3107,10 +3107,21 @@ function buildCIAssessmentHTML(data) {
 
 // ==========================================================
 // SECTION 17: KHU "HỌC" — Bước 2: BÀI TẬP (Controller_GrammarTopic.gs). MVP = 1 chuyên đề ngữ pháp cố
-// định (Present Perfect, B1). Lý thuyết hiện thẳng (không cần chấm), Bài tập trắc nghiệm 4 lựa chọn
-// tự chấm tại server — tái dùng đúng tinh thần UI của Nghe/Đọc hiểu (SECTION Comprehension ở trên)
-// nhưng ĐƠN GIẢN HƠN: không có audio/passage, không random đề, không lưu lịch sử/Mastery/SRS (xem
-// ghi chú đầu Controller_GrammarTopic.gs — phạm vi MVP cố ý chưa làm ở bước này).
+// định (Present Perfect, B1).
+//
+// ĐÃ SỬA (phản hồi "ngợp 1 trang chữ" + "muốn chấm tức thì"):
+//  - Lý thuyết hiện DẦN theo cuộn chuột: mỗi khối lý thuyết được bọc trong <div class="reveal-on-scroll">
+//    (CSS ở style.css), 1 IntersectionObserver (grammarRevealObserver) thêm class "revealed" khi khối
+//    đó cuộn tới gần khung nhìn — CHỈ 1 lần (unobserve ngay sau khi hiện, không ẩn lại khi cuộn ngược
+//    lên, tránh giật/jank). Nếu trình duyệt không hỗ trợ IntersectionObserver thì hiện thẳng luôn
+//    (progressive enhancement, không chặn tính năng chính).
+//  - Bài tập TẢI SẴN cùng 1 lần gọi get_grammar_topic với lý thuyết (đỡ phải gọi mạng lần 2), nhưng
+//    #grammar-exercise-box vẫn giữ class "hidden" cho tới khi bấm nút "Luyện chủ điểm này" (chèn ở
+//    cuối khối lý thuyết) — bấm là hiện NGAY LẬP TỨC, không cần gọi lại Server.
+//  - CHẤM TẠI CLIENT, tức thì từng câu: bấm 1 đáp án là so khớp ngay với correctIndex (đã có sẵn trong
+//    dữ liệu — xem ghi chú đầu Controller_GrammarTopic.gs), tô xanh ô đúng (luôn nổi), tô đỏ ô người
+//    học lỡ chọn sai (nếu có), hiện giải thích ngay dưới, khoá cả 4 ô của câu đó lại. KHÔNG còn nút
+//    "Nộp bài"/màn kết quả tổng kết riêng — thay bằng #grammar-score-indicator cập nhật dần.
 //
 // Sidebar trái (có langSelect) đang ẨN ở khu "Học" (xem switchArea() ở trên) nên KHÔNG dùng
 // langSelect.value ở đây — hardcode 'english' vì hiện tại chuyên đề ngữ pháp mới chỉ có ở tiếng Anh.
@@ -3119,12 +3130,35 @@ const grammarTopicIntroBox = document.getElementById('grammar-topic-intro-box');
 const grammarTheoryBox = document.getElementById('grammar-theory-box');
 const grammarExerciseBox = document.getElementById('grammar-exercise-box');
 const grammarExerciseList = document.getElementById('grammar-exercise-list');
-const btnSubmitGrammarExercise = document.getElementById('btn-submit-grammar-exercise');
-const grammarResultBox = document.getElementById('grammar-result-box');
+const grammarScoreIndicator = document.getElementById('grammar-score-indicator');
 const btnStartGrammarTopic = document.getElementById('btn-start-grammar-topic');
 
-let grammarCurrentTopic = null;    // { id, title, level, theory, exercises:[{id,type,prompt,choices}] }
-let grammarSelectedAnswers = [];   // mảng selectedIndex song song với exercises, -1 = chưa chọn
+let grammarCurrentTopic = null;   // { id, title, level, theory, exercises:[{id,type,prompt,choices,correctIndex,explanation}] }
+let grammarAnsweredCount = 0;     // số câu đã bấm chọn (bất kể đúng/sai) trong lượt học hiện tại
+let grammarCorrectCount = 0;      // số câu chọn đúng trong lượt học hiện tại
+
+// Bọc mỗi khối lý thuyết trong reveal-on-scroll -> observer thêm "revealed" khi cuộn tới gần, hiện
+// đúng 1 lần rồi bỏ theo dõi (unobserve) - không ẩn lại khi cuộn ngược lên.
+const grammarRevealObserver = ('IntersectionObserver' in window)
+    ? new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('revealed');
+                grammarRevealObserver.unobserve(entry.target);
+            }
+        });
+    }, { root: null, rootMargin: '0px 0px -10% 0px', threshold: 0.05 })
+    : null;
+
+function observeGrammarReveal(container) {
+    const blocks = container.querySelectorAll('.reveal-on-scroll');
+    if (grammarRevealObserver) {
+        blocks.forEach(b => grammarRevealObserver.observe(b));
+    } else {
+        // Trình duyệt không hỗ trợ IntersectionObserver -> hiện thẳng luôn, không chặn nội dung.
+        blocks.forEach(b => b.classList.add('revealed'));
+    }
+}
 
 async function startGrammarTopicSession() {
     if (!btnStartGrammarTopic) return;
@@ -3140,23 +3174,23 @@ async function startGrammarTopicSession() {
     if (!data) { alert('Không tải được chuyên đề, vui lòng thử lại.'); return; }
 
     grammarCurrentTopic = data;
-    grammarSelectedAnswers = new Array(data.exercises.length).fill(-1);
+    grammarAnsweredCount = 0;
+    grammarCorrectCount = 0;
     renderGrammarTopic(data);
 }
 btnStartGrammarTopic?.addEventListener('click', startGrammarTopicSession);
 
 function renderGrammarTopic(data) {
     grammarTopicIntroBox?.classList.add('hidden');
-    if (grammarResultBox) { grammarResultBox.classList.add('hidden'); grammarResultBox.innerHTML = ''; }
 
-    // ----- Lý thuyết -----
+    // ----- Lý thuyết (hiện dần theo cuộn chuột) -----
     if (grammarTheoryBox) {
         const theory = data.theory || {};
         let html = `<h3 style="color:#d35400; margin-top:0;"><i class="fas fa-book"></i> Lý thuyết: ${escapeHtml(data.title || '')} (${escapeHtml(data.level || '')})</h3>`;
 
         (theory.usages || []).forEach((u, i) => {
             html += `
-                <div style="margin-bottom:14px; padding:10px 12px; background:#fdfdfd; border:1px solid #eee; border-radius:8px;">
+                <div class="reveal-on-scroll" style="margin-bottom:14px; padding:10px 12px; background:#fdfdfd; border:1px solid #eee; border-radius:8px;">
                     <div style="font-weight:bold; color:#2c3e50; margin-bottom:4px;">${i + 1}. ${escapeHtml(u.label || '')}</div>
                     <div style="font-size:0.92em; color:#555; margin-bottom:6px;">${escapeHtml(u.explanationVi || '')}</div>
                     ${(u.examples || []).map(ex => `
@@ -3171,7 +3205,7 @@ function renderGrammarTopic(data) {
 
         if (theory.formulas) {
             html += `
-                <div style="margin-bottom:14px; padding:10px 12px; background:#fff8f0; border:1px solid #fde3cf; border-radius:8px;">
+                <div class="reveal-on-scroll" style="margin-bottom:14px; padding:10px 12px; background:#fff8f0; border:1px solid #fde3cf; border-radius:8px;">
                     <div style="font-weight:bold; color:#d35400; margin-bottom:6px;"><i class="fas fa-calculator"></i> Công thức</div>
                     <div style="font-size:0.9em; margin-bottom:3px;">Khẳng định: <code>${escapeHtml(theory.formulas.affirmative || '')}</code></div>
                     <div style="font-size:0.9em; margin-bottom:3px;">Phủ định: <code>${escapeHtml(theory.formulas.negative || '')}</code></div>
@@ -3182,7 +3216,7 @@ function renderGrammarTopic(data) {
 
         if ((theory.signalWords || []).length) {
             html += `
-                <div style="margin-bottom:14px; padding:10px 12px; background:#f4f7f6; border-radius:8px;">
+                <div class="reveal-on-scroll" style="margin-bottom:14px; padding:10px 12px; background:#f4f7f6; border-radius:8px;">
                     <div style="font-weight:bold; color:#2c3e50; margin-bottom:6px;"><i class="fas fa-flag"></i> Dấu hiệu nhận biết</div>
                     ${theory.signalWords.map(sw => `<div style="font-size:0.88em; margin-bottom:2px;"><strong>${escapeHtml(sw.word || '')}</strong>: ${escapeHtml(sw.meaningVi || '')}</div>`).join('')}
                 </div>
@@ -3191,18 +3225,28 @@ function renderGrammarTopic(data) {
 
         if ((theory.commonMistakes || []).length) {
             html += `
-                <div style="padding:10px 12px; background:#fdecea; border:1px solid #f5b7b1; border-radius:8px;">
+                <div class="reveal-on-scroll" style="padding:10px 12px; background:#fdecea; border:1px solid #f5b7b1; border-radius:8px;">
                     <div style="font-weight:bold; color:#c0392b; margin-bottom:6px;"><i class="fas fa-exclamation-triangle"></i> Lỗi thường gặp</div>
                     ${theory.commonMistakes.map(m => `<div style="font-size:0.88em; margin-bottom:6px;">${escapeHtml(m)}</div>`).join('')}
                 </div>
             `;
         }
 
+        // Nút bật bài tập ẩn - đặt cuối lý thuyết, cũng hiện-dần theo cuộn như các khối phía trên.
+        html += `
+            <div class="reveal-on-scroll" style="text-align:center; margin-top:10px;">
+                <button id="btn-reveal-grammar-exercise" class="btn primary-btn"><i class="fas fa-dumbbell"></i> Luyện chủ điểm này</button>
+            </div>
+        `;
+
         grammarTheoryBox.innerHTML = html;
         grammarTheoryBox.classList.remove('hidden');
+        observeGrammarReveal(grammarTheoryBox);
+        document.getElementById('btn-reveal-grammar-exercise')?.addEventListener('click', revealGrammarExerciseBox);
     }
 
-    // ----- Bài tập -----
+    // ----- Bài tập: dựng sẵn nhưng vẫn giữ #grammar-exercise-box ẩn (class "hidden" có sẵn trong
+    // index.html) - bấm "Luyện chủ điểm này" ở trên chỉ gỡ class "hidden", KHÔNG gọi mạng lại. -----
     if (grammarExerciseList) {
         grammarExerciseList.innerHTML = '';
         data.exercises.forEach((ex, exIndex) => {
@@ -3216,96 +3260,58 @@ function renderGrammarTopic(data) {
 
             const choicesWrap = document.createElement('div');
             choicesWrap.style.cssText = 'display:flex; flex-direction:column; gap:6px;';
+            choicesWrap.dataset.answered = '0';
             ex.choices.forEach((choice, cIndex) => {
                 const btn = document.createElement('button');
                 btn.className = 'btn';
                 btn.style.cssText = 'text-align:left; justify-content:flex-start; background:#f4f7f6; color:#2c3e50; border:1px solid #ccc; padding:9px 12px; font-size:0.92em;';
                 btn.textContent = String.fromCharCode(65 + cIndex) + '. ' + choice;
-                btn.onclick = () => selectGrammarAnswer(exIndex, cIndex, choicesWrap);
+                btn.onclick = () => selectGrammarAnswer(ex, cIndex, choicesWrap, explanationBox);
                 choicesWrap.appendChild(btn);
             });
             exBox.appendChild(choicesWrap);
+
+            const explanationBox = document.createElement('div');
+            explanationBox.className = 'hidden';
+            explanationBox.style.cssText = 'font-size:0.85em; color:#7f8c8d; margin-top:8px; padding-top:8px; border-top:1px dashed #ddd;';
+            exBox.appendChild(explanationBox);
+
             grammarExerciseList.appendChild(exBox);
         });
     }
 
-    if (btnSubmitGrammarExercise) {
-        btnSubmitGrammarExercise.disabled = true;
-        btnSubmitGrammarExercise.innerHTML = '<i class="fas fa-check-circle"></i> Nộp bài';
-    }
+    updateGrammarScoreIndicator(data.exercises.length);
+    grammarExerciseBox?.classList.add('hidden'); // ẩn tới khi bấm nút "Luyện chủ điểm này"
+}
+
+function revealGrammarExerciseBox() {
     grammarExerciseBox?.classList.remove('hidden');
+    grammarExerciseBox?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function selectGrammarAnswer(exIndex, cIndex, choicesWrap) {
-    grammarSelectedAnswers[exIndex] = cIndex;
+// Chấm tức thì tại Client: ex đã có sẵn correctIndex/explanation (xem Controller_GrammarTopic.gs).
+function selectGrammarAnswer(ex, cIndex, choicesWrap, explanationBox) {
+    if (choicesWrap.dataset.answered === '1') return; // câu này đã trả lời rồi, khoá không cho đổi
+    choicesWrap.dataset.answered = '1';
+
+    const isCorrect = cIndex === ex.correctIndex;
     choicesWrap.querySelectorAll('button').forEach((b, i) => {
-        const isSelected = i === cIndex;
-        b.style.background = isSelected ? '#2980b9' : '#f4f7f6';
-        b.style.color = isSelected ? 'white' : '#2c3e50';
-        b.style.borderColor = isSelected ? '#2980b9' : '#ccc';
+        b.disabled = true;
+        if (i === ex.correctIndex) b.classList.add('grammar-choice-correct');
+        else if (i === cIndex) b.classList.add('grammar-choice-wrong');
     });
-    if (btnSubmitGrammarExercise) btnSubmitGrammarExercise.disabled = grammarSelectedAnswers.some(a => a === -1);
-}
 
-async function submitGrammarExerciseAnswers() {
-    if (!grammarCurrentTopic) return;
-    if (btnSubmitGrammarExercise) {
-        btnSubmitGrammarExercise.disabled = true;
-        btnSubmitGrammarExercise.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang chấm...';
+    if (explanationBox) {
+        explanationBox.textContent = ex.explanation || '';
+        explanationBox.classList.toggle('hidden', !ex.explanation);
     }
 
-    const payload = {
-        action: 'submit_grammar_exercise_answers',
-        language: 'english',
-        topicId: grammarCurrentTopic.id,
-        answers: grammarSelectedAnswers
-    };
-    const result = await callBackendAPI(payload, '', false);
-
-    if (!result) {
-        alert('Chấm điểm thất bại, vui lòng thử lại.');
-        if (btnSubmitGrammarExercise) { btnSubmitGrammarExercise.disabled = false; btnSubmitGrammarExercise.innerHTML = '<i class="fas fa-check-circle"></i> Nộp bài'; }
-        return;
-    }
-
-    renderGrammarResult(result);
+    grammarAnsweredCount++;
+    if (isCorrect) grammarCorrectCount++;
+    updateGrammarScoreIndicator(grammarCurrentTopic ? grammarCurrentTopic.exercises.length : grammarAnsweredCount);
 }
-btnSubmitGrammarExercise?.addEventListener('click', submitGrammarExerciseAnswers);
 
-function renderGrammarResult(result) {
-    if (!grammarResultBox) return;
-    const passRate = result.score_percent || 0;
-    const color = passRate >= 75 ? '#27ae60' : (passRate >= 50 ? '#f39c12' : '#e74c3c');
-    let html = `
-        <div style="background:${color}; padding:15px; border-radius:8px; color:white; margin-bottom:15px;">
-            <h3 style="margin:0; color:white;"><i class="fas fa-poll"></i> Kết quả: ${result.correct_count}/${result.total_questions} câu đúng (${passRate}%)</h3>
-        </div>
-    `;
-    (result.results || []).forEach((r, i) => {
-        const borderColor = r.isCorrect ? '#27ae60' : '#e74c3c';
-        const chosenText = r.selectedIndex >= 0 && r.choices[r.selectedIndex] !== undefined ? r.choices[r.selectedIndex] : '(chưa chọn)';
-        html += `
-            <div style="margin-bottom:12px; padding:10px 12px; border-left:4px solid ${borderColor}; background:#f9f9f9; border-radius:4px;">
-                <div style="font-weight:bold; margin-bottom:4px;">Câu ${i + 1}. ${escapeHtml(r.prompt)}</div>
-                <div style="font-size:0.9em; color:${r.isCorrect ? '#27ae60' : '#e74c3c'};">
-                    <i class="fas ${r.isCorrect ? 'fa-check' : 'fa-times'}"></i>
-                    Bạn chọn: ${escapeHtml(chosenText)}
-                    ${r.isCorrect ? '' : ' — Đáp án đúng: ' + escapeHtml(r.choices[r.correctIndex])}
-                </div>
-                ${r.explanation ? `<div style="font-size:0.85em; color:#7f8c8d; margin-top:4px;">${escapeHtml(r.explanation)}</div>` : ''}
-            </div>
-        `;
-    });
-    html += `<button id="btn-retry-grammar-exercise" class="btn" style="margin-top:8px; background:#7f8c8d; color:white;"><i class="fas fa-redo"></i> Làm lại từ đầu</button>`;
-
-    grammarResultBox.innerHTML = html;
-    grammarResultBox.classList.remove('hidden');
-    grammarExerciseBox?.classList.add('hidden');
-
-    document.getElementById('btn-retry-grammar-exercise')?.addEventListener('click', () => {
-        grammarTheoryBox?.classList.add('hidden');
-        grammarResultBox.classList.add('hidden');
-        grammarCurrentTopic = null;
-        grammarTopicIntroBox?.classList.remove('hidden');
-    });
+function updateGrammarScoreIndicator(total) {
+    if (!grammarScoreIndicator) return;
+    grammarScoreIndicator.textContent = `${grammarCorrectCount}/${total} đúng — đã làm ${grammarAnsweredCount}/${total}`;
 }
