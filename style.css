@@ -485,3 +485,10 @@ h4 { font-size: 1.05em; }
    tới giữa 1 màn lý thuyết dài nhiều khối. Tự gỡ class sau ~2s (xem app.js), không cần animation phức
    tạp — chỉ đổi màu nền + viền rồi trả lại bằng transition. */
 .grammar-usage-highlight { background: #fff3cd !important; border-color: #f0c419 !important; transition: background 0.3s ease, border-color 0.3s ease; }
+
+/* ĐÃ SỬA (phản hồi "khoá chọn đáp án xong khỏi làm mờ, khó nhìn"): các ô đáp án bài tập ngữ pháp sau
+   khi bị khoá (disabled, xem selectGrammarAnswer() ở app.js) vẫn giữ độ rõ như lúc chưa khoá — chỉ ghi
+   đè "opacity" của rule chung ".btn:disabled" (mặc định làm mờ 50%, vẫn dùng tốt cho các nút khác
+   trong app nên KHÔNG đụng tới rule chung đó). Cursor vẫn "not-allowed" (thừa hưởng từ rule chung) để
+   vẫn còn tín hiệu là đã khoá, chỉ bỏ phần làm mờ màu. */
+#grammar-exercise-list button:disabled { opacity: 1; }

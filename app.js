@@ -254,11 +254,11 @@ function switchArea(area) {
     Object.keys(AREA_PANELS).forEach(key => AREA_PANELS[key]?.classList.toggle('hidden', key !== area));
     areaNavButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.area === area));
 
-    // Sidebar trái (Ngôn ngữ/Kỹ năng/Cấp độ...) chỉ còn ý nghĩa ở 2 khu Kiểm tra kỹ năng + Đọc/Nghe
-    // mở rộng — 3 khu còn lại (Học/Ôn & Tiến bộ/Thử thách) ở Bước 1 chưa cần tới nó.
-    const needsSidebarLeft = (area === 'test' || area === 'ci');
-    document.getElementById('sidebar-left')?.classList.toggle('hidden', !needsSidebarLeft);
-    document.querySelector('.app-container')?.classList.toggle('hide-sidebar-left', !needsSidebarLeft);
+    // ĐÃ SỬA (Bước 4 tiếp — mục lục chủ điểm ngữ pháp ở sidebar trái): việc hiện/ẩn sidebar-left giờ
+    // KHÔNG chỉ phụ thuộc "area" nữa (khu "Học" cần hiện sidebar khi đang mở 1 chuyên đề cụ thể) — tách
+    // thành hàm riêng updateSidebarLeftVisibility_() (SECTION 17) để còn gọi lại được từ
+    // startGrammarTopicSession()/backToGrammarRoadmap() (2 chỗ đó KHÔNG đổi "area", vẫn ở "hoc").
+    updateSidebarLeftVisibility_();
     document.getElementById('skill-select-group')?.classList.toggle('hidden', area !== 'test');
     document.getElementById('ci-skill-select-group')?.classList.toggle('hidden', area !== 'ci');
     document.getElementById('test-only-controls')?.classList.toggle('hidden', area !== 'test');
@@ -3248,11 +3248,17 @@ const grammarTheoryBox = document.getElementById('grammar-theory-box');
 const grammarExerciseBox = document.getElementById('grammar-exercise-box');
 const grammarExerciseList = document.getElementById('grammar-exercise-list');
 const grammarScoreIndicator = document.getElementById('grammar-score-indicator');
+// ĐÃ THÊM (mục lục chuyên đề ở sidebar trái):
+const sidebarSettingsContent = document.getElementById('sidebar-settings-content');
+const grammarSidebarToc = document.getElementById('grammar-sidebar-toc');
+const grammarSidebarTocList = document.getElementById('grammar-sidebar-toc-list');
+const btnSidebarBackRoadmap = document.getElementById('btn-sidebar-back-roadmap');
 
 let grammarCurrentTopic = null;   // { id, title, level, theory, exercises:[{id,type,prompt,choices,correctIndex,explanation}] }
 let grammarAnsweredCount = 0;     // số câu đã bấm chọn (bất kể đúng/sai) trong lượt học hiện tại
 let grammarCorrectCount = 0;      // số câu chọn đúng trong lượt học hiện tại
 let grammarRoadmapLoaded = false; // chỉ gọi list_grammar_topics 1 lần/phiên, không gọi lại mỗi lần chuyển tab qua lại
+let grammarTopicsCache = [];      // ĐÃ THÊM: cache danh sách chuyên đề (từ list_grammar_topics) để mục lục sidebar dùng lại, khỏi gọi mạng thêm lần nữa
 
 async function ensureGrammarRoadmapLoaded() {
     if (grammarRoadmapLoaded) return; // đã tải rồi -> không gọi lại khi chuyển tab qua lại
@@ -3265,8 +3271,50 @@ async function ensureGrammarRoadmapLoaded() {
         if (grammarRoadmapList) grammarRoadmapList.innerHTML = '<span style="color:red;"><i class="fas fa-exclamation-triangle"></i> Không tải được danh sách chủ điểm, vui lòng thử lại (chuyển sang khu khác rồi quay lại).</span>';
         return;
     }
-    renderGrammarRoadmap(data.topics || []);
+    grammarTopicsCache = data.topics || [];
+    renderGrammarRoadmap(grammarTopicsCache);
 }
+
+// ĐÃ THÊM (Bước 4 tiếp — mục lục chuyên đề ở sidebar trái): quyết định sidebar-left nên hiện khối
+// "Thiết lập" gốc (khu Kiểm tra/Đọc-Nghe mở rộng), hiện mục lục chuyên đề ngữ pháp (khu "Học" VÀ đang
+// mở 1 chuyên đề cụ thể), hay ẩn hẳn (mọi khu còn lại, hoặc khu "Học" nhưng còn ở màn lộ trình). Gọi
+// lại được từ nhiều nơi (switchArea/startGrammarTopicSession/backToGrammarRoadmap) vì trạng thái
+// "đang mở chuyên đề nào" có thể đổi mà KHÔNG đổi "area" (vẫn ở "hoc").
+function updateSidebarLeftVisibility_() {
+    const inGrammarTopic = (currentArea === 'hoc' && !!grammarCurrentTopic);
+    const needsSidebarLeft = (currentArea === 'test' || currentArea === 'ci' || inGrammarTopic);
+    document.getElementById('sidebar-left')?.classList.toggle('hidden', !needsSidebarLeft);
+    document.querySelector('.app-container')?.classList.toggle('hide-sidebar-left', !needsSidebarLeft);
+    sidebarSettingsContent?.classList.toggle('hidden', inGrammarTopic);
+    grammarSidebarToc?.classList.toggle('hidden', !inGrammarTopic);
+}
+
+// Dựng mục lục chuyên đề ở sidebar trái — TÁI DÙNG grammarTopicsCache (đã tải sẵn từ
+// ensureGrammarRoadmapLoaded, không gọi mạng lần nữa), sắp theo "order" giống hệt màn lộ trình chính,
+// nổi bật (tô đậm) chuyên đề đang mở, tự cuộn được nếu danh sách dài (xem CSS max-height ở index.html).
+function renderGrammarSidebarToc(activeTopicId) {
+    if (!grammarSidebarTocList) return;
+    const sorted = [...grammarTopicsCache].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+    grammarSidebarTocList.innerHTML = '';
+    sorted.forEach((t, i) => {
+        const isActive = t.id === activeTopicId;
+        const item = document.createElement('button');
+        item.className = 'btn';
+        item.dataset.topicId = t.id;
+        item.style.cssText = `width:100%; text-align:left; justify-content:flex-start; gap:8px; padding:8px 10px; font-size:0.85em; border:1px solid ${isActive ? '#d35400' : '#eee'}; background:${isActive ? '#fdf2e9' : '#fff'}; color:${isActive ? '#d35400' : '#2c3e50'}; font-weight:${isActive ? 'bold' : 'normal'};`;
+        const badge = document.createElement('span');
+        badge.style.cssText = `display:inline-block; min-width:18px; height:18px; line-height:18px; text-align:center; border-radius:50%; font-size:0.75em; flex-shrink:0; background:${isActive ? '#d35400' : '#ddd'}; color:${isActive ? '#fff' : '#555'};`;
+        badge.textContent = i + 1;
+        const label = document.createElement('span');
+        label.textContent = t.title;
+        item.appendChild(badge);
+        item.appendChild(label);
+        if (!isActive) item.addEventListener('click', () => startGrammarTopicSession(t.id));
+        else item.disabled = true; // chuyên đề đang mở rồi -> khỏi cho bấm lại chính nó
+        grammarSidebarTocList.appendChild(item);
+    });
+}
+btnSidebarBackRoadmap?.addEventListener('click', backToGrammarRoadmap);
 
 function renderGrammarRoadmap(topics) {
     if (!grammarRoadmapList) return;
@@ -3340,15 +3388,22 @@ async function startGrammarTopicSession(topicId) {
     grammarAnsweredCount = 0;
     grammarCorrectCount = 0;
     renderGrammarTopic(data);
+
+    // ĐÃ THÊM (mục lục chuyên đề sidebar trái): mở sidebar-left (trượt vào nhờ transition có sẵn ở
+    // style.css) + dựng lại mục lục với đúng chuyên đề vừa mở được tô đậm.
+    updateSidebarLeftVisibility_();
+    renderGrammarSidebarToc(topicId);
 }
 
-// Quay lại màn lộ trình từ màn học chi tiết - ẩn lý thuyết/bài tập, hiện lại danh sách chuyên đề.
+// Quay lại màn lộ trình từ màn học chi tiết - ẩn lý thuyết/bài tập, hiện lại danh sách chuyên đề, và
+// ẩn lại mục lục sidebar trái (trượt ra, tái dùng transition có sẵn - xem updateSidebarLeftVisibility_).
 function backToGrammarRoadmap() {
     grammarTheoryBox?.classList.add('hidden');
     grammarExerciseBox?.classList.add('hidden');
     grammarCurrentTopic = null;
     grammarRoadmapBox?.classList.remove('hidden');
     grammarRoadmapBox?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    updateSidebarLeftVisibility_();
 }
 
 function renderGrammarTopic(data) {
@@ -3357,12 +3412,11 @@ function renderGrammarTopic(data) {
     // ----- Lý thuyết (hiện dần theo cuộn chuột) -----
     if (grammarTheoryBox) {
         const theory = data.theory || {};
-        let html = `
-            <button id="btn-back-grammar-roadmap" class="btn" style="background:#f4f7f6; color:#7f8c8d; border:1px solid #ddd; margin-bottom:12px; padding:6px 12px; font-size:0.85em;"><i class="fas fa-arrow-left"></i> Quay lại lộ trình</button>
-        `;
-        // ĐÃ SỬA: bỏ hiển thị "(level)" cạnh tên chuyên đề - xem ghi chú đầu SECTION 17 (nhãn cấp độ dễ
-        // gây hiểu nhầm, bài tập trong CÙNG 1 chuyên đề đã trải dài nhiều mức khó khác nhau).
-        html += `<h3 style="color:#d35400; margin-top:0;"><i class="fas fa-book"></i> Lý thuyết: ${escapeHtml(data.title || '')}</h3>`;
+        // ĐÃ SỬA (mục lục sidebar trái): nút "← Quay lại lộ trình" ĐÃ CHUYỂN sang sidebar trái
+        // (#btn-sidebar-back-roadmap, xem updateSidebarLeftVisibility_) — gỡ khỏi đây tránh trùng 2 nút
+        // cùng chức năng. Cũng bỏ hiển thị "(level)" cạnh tên chuyên đề - xem ghi chú đầu SECTION 17
+        // (nhãn cấp độ dễ gây hiểu nhầm, bài tập trong CÙNG 1 chuyên đề đã trải dài nhiều mức khó khác nhau).
+        let html = `<h3 style="color:#d35400; margin-top:0;"><i class="fas fa-book"></i> Lý thuyết: ${escapeHtml(data.title || '')}</h3>`;
 
         (theory.usages || []).forEach((u, i) => {
             html += `
@@ -3419,7 +3473,6 @@ function renderGrammarTopic(data) {
         grammarTheoryBox.classList.remove('hidden');
         observeGrammarReveal(grammarTheoryBox);
         document.getElementById('btn-reveal-grammar-exercise')?.addEventListener('click', revealGrammarExerciseBox);
-        document.getElementById('btn-back-grammar-roadmap')?.addEventListener('click', backToGrammarRoadmap);
     }
 
     // ----- Bài tập: dựng sẵn nhưng vẫn giữ #grammar-exercise-box ẩn (class "hidden" có sẵn trong
@@ -3435,13 +3488,16 @@ function renderGrammarTopic(data) {
             exText.textContent = `Câu ${exIndex + 1}. ${ex.prompt}`;
             exBox.appendChild(exText);
 
+            // ĐÃ SỬA (phản hồi "chia 4 đáp án thành lưới cho gọn, xuống còn 2 hàng thay vì xếp dọc 4
+            // hàng"): đổi từ flex-column (4 hàng x 1 cột) sang CSS grid 2 cột — với đúng 4 lựa chọn/câu
+            // (fill-blank-mcq) thì ra 2 hàng x 2 cột.
             const choicesWrap = document.createElement('div');
-            choicesWrap.style.cssText = 'display:flex; flex-direction:column; gap:6px;';
+            choicesWrap.style.cssText = 'display:grid; grid-template-columns:repeat(2, 1fr); gap:8px;';
             choicesWrap.dataset.answered = '0';
             ex.choices.forEach((choice, cIndex) => {
                 const btn = document.createElement('button');
                 btn.className = 'btn';
-                btn.style.cssText = 'text-align:left; justify-content:flex-start; background:#f4f7f6; color:#2c3e50; border:1px solid #ccc; padding:9px 12px; font-size:0.92em;';
+                btn.style.cssText = 'width:100%; text-align:left; justify-content:flex-start; background:#f4f7f6; color:#2c3e50; border:1px solid #ccc; padding:9px 12px; font-size:0.92em;';
                 btn.textContent = String.fromCharCode(65 + cIndex) + '. ' + choice;
                 btn.onclick = () => selectGrammarAnswer(ex, cIndex, choicesWrap, explanationBox);
                 choicesWrap.appendChild(btn);
@@ -3467,13 +3523,11 @@ function revealGrammarExerciseBox() {
 }
 
 // Chấm tức thì tại Client: ex đã có sẵn correctIndex/explanation (xem Controller_GrammarTopic.gs).
-// ĐÃ SỬA (Bước 4 — gom nhóm lỗi sai theo tag): khi trả lời SAI, thêm 2 việc, cả 2 đều KHÔNG chặn/làm
-// chậm UI chấm điểm tức thì đang có:
-//  1. Ghi 1 sự kiện lỗi sai (fire-and-forget, xem logGrammarWrongAnswer_) để sau này tổng hợp ở popup
-//     "Điểm ngữ pháp cần ôn lại" (khu "Ôn & Tiến bộ").
-//  2. Chèn link "Xem lại lý thuyết" ngay dưới giải thích — đây là "Xem lại" NHẸ NHẤT: chuyên đề đang
-//     mở sẵn trên màn hình nên chỉ cần cuộn lên đúng khối lý thuyết đã render, KHÔNG cần gọi lại mạng
-//     (xem addGrammarReviewLink_).
+// ĐÃ SỬA (Bước 4 — gom nhóm lỗi sai theo tag): ghi 1 sự kiện trả lời cho MỌI câu (đúng lẫn sai, xem
+// logGrammarAnswer_) để streak/heatmap khu "Học" tính đủ mọi lượt luyện tập, không chỉ lúc sai như đợt
+// trước. Riêng câu SAI còn thêm link "Xem lại lý thuyết" ngay dưới giải thích — đây là "Xem lại" NHẸ
+// NHẤT: chuyên đề đang mở sẵn trên màn hình nên chỉ cần cuộn lên đúng khối lý thuyết đã render, KHÔNG
+// cần gọi lại mạng (xem addGrammarReviewLink_). Cả 2 việc đều KHÔNG chặn/làm chậm UI chấm điểm tức thì.
 function selectGrammarAnswer(ex, cIndex, choicesWrap, explanationBox) {
     if (choicesWrap.dataset.answered === '1') return; // câu này đã trả lời rồi, khoá không cho đổi
     choicesWrap.dataset.answered = '1';
@@ -3494,27 +3548,26 @@ function selectGrammarAnswer(ex, cIndex, choicesWrap, explanationBox) {
     }
 
     grammarAnsweredCount++;
-    if (isCorrect) {
-        grammarCorrectCount++;
-    } else {
-        logGrammarWrongAnswer_(ex);
-        addGrammarReviewLink_(ex, explanationBox);
-    }
+    if (isCorrect) grammarCorrectCount++;
+    else addGrammarReviewLink_(ex, explanationBox);
+    logGrammarAnswer_(ex, isCorrect);
     updateGrammarScoreIndicator(grammarCurrentTopic ? grammarCurrentTopic.exercises.length : grammarAnsweredCount);
 }
 
-// Fire-and-forget: ghi 1 sự kiện trả lời sai (Controller_ErrorLog.gs, action log_wrong_answer). KHÔNG
-// await, KHÔNG chặn UI chấm điểm tức thì — lỗi mạng/hết phiên tự bị callBackendAPI nuốt/thử lại theo
-// cơ chế sẵn có, không cần xử lý gì thêm ở đây.
-function logGrammarWrongAnswer_(ex) {
+// Fire-and-forget: ghi 1 sự kiện trả lời (Controller_ErrorLog.gs, action log_grammar_answer) — gọi cho
+// MỌI câu, đúng lẫn sai (Backend tự quyết định chỉ ghi WrongAnswerLog/tạo thẻ SRS khi isCorrect=false,
+// còn streak/heatmap tính cho cả 2). KHÔNG await, KHÔNG chặn UI chấm điểm tức thì — lỗi mạng/hết phiên
+// tự bị callBackendAPI nuốt/thử lại theo cơ chế sẵn có, không cần xử lý gì thêm ở đây.
+function logGrammarAnswer_(ex, isCorrect) {
     if (!grammarCurrentTopic) return;
     callBackendAPI({
-        action: 'log_wrong_answer',
+        action: 'log_grammar_answer',
         skill: 'grammar',
         language: 'english',
         topicId: grammarCurrentTopic.id,
         exerciseId: ex.id,
-        tags: ex.tags || []
+        tags: ex.tags || [],
+        isCorrect: isCorrect
     }, '', false);
 }
 

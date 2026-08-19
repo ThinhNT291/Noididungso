@@ -54,8 +54,13 @@
         <aside class="sidebar-left" id="sidebar-left">
             <button id="toggle-left" class="toggle-btn"><i class="fas fa-chevron-left"></i></button>
             <div class="sidebar-content">
+                <!-- ĐÃ THÊM (Bước 4 tiếp — mục lục chủ điểm ngữ pháp bên sidebar trái): khối "Thiết lập"
+                     gốc bọc trong #sidebar-settings-content để có thể ẩn toàn bộ khi thay bằng
+                     #grammar-sidebar-toc (xem updateSidebarLeftVisibility_() ở app.js) — chỉ 1 trong 2
+                     khối hiện tại 1 thời điểm, cùng dùng chung 1 cột sidebar-left. -->
+                <div id="sidebar-settings-content">
                 <h2>Thiết lập</h2>
-                
+
                 <!-- ĐÃ SỬA (dựng khung điều hướng 5 khu — Bước 1): tách kỹ năng "Kiểm tra" (5 lựa chọn
                      cũ) và "Đọc/Nghe mở rộng" (2 lựa chọn CI) thành 2 dropdown riêng, mỗi cái chỉ hiện
                      đúng khu của nó (app.js hàm switchArea) — trước đây gộp chung 1 dropdown 7 lựa chọn. -->
@@ -122,6 +127,24 @@
                         <label>Thời gian thi (Phút):</label>
                         <input type="number" id="time-limit" value="20" min="0" max="60">
                     </div>
+                </div>
+                </div>
+
+                <!-- ĐÃ THÊM (Bước 4 tiếp — phản hồi "vào học 1 chủ điểm thì tự động mở side pane bên
+                     trái, hiện mục lục chủ điểm, có thể scroll, nổi bật chủ điểm đang học; nút 'Quay lại
+                     lộ trình' trượt sang bên left pane"): mục lục chuyên đề ngữ pháp — chỉ hiện khi đang
+                     ở khu "Học" VÀ đã mở 1 chuyên đề cụ thể (ẩn khi còn ở màn lộ trình, vì màn đó đã tự
+                     hiện đủ danh sách rồi, không cần lặp lại ở sidebar). Tận dụng NGUYÊN cơ chế
+                     "hide-sidebar-left" (đã có transition trượt sẵn ở style.css) để việc mở sidebar khi
+                     vào 1 chuyên đề tạo hiệu ứng "trượt sang" như yêu cầu, không cần viết animation mới.
+                     Nút "Quay lại lộ trình" giờ CHUYỂN HẲN vào đây (gỡ khỏi đầu khối lý thuyết ở
+                     renderGrammarTopic() trong app.js, tránh trùng lặp 2 nút cùng chức năng). -->
+                <div id="grammar-sidebar-toc" class="hidden">
+                    <h2><i class="fas fa-list-ol"></i> Mục lục chuyên đề</h2>
+                    <button id="btn-sidebar-back-roadmap" class="btn" style="width:100%; background:#f4f7f6; color:#7f8c8d; border:1px solid #ddd; margin-bottom:12px; padding:8px 10px; font-size:0.85em;">
+                        <i class="fas fa-arrow-left"></i> Quay lại lộ trình
+                    </button>
+                    <div id="grammar-sidebar-toc-list" style="display:flex; flex-direction:column; gap:6px; max-height: calc(100vh - 260px); overflow-y:auto;"></div>
                 </div>
             </div>
         </aside>
