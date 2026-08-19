@@ -36,6 +36,19 @@
         </div>
     </div>
 
+    <!-- ĐÃ THÊM (dựng khung điều hướng 5 khu — Bước 1, theo phương án C "coach dashboard" kiểu ELSA
+         đã chốt trước đó): thanh điều hướng cấp cao, mỗi khu 1 mục đích rõ ràng. BƯỚC 1 CHỈ dời nội
+         dung ĐÃ CÓ vào đúng khu (không xây tính năng mới) — Học tạm là khung rỗng chờ Bước 2/3, Ôn &
+         Tiến bộ/Thử thách nhận lại các nút vốn đang nằm ở sidebar phải. Logic ẩn/hiện: app.js hàm
+         switchArea(). -->
+    <nav id="area-nav">
+        <button class="area-nav-btn active" data-area="test"><i class="fas fa-clipboard-check"></i> Kiểm tra kỹ năng</button>
+        <button class="area-nav-btn" data-area="hoc"><i class="fas fa-graduation-cap"></i> Học</button>
+        <button class="area-nav-btn" data-area="ci"><i class="fas fa-book-reader"></i> Đọc/Nghe mở rộng</button>
+        <button class="area-nav-btn" data-area="on-tien-bo"><i class="fas fa-chart-line"></i> Ôn &amp; Tiến bộ</button>
+        <button class="area-nav-btn" data-area="thu-thach"><i class="fas fa-trophy"></i> Thử thách</button>
+    </nav>
+
     <div class="app-container">
         <!-- CỘT TRÁI: THIẾT LẬP CHUNG -->
         <aside class="sidebar-left" id="sidebar-left">
@@ -43,7 +56,10 @@
             <div class="sidebar-content">
                 <h2>Thiết lập</h2>
                 
-                <div class="setting-group">
+                <!-- ĐÃ SỬA (dựng khung điều hướng 5 khu — Bước 1): tách kỹ năng "Kiểm tra" (5 lựa chọn
+                     cũ) và "Đọc/Nghe mở rộng" (2 lựa chọn CI) thành 2 dropdown riêng, mỗi cái chỉ hiện
+                     đúng khu của nó (app.js hàm switchArea) — trước đây gộp chung 1 dropdown 7 lựa chọn. -->
+                <div class="setting-group" id="skill-select-group">
                     <label style="color: #e74c3c; font-weight: bold;"><i class="fas fa-graduation-cap"></i> Kỹ năng:</label>
                     <select id="skill-select" style="border-color: #e74c3c; font-weight: bold;">
                         <option value="speaking">Luyện Nói (Speaking)</option>
@@ -51,6 +67,12 @@
                         <option value="read-aloud">🎧 Luyện đọc (Shadowing)</option>
                         <option value="listening">🔊 Nghe hiểu (Listening)</option>
                         <option value="reading">📖 Đọc hiểu (Reading)</option>
+                    </select>
+                </div>
+
+                <div class="setting-group hidden" id="ci-skill-select-group">
+                    <label style="color: #8e44ad; font-weight: bold;"><i class="fas fa-book-reader"></i> Nội dung:</label>
+                    <select id="ci-skill-select" style="border-color: #8e44ad; font-weight: bold;">
                         <option value="ci-reading">📚 Đọc mở rộng (CI)</option>
                         <option value="ci-listening">🎧 Nghe mở rộng (CI)</option>
                     </select>
@@ -76,31 +98,39 @@
                     <div id="level-progress-text" style="font-size:0.78em; color:#7f8c8d; text-align:center; margin-top:4px;"></div>
                 </div>
 
-                <!-- NÚT MỞ KHUNG TỰ NHẬP ĐỀ -->
-                <div class="setting-group">
-                    <button id="btn-toggle-custom" class="btn" style="width: 100%; background: #7f8c8d; color: white;"><i class="fas fa-edit"></i> Tự nhập đề mới</button>
-                    <button id="btn-random-prompt" class="btn" style="width: 100%; background: #27ae60; color: white; margin-top: 10px;"><i class="fas fa-random"></i> Đề ngẫu nhiên</button>
-                </div>
+                <!-- ĐÃ THÊM (Bước 1): gộp các control chỉ dùng cho khu Kiểm tra kỹ năng (tự nhập đề/đề
+                     ngẫu nhiên/thời gian thi — không áp dụng cho Đọc/Nghe mở rộng) vào 1 khối, ẩn khi
+                     không ở khu Kiểm tra kỹ năng (app.js switchArea). -->
+                <div id="test-only-controls">
+                    <!-- NÚT MỞ KHUNG TỰ NHẬP ĐỀ -->
+                    <div class="setting-group">
+                        <button id="btn-toggle-custom" class="btn" style="width: 100%; background: #7f8c8d; color: white;"><i class="fas fa-edit"></i> Tự nhập đề mới</button>
+                        <button id="btn-random-prompt" class="btn" style="width: 100%; background: #27ae60; color: white; margin-top: 10px;"><i class="fas fa-random"></i> Đề ngẫu nhiên</button>
+                    </div>
 
-                <div id="custom-prompt-area" class="hidden" style="background: #f9f9f9; padding: 10px; border-radius: 6px; border: 1px dashed #ccc; margin-bottom: 15px;">
-                    <textarea id="custom-prompt-text" placeholder="Nhập text đề bài vào đây..." rows="4" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc; margin-bottom: 10px;"></textarea>
-                    
-                    <label for="custom-prompt-image" class="custom-file-upload"><i class="fas fa-image"></i> Chọn ảnh đính kèm (nếu có)</label>
-                    <input type="file" id="custom-prompt-image" accept="image/*" class="hidden">
-                    <div id="image-file-name" style="font-size: 0.85em; color: #27ae60; text-align: center; font-style: italic; margin-bottom: 10px;">Chưa có ảnh nào</div>
-                    
-                    <button id="btn-apply-custom" class="btn" style="background:var(--primary-color); color:white; width:100%; font-size:13px;"><i class="fas fa-check"></i> Áp dụng đề này</button>
-                </div>
+                    <div id="custom-prompt-area" class="hidden" style="background: #f9f9f9; padding: 10px; border-radius: 6px; border: 1px dashed #ccc; margin-bottom: 15px;">
+                        <textarea id="custom-prompt-text" placeholder="Nhập text đề bài vào đây..." rows="4" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc; margin-bottom: 10px;"></textarea>
 
-                <div class="setting-group">
-                    <label>Thời gian thi (Phút):</label>
-                    <input type="number" id="time-limit" value="20" min="0" max="60">
+                        <label for="custom-prompt-image" class="custom-file-upload"><i class="fas fa-image"></i> Chọn ảnh đính kèm (nếu có)</label>
+                        <input type="file" id="custom-prompt-image" accept="image/*" class="hidden">
+                        <div id="image-file-name" style="font-size: 0.85em; color: #27ae60; text-align: center; font-style: italic; margin-bottom: 10px;">Chưa có ảnh nào</div>
+
+                        <button id="btn-apply-custom" class="btn" style="background:var(--primary-color); color:white; width:100%; font-size:13px;"><i class="fas fa-check"></i> Áp dụng đề này</button>
+                    </div>
+
+                    <div class="setting-group">
+                        <label>Thời gian thi (Phút):</label>
+                        <input type="number" id="time-limit" value="20" min="0" max="60">
+                    </div>
                 </div>
             </div>
         </aside>
 
         <!-- CỘT GIỮA: KHÔNG GIAN LÀM VIỆC -->
         <main class="main-content">
+        <!-- ĐÃ THÊM (Bước 1): khu "Kiểm tra kỹ năng" — gói TOÀN BỘ nội dung cũ (Nói/Viết/Shadowing/
+             Nghe-Đọc hiểu + khung Báo cáo Đánh giá) vào 1 khối, không đổi gì bên trong. -->
+        <div id="area-test">
             <div id="prep-timer-banner" class="hidden">
                 <i class="fas fa-stopwatch"></i> Thời gian chuẩn bị: <span id="prep-time-display" style="font-size: 1.2em; font-weight: 900;">60</span> giây
             </div>
@@ -293,42 +323,6 @@
 </div>
 
 <!-- ========================================== -->
-<!-- MODULE: ĐỌC MỞ RỘNG + NGHE MỞ RỘNG (Comprehensible Input) — KHÁC HẲN Nghe hiểu/Đọc hiểu ở trên:
-     KHÔNG có trắc nghiệm, KHÔNG chấm điểm. Người học đọc/nghe tự nhiên, bấm vào TỪNG TỪ trong bài để
-     tra nghĩa theo đúng ngữ cảnh câu đó (click-to-gloss) — mỗi lần tra tự động tạo 1 thẻ ôn tập SRS
-     ở Backend, không cần thao tác gì thêm. 1-2 câu hỏi kiểm tra hiểu bài ở cuối chỉ mang tính gợi mở,
-     có nút "Xem gợi ý trả lời" chứ không nộp bài để chấm. -->
-<!-- ========================================== -->
-<div id="ci-workspace" class="workspace hidden">
-    <div id="ci-intro-box" class="content-box" style="background: #f4f7f6; border: none;">
-        <h4 style="margin: 0 0 8px; color: #2c3e50;"><i class="fas fa-book-reader"></i> <span id="ci-skill-label">Đọc/Nghe mở rộng</span></h4>
-        <p style="font-size: 0.9em; color: #7f8c8d; margin-bottom: 12px;">Nội dung đúng trình độ hiện tại của bạn, không chấm điểm — cứ đọc/nghe tự nhiên. Bấm vào 1 từ bất kỳ trong bài để tra nghĩa theo ngữ cảnh, từ đó tự động được thêm vào ôn tập.</p>
-        <button id="btn-start-ci" class="btn primary-btn"><i class="fas fa-play"></i> Lấy bài mới</button>
-    </div>
-
-    <div id="active-ci-box" class="content-box hidden" style="border-left: 4px solid #8e44ad;">
-        <h4 id="ci-item-title" style="color: #8e44ad; margin-bottom: 10px;"></h4>
-
-        <!-- Nghe mở rộng: có thêm player audio TTS phát song song với transcript hiện bên dưới (đọc
-             theo, khác Nghe hiểu chấm điểm — ở đây KHÔNG giấu chữ vì mục đích là tiếp nhận, không phải
-             kiểm tra khả năng nghe). -->
-        <div id="ci-audio-box" class="hidden" style="background:#f4ecf7; padding:15px; border-radius:8px; border:1px solid #d7bde2; margin-bottom:15px; text-align:center;">
-            <button id="btn-ci-play-audio" class="btn" style="background:#8e44ad; color:white;"><i class="fas fa-volume-up"></i> Nghe bài (có thể bấm nghe lại nhiều lần)</button>
-            <div id="ci-audio-status" style="font-size:0.85em; color:#e67e22; font-style:italic; margin-top:8px;"></div>
-            <audio id="ci-audio-player" controls style="width:100%; margin-top:10px; display:none;"></audio>
-        </div>
-
-        <p style="font-size:0.82em; color:#8e44ad; margin-bottom:8px;"><i class="fas fa-hand-pointer"></i> Bấm vào 1 từ trong bài để tra nghĩa theo đúng câu đó.</p>
-        <div id="ci-content-box" class="preserve-format" style="font-size: 1.08em; line-height: 1.9; background:#fdfdfd; padding:15px; border-radius:8px; border:1px solid #eee; margin-bottom:12px;"></div>
-
-        <div id="ci-gloss-result" class="hidden" style="background:#eafaf1; border:1px solid #a3e4d7; border-radius:8px; padding:12px 14px; margin-bottom:15px;"></div>
-
-        <div id="ci-questions-list" style="margin-bottom:12px;"></div>
-
-        <button id="btn-ci-mark-done" class="btn primary-btn"><i class="fas fa-check-circle"></i> Xong bài này, lấy bài khác</button>
-    </div>
-</div>
-
             <!-- BÁO CÁO ĐÁNH GIÁ -->
             <div class="assessment-section hidden" id="result-section">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -339,24 +333,101 @@
                     <span class="placeholder-text">Đợi một tý, kết quả phân tích chi tiết sẽ có ngay...</span>
                 </div>
             </div>
+        </div> <!-- HẾT #area-test -->
+
+        <!-- ========================================== -->
+        <!-- MODULE: ĐỌC MỞ RỘNG + NGHE MỞ RỘNG (Comprehensible Input) — KHÁC HẲN Nghe hiểu/Đọc hiểu ở
+             trên: KHÔNG có trắc nghiệm, KHÔNG chấm điểm. Người học đọc/nghe tự nhiên, bấm vào TỪNG TỪ
+             trong bài để tra nghĩa theo đúng ngữ cảnh câu đó (click-to-gloss) — mỗi lần tra tự động
+             tạo 1 thẻ ôn tập SRS ở Backend, không cần thao tác gì thêm. 1-2 câu hỏi kiểm tra hiểu bài
+             ở cuối chỉ mang tính gợi mở, có nút "Xem gợi ý trả lời" chứ không nộp bài để chấm.
+             ĐÃ SỬA (Bước 1): dời ci-workspace xuống đây (khối #area-ci) để nằm ngoài #area-test — vị
+             trí trong DOM đổi nhưng nội dung/hành vi bên trong GIỮ NGUYÊN, không đổi gì. -->
+        <!-- ========================================== -->
+        <div id="area-ci" class="hidden">
+            <div id="ci-workspace" class="workspace hidden">
+                <div id="ci-intro-box" class="content-box" style="background: #f4f7f6; border: none;">
+                    <h4 style="margin: 0 0 8px; color: #2c3e50;"><i class="fas fa-book-reader"></i> <span id="ci-skill-label">Đọc/Nghe mở rộng</span></h4>
+                    <p style="font-size: 0.9em; color: #7f8c8d; margin-bottom: 12px;">Nội dung đúng trình độ hiện tại của bạn, không chấm điểm — cứ đọc/nghe tự nhiên. Bấm vào 1 từ bất kỳ trong bài để tra nghĩa theo ngữ cảnh, từ đó tự động được thêm vào ôn tập.</p>
+                    <button id="btn-start-ci" class="btn primary-btn"><i class="fas fa-play"></i> Lấy bài mới</button>
+                </div>
+
+                <div id="active-ci-box" class="content-box hidden" style="border-left: 4px solid #8e44ad;">
+                    <h4 id="ci-item-title" style="color: #8e44ad; margin-bottom: 10px;"></h4>
+
+                    <!-- Nghe mở rộng: có thêm player audio TTS phát song song với transcript hiện bên
+                         dưới (đọc theo, khác Nghe hiểu chấm điểm — ở đây KHÔNG giấu chữ vì mục đích là
+                         tiếp nhận, không phải kiểm tra khả năng nghe). -->
+                    <div id="ci-audio-box" class="hidden" style="background:#f4ecf7; padding:15px; border-radius:8px; border:1px solid #d7bde2; margin-bottom:15px; text-align:center;">
+                        <button id="btn-ci-play-audio" class="btn" style="background:#8e44ad; color:white;"><i class="fas fa-volume-up"></i> Nghe bài (có thể bấm nghe lại nhiều lần)</button>
+                        <div id="ci-audio-status" style="font-size:0.85em; color:#e67e22; font-style:italic; margin-top:8px;"></div>
+                        <audio id="ci-audio-player" controls style="width:100%; margin-top:10px; display:none;"></audio>
+                    </div>
+
+                    <p style="font-size:0.82em; color:#8e44ad; margin-bottom:8px;"><i class="fas fa-hand-pointer"></i> Bấm vào 1 từ trong bài để tra nghĩa theo đúng câu đó.</p>
+                    <div id="ci-content-box" class="preserve-format" style="font-size: 1.08em; line-height: 1.9; background:#fdfdfd; padding:15px; border-radius:8px; border:1px solid #eee; margin-bottom:12px;"></div>
+
+                    <div id="ci-gloss-result" class="hidden" style="background:#eafaf1; border:1px solid #a3e4d7; border-radius:8px; padding:12px 14px; margin-bottom:15px;"></div>
+
+                    <div id="ci-questions-list" style="margin-bottom:12px;"></div>
+
+                    <button id="btn-ci-mark-done" class="btn primary-btn"><i class="fas fa-check-circle"></i> Xong bài này, lấy bài khác</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ĐÃ THÊM (Bước 1): khu "Học" (Lý thuyết + Bài tập) — KHUNG RỖNG, chờ Bước 2 (Bài tập) và
+             Bước 3 (Lý thuyết) ở các lượt làm sau, theo đúng kế hoạch đã thống nhất "đi từng bước". -->
+        <div id="area-hoc" class="hidden">
+            <div class="content-box" style="background:#f4f7f6; border:none; text-align:center; padding:40px 20px;">
+                <i class="fas fa-tools" style="font-size:2em; color:#95a5a6; margin-bottom:12px;"></i>
+                <h3 style="color:#2c3e50; margin-bottom:8px;">Đang xây dựng</h3>
+                <p style="color:#7f8c8d;">Khu "Học" sẽ gồm Lý thuyết (bài học theo cấp độ &amp; chủ đề) và Bài tập (luyện ngữ pháp/từ vựng có chấm ngay) — sắp ra mắt.</p>
+            </div>
+        </div>
+
+        <!-- ĐÃ THÊM (Bước 1): khu "Ôn & Tiến bộ" — nhận lại 2 nút Ôn tập lỗi sai (SRS)/Tiến độ học tập
+             vốn đang nằm ở sidebar phải, giữ NGUYÊN modal/logic phía sau (srs-modal, progress-modal),
+             chỉ đổi VỊ TRÍ nút bấm mở popup cho đúng khu. -->
+        <div id="area-on-tien-bo" class="hidden">
+            <div class="content-box" style="background:#f4f7f6; border:none;">
+                <h4 style="margin:0 0 14px; color:#2c3e50;"><i class="fas fa-chart-line"></i> Ôn &amp; Tiến bộ</h4>
+                <div style="display:flex; flex-direction:column; gap:12px; max-width:420px;">
+                    <button id="btn-open-srs-review" class="btn" style="display:none; width:100%; background:#f39c12; color:white; align-items:center; justify-content:center; gap:6px; padding:14px;">
+                        <i class="fas fa-brain"></i> Ôn tập lỗi sai (<span id="srs-due-count">0</span>)
+                    </button>
+                    <button id="btn-open-progress" class="btn" style="width:100%; background:#2980b9; color:white; padding:14px;">
+                        <i class="fas fa-chart-line"></i> Tiến độ học tập
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ĐÃ THÊM (Bước 1): khu "Thử thách" — nhận lại nút Thi thử 4 kỹ năng, thêm chỗ trống cho
+             Bảng xếp hạng (#6, chưa làm — sẽ nối vào ở Bước 5). -->
+        <div id="area-thu-thach" class="hidden">
+            <div class="content-box" style="background:#f4f7f6; border:none;">
+                <h4 style="margin:0 0 14px; color:#2c3e50;"><i class="fas fa-trophy"></i> Thử thách</h4>
+                <div style="display:flex; flex-direction:column; gap:12px; max-width:420px;">
+                    <button id="btn-open-mocktest" class="btn" style="width:100%; background:#c0392b; color:white; padding:14px;">
+                        <i class="fas fa-stopwatch"></i> Thi thử 4 kỹ năng
+                    </button>
+                    <div style="text-align:center; color:#95a5a6; font-size:0.9em; padding:12px; border:1px dashed #ccc; border-radius:8px;">
+                        <i class="fas fa-medal"></i> Bảng xếp hạng — sắp ra mắt
+                    </div>
+                </div>
+            </div>
+        </div>
         </main> <!-- DÒNG NÀY RẤT QUAN TRỌNG, ĐÃ ĐƯỢC BỔ SUNG -->
 
         <!-- CỘT PHẢI: LỊCH SỬ -->
         <aside class="sidebar-right" id="sidebar-right">
             <button id="toggle-right" class="toggle-btn"><i class="fas fa-chevron-right"></i></button>
             <div class="sidebar-content">
-                <!-- ĐÃ THÊM: badge mở popup Ôn tập lỗi sai (SRS) — chỉ hiện khi có thẻ đến hạn ôn (JS bật/tắt display) -->
-                <button id="btn-open-srs-review" class="btn" style="display:none; width:100%; background:#f39c12; color:white; margin-bottom:12px; align-items:center; justify-content:center; gap:6px;">
-                    <i class="fas fa-brain"></i> Ôn tập lỗi sai (<span id="srs-due-count">0</span>)
-                </button>
-                <!-- ĐÃ THÊM: mở popup Biểu đồ tiến độ (streak, heatmap hoạt động, đồ thị điểm số, mốc lên cấp, tổng quan SRS) -->
-                <button id="btn-open-progress" class="btn" style="width:100%; background:#2980b9; color:white; margin-bottom:12px;">
-                    <i class="fas fa-chart-line"></i> Tiến độ học tập
-                </button>
-                <!-- ĐÃ THÊM: mở popup Thi thử 4 kỹ năng (Nghe/Đọc/Viết/Nói, có tính giờ) -->
-                <button id="btn-open-mocktest" class="btn" style="width:100%; background:#c0392b; color:white; margin-bottom:12px;">
-                    <i class="fas fa-stopwatch"></i> Thi thử 4 kỹ năng
-                </button>
+                <!-- ĐÃ SỬA (dựng khung điều hướng 5 khu — Bước 1): 3 nút Ôn tập lỗi sai/Tiến độ học
+                     tập/Thi thử vốn nằm ở đây đã DỜI sang khu "Ôn & Tiến bộ"/"Thử thách" tương ứng
+                     (app-container ở trên, xem #area-on-tien-bo/#area-thu-thach) — vẫn cùng modal/
+                     logic phía sau (srs-modal, progress-modal, mocktest-modal), chỉ đổi vị trí nút mở. -->
                 <h2>Lịch sử</h2>
                 <ul id="history-list"></ul>
             </div>

@@ -196,8 +196,12 @@ document.addEventListener('DOMContentLoaded', () => {
     langSelect.addEventListener('change', () => refreshCurrentLevel());
 });
 
-skillSelect.addEventListener('change', (e) => {
-    currentSkill = e.target.value;
+// ĐÃ SỬA (dựng khung điều hướng 5 khu — Bước 1): tách phần thân xử lý đổi kỹ năng ra hàm dùng chung,
+// vì giờ có 2 nơi có thể đổi currentSkill — #skill-select (khu Kiểm tra kỹ năng, 5 lựa chọn) và
+// #ci-skill-select (khu Đọc/Nghe mở rộng, 2 lựa chọn) — trước đây chỉ có 1 dropdown gộp chung nên chỉ
+// cần 1 listener; logic hiện/ẩn workspace tương ứng giữ NGUYÊN VẸN như cũ, không đổi hành vi gì.
+function applySkillChange(newSkill) {
+    currentSkill = newSkill;
     resetWorkspace(currentSkill);
 
     speakingWorkspace.classList.add('hidden');
@@ -222,7 +226,56 @@ skillSelect.addEventListener('change', (e) => {
         setupCIIntro();
     }
     refreshCurrentLevel(); // ĐÃ THÊM (Mastery): đổi kỹ năng -> cấp độ theo dõi cũng đổi theo
-});
+}
+
+skillSelect.addEventListener('change', (e) => applySkillChange(e.target.value));
+document.getElementById('ci-skill-select')?.addEventListener('change', (e) => applySkillChange(e.target.value));
+
+// ==========================================
+// ĐIỀU HƯỚNG 5 KHU (Bước 1 — dựng khung, dời nội dung ĐÃ CÓ vào đúng khu, KHÔNG thêm tính năng mới):
+// Kiểm tra kỹ năng | Học | Đọc/Nghe mở rộng | Ôn & Tiến bộ | Thử thách. Xem index.html #area-nav.
+// ==========================================
+const AREA_PANELS = {
+    test: document.getElementById('area-test'),
+    hoc: document.getElementById('area-hoc'),
+    ci: document.getElementById('area-ci'),
+    'on-tien-bo': document.getElementById('area-on-tien-bo'),
+    'thu-thach': document.getElementById('area-thu-thach')
+};
+const TEST_AREA_SKILLS = ['speaking', 'writing', 'read-aloud', 'listening', 'reading'];
+const CI_AREA_SKILLS = ['ci-reading', 'ci-listening'];
+const areaNavButtons = document.querySelectorAll('.area-nav-btn');
+let currentArea = 'test';
+
+function switchArea(area) {
+    if (!AREA_PANELS[area] || area === currentArea) return;
+    currentArea = area;
+
+    Object.keys(AREA_PANELS).forEach(key => AREA_PANELS[key]?.classList.toggle('hidden', key !== area));
+    areaNavButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.area === area));
+
+    // Sidebar trái (Ngôn ngữ/Kỹ năng/Cấp độ...) chỉ còn ý nghĩa ở 2 khu Kiểm tra kỹ năng + Đọc/Nghe
+    // mở rộng — 3 khu còn lại (Học/Ôn & Tiến bộ/Thử thách) ở Bước 1 chưa cần tới nó.
+    const needsSidebarLeft = (area === 'test' || area === 'ci');
+    document.getElementById('sidebar-left')?.classList.toggle('hidden', !needsSidebarLeft);
+    document.querySelector('.app-container')?.classList.toggle('hide-sidebar-left', !needsSidebarLeft);
+    document.getElementById('skill-select-group')?.classList.toggle('hidden', area !== 'test');
+    document.getElementById('ci-skill-select-group')?.classList.toggle('hidden', area !== 'ci');
+    document.getElementById('test-only-controls')?.classList.toggle('hidden', area !== 'test');
+
+    // Vào khu Kiểm tra kỹ năng/Đọc-Nghe mở rộng mà currentSkill đang ở khu KHÁC (vd vừa ở CI chuyển
+    // sang Kiểm tra) -> đặt về kỹ năng mặc định của khu đó, giữ nguyên lựa chọn nếu đã đúng khu rồi
+    // (không mất trạng thái khi bấm qua lại giữa các khu nhiều lần).
+    if (area === 'test' && !TEST_AREA_SKILLS.includes(currentSkill)) {
+        skillSelect.value = 'speaking';
+        applySkillChange('speaking');
+    } else if (area === 'ci' && !CI_AREA_SKILLS.includes(currentSkill)) {
+        const ciSelect = document.getElementById('ci-skill-select');
+        if (ciSelect) ciSelect.value = 'ci-reading';
+        applySkillChange('ci-reading');
+    }
+}
+areaNavButtons.forEach(btn => btn.addEventListener('click', () => switchArea(btn.dataset.area)));
 
 document.getElementById('toggle-left')?.addEventListener('click', () => {
     document.getElementById('sidebar-left').classList.toggle('collapsed');
