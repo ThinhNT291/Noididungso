@@ -273,6 +273,10 @@ function switchArea(area) {
         const ciSelect = document.getElementById('ci-skill-select');
         if (ciSelect) ciSelect.value = 'ci-reading';
         applySkillChange('ci-reading');
+    } else if (area === 'hoc') {
+        // ĐÃ THÊM (Bước 3): tải danh sách chuyên đề cho màn lộ trình khi vào khu "Học" LẦN ĐẦU trong
+        // phiên (ensureGrammarRoadmapLoaded tự chặn gọi lại lần 2 trở đi) - xem SECTION 17 phía dưới.
+        ensureGrammarRoadmapLoaded();
     }
 }
 areaNavButtons.forEach(btn => btn.addEventListener('click', () => switchArea(btn.dataset.area)));
@@ -3106,8 +3110,17 @@ function buildCIAssessmentHTML(data) {
 
 
 // ==========================================================
-// SECTION 17: KHU "HỌC" — Bước 2: BÀI TẬP (Controller_GrammarTopic.gs). MVP = 1 chuyên đề ngữ pháp cố
-// định (Present Perfect, B1).
+// SECTION 17: KHU "HỌC" — Bước 2 (Bài tập, Controller_GrammarTopic.gs) + Bước 3 (Lộ trình nhiều
+// chuyên đề). ĐÃ THÊM Bước 3 CÙNG ĐỢT với Bước 2 (không tách 2 lượt riêng) — 2 phần liên thông: màn
+// học chi tiết vô dụng nếu không có lối vào chọn chuyên đề, còn lộ trình vô nghĩa nếu chỉ có 1 chuyên
+// đề để chọn.
+//
+// ĐÃ THÊM (Bước 3): #grammar-roadmap-box + #grammar-roadmap-list — gọi list_grammar_topics 1 LẦN khi
+// vào khu "Học" lần đầu (xem hook trong switchArea() ở trên), nhóm chuyên đề theo cấp độ CEFR
+// (GRAMMAR_LEVEL_ORDER), bấm 1 thẻ là gọi get_grammar_topic với đúng topicId đó — TÁI DÙNG NGUYÊN
+// renderGrammarTopic()/selectGrammarAnswer() đã có ở Bước 2, chỉ đổi lối vào (trước đây hardcode 1 nút,
+// giờ nhiều thẻ). Chuyên đề nào chưa có nội dung trong GRAMMAR_TOPIC_BANK thì đơn giản là chưa xuất
+// hiện trên lộ trình — không cần sửa code Frontend mỗi lần thêm chuyên đề mới.
 //
 // ĐÃ SỬA (phản hồi "ngợp 1 trang chữ" + "muốn chấm tức thì"):
 //  - Lý thuyết hiện DẦN theo cuộn chuột: mỗi khối lý thuyết được bọc trong <div class="reveal-on-scroll">
@@ -3126,16 +3139,77 @@ function buildCIAssessmentHTML(data) {
 // Sidebar trái (có langSelect) đang ẨN ở khu "Học" (xem switchArea() ở trên) nên KHÔNG dùng
 // langSelect.value ở đây — hardcode 'english' vì hiện tại chuyên đề ngữ pháp mới chỉ có ở tiếng Anh.
 // ==========================================================
-const grammarTopicIntroBox = document.getElementById('grammar-topic-intro-box');
+const grammarRoadmapBox = document.getElementById('grammar-roadmap-box');
+const grammarRoadmapList = document.getElementById('grammar-roadmap-list');
 const grammarTheoryBox = document.getElementById('grammar-theory-box');
 const grammarExerciseBox = document.getElementById('grammar-exercise-box');
 const grammarExerciseList = document.getElementById('grammar-exercise-list');
 const grammarScoreIndicator = document.getElementById('grammar-score-indicator');
-const btnStartGrammarTopic = document.getElementById('btn-start-grammar-topic');
 
 let grammarCurrentTopic = null;   // { id, title, level, theory, exercises:[{id,type,prompt,choices,correctIndex,explanation}] }
 let grammarAnsweredCount = 0;     // số câu đã bấm chọn (bất kể đúng/sai) trong lượt học hiện tại
 let grammarCorrectCount = 0;      // số câu chọn đúng trong lượt học hiện tại
+let grammarRoadmapLoaded = false; // chỉ gọi list_grammar_topics 1 lần/phiên, không gọi lại mỗi lần chuyển tab qua lại
+
+// Thứ tự hiển thị các nhóm cấp độ trên lộ trình - cấp độ lạ (sách gán nhãn khác) rơi xuống cuối,
+// KHÔNG chặn hiển thị (vẫn hiện, chỉ xếp sau cùng theo thứ tự bảng chữ cái giữa các cấp độ lạ đó).
+const GRAMMAR_LEVEL_ORDER = ['A1', 'A2', 'A2/B1', 'B1', 'B1/B2', 'B2', 'B2/C1', 'C1', 'C1/C2', 'C2'];
+function grammarLevelRank_(level) {
+    const idx = GRAMMAR_LEVEL_ORDER.indexOf(level);
+    return idx === -1 ? 999 : idx;
+}
+
+async function ensureGrammarRoadmapLoaded() {
+    if (grammarRoadmapLoaded) return; // đã tải rồi -> không gọi lại khi chuyển tab qua lại
+    grammarRoadmapLoaded = true;
+
+    const payload = { action: 'list_grammar_topics', language: 'english' };
+    const data = await callBackendAPI(payload, '', false);
+    if (!data || !grammarRoadmapList) {
+        grammarRoadmapLoaded = false; // lỗi -> cho phép thử lại lần chuyển tab sau
+        if (grammarRoadmapList) grammarRoadmapList.innerHTML = '<span style="color:red;"><i class="fas fa-exclamation-triangle"></i> Không tải được danh sách chủ điểm, vui lòng thử lại (chuyển sang khu khác rồi quay lại).</span>';
+        return;
+    }
+    renderGrammarRoadmap(data.topics || []);
+}
+
+function renderGrammarRoadmap(topics) {
+    if (!grammarRoadmapList) return;
+    if (!topics.length) {
+        grammarRoadmapList.innerHTML = '<span class="placeholder-text">Chưa có chủ điểm nào, quay lại sau nhé.</span>';
+        return;
+    }
+
+    // Nhóm theo cấp độ, mỗi nhóm giữ nguyên thứ tự chuyên đề trong ngân hàng (không sắp xếp lại bên
+    // trong 1 nhóm) - sắp xếp CÁC NHÓM theo GRAMMAR_LEVEL_ORDER.
+    const groups = {};
+    topics.forEach(t => {
+        const lvl = t.level || 'Khác';
+        (groups[lvl] = groups[lvl] || []).push(t);
+    });
+    const sortedLevels = Object.keys(groups).sort((a, b) => grammarLevelRank_(a) - grammarLevelRank_(b) || a.localeCompare(b));
+
+    let html = '';
+    sortedLevels.forEach(lvl => {
+        html += `<div style="font-size:0.85em; font-weight:bold; color:#7f8c8d; margin:12px 0 6px;">Cấp độ ${escapeHtml(lvl)}</div>`;
+        html += `<div style="display:flex; flex-direction:column; gap:8px;">`;
+        groups[lvl].forEach(t => {
+            html += `
+                <button class="btn grammar-topic-card" data-topic-id="${escapeHtml(t.id)}" style="text-align:left; justify-content:space-between; display:flex; align-items:center; background:white; color:#2c3e50; border:1px solid #ddd; padding:12px 14px;">
+                    <span><i class="fas fa-book-open" style="color:#d35400; margin-right:8px;"></i>${escapeHtml(t.title)}</span>
+                    <i class="fas fa-chevron-right" style="color:#bbb;"></i>
+                </button>
+            `;
+        });
+        html += `</div>`;
+    });
+    grammarRoadmapList.innerHTML = html;
+
+    // Event delegation trên cả list thay vì gắn từng nút - đỡ phải gỡ/gắn lại listener mỗi lần render.
+    grammarRoadmapList.querySelectorAll('.grammar-topic-card').forEach(btn => {
+        btn.addEventListener('click', () => startGrammarTopicSession(btn.dataset.topicId));
+    });
+}
 
 // Bọc mỗi khối lý thuyết trong reveal-on-scroll -> observer thêm "revealed" khi cuộn tới gần, hiện
 // đúng 1 lần rồi bỏ theo dõi (unobserve) - không ẩn lại khi cuộn ngược lên.
@@ -3160,17 +3234,19 @@ function observeGrammarReveal(container) {
     }
 }
 
-async function startGrammarTopicSession() {
-    if (!btnStartGrammarTopic) return;
-    const originalHtml = btnStartGrammarTopic.innerHTML;
-    btnStartGrammarTopic.disabled = true;
-    btnStartGrammarTopic.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tải...';
+async function startGrammarTopicSession(topicId) {
+    if (!grammarRoadmapList) return;
+    // Khoá tạm cả danh sách lộ trình trong lúc tải, tránh bấm trùng nhiều thẻ 1 lúc.
+    grammarRoadmapList.querySelectorAll('.grammar-topic-card').forEach(b => b.disabled = true);
+    const clickedBtn = grammarRoadmapList.querySelector(`.grammar-topic-card[data-topic-id="${CSS.escape(topicId)}"]`);
+    const originalHtml = clickedBtn ? clickedBtn.innerHTML : '';
+    if (clickedBtn) clickedBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tải...';
 
-    const payload = { action: 'get_grammar_topic', language: 'english' };
+    const payload = { action: 'get_grammar_topic', language: 'english', topicId: topicId };
     const data = await callBackendAPI(payload, '', false);
 
-    btnStartGrammarTopic.disabled = false;
-    btnStartGrammarTopic.innerHTML = originalHtml;
+    grammarRoadmapList.querySelectorAll('.grammar-topic-card').forEach(b => b.disabled = false);
+    if (clickedBtn) clickedBtn.innerHTML = originalHtml;
     if (!data) { alert('Không tải được chuyên đề, vui lòng thử lại.'); return; }
 
     grammarCurrentTopic = data;
@@ -3178,15 +3254,26 @@ async function startGrammarTopicSession() {
     grammarCorrectCount = 0;
     renderGrammarTopic(data);
 }
-btnStartGrammarTopic?.addEventListener('click', startGrammarTopicSession);
+
+// Quay lại màn lộ trình từ màn học chi tiết - ẩn lý thuyết/bài tập, hiện lại danh sách chuyên đề.
+function backToGrammarRoadmap() {
+    grammarTheoryBox?.classList.add('hidden');
+    grammarExerciseBox?.classList.add('hidden');
+    grammarCurrentTopic = null;
+    grammarRoadmapBox?.classList.remove('hidden');
+    grammarRoadmapBox?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 
 function renderGrammarTopic(data) {
-    grammarTopicIntroBox?.classList.add('hidden');
+    grammarRoadmapBox?.classList.add('hidden');
 
     // ----- Lý thuyết (hiện dần theo cuộn chuột) -----
     if (grammarTheoryBox) {
         const theory = data.theory || {};
-        let html = `<h3 style="color:#d35400; margin-top:0;"><i class="fas fa-book"></i> Lý thuyết: ${escapeHtml(data.title || '')} (${escapeHtml(data.level || '')})</h3>`;
+        let html = `
+            <button id="btn-back-grammar-roadmap" class="btn" style="background:#f4f7f6; color:#7f8c8d; border:1px solid #ddd; margin-bottom:12px; padding:6px 12px; font-size:0.85em;"><i class="fas fa-arrow-left"></i> Quay lại lộ trình</button>
+        `;
+        html += `<h3 style="color:#d35400; margin-top:0;"><i class="fas fa-book"></i> Lý thuyết: ${escapeHtml(data.title || '')} (${escapeHtml(data.level || '')})</h3>`;
 
         (theory.usages || []).forEach((u, i) => {
             html += `
@@ -3243,6 +3330,7 @@ function renderGrammarTopic(data) {
         grammarTheoryBox.classList.remove('hidden');
         observeGrammarReveal(grammarTheoryBox);
         document.getElementById('btn-reveal-grammar-exercise')?.addEventListener('click', revealGrammarExerciseBox);
+        document.getElementById('btn-back-grammar-roadmap')?.addEventListener('click', backToGrammarRoadmap);
     }
 
     // ----- Bài tập: dựng sẵn nhưng vẫn giữ #grammar-exercise-box ẩn (class "hidden" có sẵn trong

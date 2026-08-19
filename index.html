@@ -377,9 +377,14 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- MODULE: KHU "HỌC" — Bước 2: BÀI TẬP (Controller_GrammarTopic.gs). MVP = 1 chuyên đề ngữ
-             pháp cố định (Thì hiện tại hoàn thành, B1).
-             ĐÃ SỬA (phản hồi "ngợp 1 trang chữ" + "muốn chấm tức thì"):
+        <!-- MODULE: KHU "HỌC" — Bước 2 (Bài tập, Controller_GrammarTopic.gs) + Bước 3 (Lộ trình nhiều
+             chuyên đề). ĐÃ THÊM Bước 3 CÙNG ĐỢT với Bước 2 (không tách 2 lượt) vì 2 phần liên thông:
+             màn học chi tiết (lý thuyết + bài tập) vô dụng nếu không có lối vào chọn chuyên đề, còn
+             lộ trình vô nghĩa nếu chỉ có 1 chuyên đề để chọn.
+              - #grammar-roadmap-box: màn "lộ trình" — gọi list_grammar_topics khi vào khu này lần đầu,
+                hiện danh sách MỌI chuyên đề đang có trong GRAMMAR_TOPIC_BANK, nhóm theo cấp độ CEFR
+                (JS tự nhóm, xem loadGrammarRoadmap() ở app.js). Bấm 1 thẻ chuyên đề là gọi
+                get_grammar_topic với đúng topicId đó.
               - Lý thuyết hiện DẦN theo cuộn chuột (từng khối fade-in bằng IntersectionObserver, xem
                 app.js) thay vì đổ hết 1 lần — đỡ ngợp cho người mới yếu.
               - Bài tập được TẢI SẴN cùng lúc với lý thuyết (1 lần gọi get_grammar_topic) nhưng ẩn
@@ -388,16 +393,15 @@
               - Bấm 1 đáp án là CHẤM NGAY tại chỗ (JS so khớp, không gọi Server) — ô đúng luôn nổi
                 xanh, ô sai (nếu chọn nhầm) nổi đỏ, kèm giải thích ngay dưới câu đó. Bỏ hẳn nút "Nộp
                 bài"/màn kết quả tổng kết riêng — thay bằng 1 thanh điểm cập nhật dần khi làm tới đâu.
-             KHÔNG random đề, không có "bắt đầu bài mới" như Nghe/Đọc hiểu vì đây là 1 chuyên đề cố
-             định để học đi học lại, không phải 1 lượt kiểm tra. Bước 3 (nhiều chuyên đề + màn "lộ
-             trình" chọn chuyên đề) sẽ làm ở lượt sau, CHƯA làm ở đây. -->
+             KHÔNG random đề trong 1 chuyên đề, không có "bắt đầu bài mới" như Nghe/Đọc hiểu vì mỗi
+             chuyên đề là nội dung CỐ ĐỊNH để học đi học lại, không phải 1 lượt kiểm tra. -->
         <!-- ========================================== -->
         <div id="area-hoc" class="hidden">
             <div id="grammar-topic-workspace" class="workspace">
-                <div id="grammar-topic-intro-box" class="content-box" style="background: #f4f7f6; border: none;">
-                    <h4 style="margin: 0 0 8px; color: #2c3e50;"><i class="fas fa-graduation-cap"></i> Học</h4>
-                    <p style="font-size: 0.9em; color: #7f8c8d; margin-bottom: 12px;">Chuyên đề: <strong>Thì hiện tại hoàn thành (Present Perfect)</strong> — cấp độ B1. Xem lý thuyết rồi luyện bài tập bên dưới, chấm ngay từng câu.</p>
-                    <button id="btn-start-grammar-topic" class="btn primary-btn"><i class="fas fa-play"></i> Bắt đầu học</button>
+                <div id="grammar-roadmap-box" class="content-box" style="background: #f4f7f6; border: none;">
+                    <h4 style="margin: 0 0 8px; color: #2c3e50;"><i class="fas fa-graduation-cap"></i> Học — Lộ trình chủ điểm</h4>
+                    <p style="font-size: 0.9em; color: #7f8c8d; margin-bottom: 12px;">Chọn 1 chủ điểm bên dưới để xem lý thuyết và luyện bài tập, chấm ngay từng câu.</p>
+                    <div id="grammar-roadmap-list"><span class="placeholder-text"><i class="fas fa-spinner fa-spin"></i> Đang tải danh sách chủ điểm...</span></div>
                 </div>
 
                 <div id="grammar-theory-box" class="content-box hidden" style="border-left: 4px solid #d35400;"></div>
