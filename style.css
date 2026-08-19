@@ -466,3 +466,16 @@ h4 { font-size: 1.05em; }
 .ci-word:hover { background: #f4ecf7; color: #8e44ad; }
 .ci-word.ci-word-active { background: #8e44ad; color: #fff; }
 .viz-empty-note { color: var(--viz-text-muted); font-style: italic; font-size: 0.88em; padding: 10px 0; }
+
+/* ĐÃ THÊM (khu "Học" — hiện Lý thuyết dần theo cuộn chuột, đỡ ngợp 1 trang toàn chữ): mỗi khối lý
+   thuyết mặc định mờ + lệch xuống 1 chút, JS (IntersectionObserver, app.js) thêm class "revealed" khi
+   cuộn tới gần — chỉ 1 lần, không ẩn lại khi cuộn ngược lên (tránh giật/jank). Nếu trình duyệt không
+   hỗ trợ IntersectionObserver, app.js tự thêm "revealed" ngay lập tức (progressive enhancement). */
+.reveal-on-scroll { opacity: 0; transform: translateY(16px); transition: opacity 0.5s ease, transform 0.5s ease; }
+.reveal-on-scroll.revealed { opacity: 1; transform: translateY(0); }
+
+/* ĐÃ THÊM (khu "Học" — chấm tức thì từng câu bài tập, không cần nút "Nộp bài"): màu ô đáp án sau khi
+   bấm chọn — xanh cho ô đúng (luôn nổi, kể cả khi người học chọn nhầm ô khác), đỏ cho ô người học lỡ
+   chọn sai. Khoá lại (disabled) toàn bộ 4 ô sau lần bấm đầu tiên của câu đó. */
+.grammar-choice-correct { background: #27ae60 !important; color: #fff !important; border-color: #27ae60 !important; }
+.grammar-choice-wrong { background: #e74c3c !important; color: #fff !important; border-color: #e74c3c !important; }

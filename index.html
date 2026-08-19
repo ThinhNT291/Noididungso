@@ -378,8 +378,16 @@
 
         <!-- ========================================== -->
         <!-- MODULE: KHU "HỌC" — Bước 2: BÀI TẬP (Controller_GrammarTopic.gs). MVP = 1 chuyên đề ngữ
-             pháp cố định (Thì hiện tại hoàn thành, B1): Lý thuyết (cách dùng/công thức/dấu hiệu nhận
-             biết/lỗi thường gặp) hiện liền cùng lúc với Bài tập trắc nghiệm 4 lựa chọn bên dưới —
+             pháp cố định (Thì hiện tại hoàn thành, B1).
+             ĐÃ SỬA (phản hồi "ngợp 1 trang chữ" + "muốn chấm tức thì"):
+              - Lý thuyết hiện DẦN theo cuộn chuột (từng khối fade-in bằng IntersectionObserver, xem
+                app.js) thay vì đổ hết 1 lần — đỡ ngợp cho người mới yếu.
+              - Bài tập được TẢI SẴN cùng lúc với lý thuyết (1 lần gọi get_grammar_topic) nhưng ẩn
+                trong #grammar-exercise-box, chỉ hiện ra NGAY LẬP TỨC (không gọi mạng lần nữa) khi bấm
+                "Luyện chủ điểm này" ở cuối phần lý thuyết.
+              - Bấm 1 đáp án là CHẤM NGAY tại chỗ (JS so khớp, không gọi Server) — ô đúng luôn nổi
+                xanh, ô sai (nếu chọn nhầm) nổi đỏ, kèm giải thích ngay dưới câu đó. Bỏ hẳn nút "Nộp
+                bài"/màn kết quả tổng kết riêng — thay bằng 1 thanh điểm cập nhật dần khi làm tới đâu.
              KHÔNG random đề, không có "bắt đầu bài mới" như Nghe/Đọc hiểu vì đây là 1 chuyên đề cố
              định để học đi học lại, không phải 1 lượt kiểm tra. Bước 3 (nhiều chuyên đề + màn "lộ
              trình" chọn chuyên đề) sẽ làm ở lượt sau, CHƯA làm ở đây. -->
@@ -388,19 +396,21 @@
             <div id="grammar-topic-workspace" class="workspace">
                 <div id="grammar-topic-intro-box" class="content-box" style="background: #f4f7f6; border: none;">
                     <h4 style="margin: 0 0 8px; color: #2c3e50;"><i class="fas fa-graduation-cap"></i> Học</h4>
-                    <p style="font-size: 0.9em; color: #7f8c8d; margin-bottom: 12px;">Chuyên đề: <strong>Thì hiện tại hoàn thành (Present Perfect)</strong> — cấp độ B1. Xem lý thuyết rồi làm bài tập trắc nghiệm bên dưới, chấm điểm ngay.</p>
+                    <p style="font-size: 0.9em; color: #7f8c8d; margin-bottom: 12px;">Chuyên đề: <strong>Thì hiện tại hoàn thành (Present Perfect)</strong> — cấp độ B1. Xem lý thuyết rồi luyện bài tập bên dưới, chấm ngay từng câu.</p>
                     <button id="btn-start-grammar-topic" class="btn primary-btn"><i class="fas fa-play"></i> Bắt đầu học</button>
                 </div>
 
                 <div id="grammar-theory-box" class="content-box hidden" style="border-left: 4px solid #d35400;"></div>
 
+                <!-- Tải sẵn cùng lúc với lý thuyết ở trên, CHỈ ẩn/hiện bằng class "hidden" — bấm nút
+                     "Luyện chủ điểm này" (cuối #grammar-theory-box) là hiện ra tức thì, không tải lại. -->
                 <div id="grammar-exercise-box" class="content-box hidden" style="border-left: 4px solid #2980b9; margin-top: 15px;">
-                    <h4 style="color:#2980b9; margin-bottom:10px;"><i class="fas fa-pencil-alt"></i> Bài tập</h4>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+                        <h4 style="color:#2980b9; margin:0;"><i class="fas fa-pencil-alt"></i> Bài tập</h4>
+                        <span id="grammar-score-indicator" style="font-size:0.85em; font-weight:bold; color:#7f8c8d; background:#f4f7f6; padding:4px 10px; border-radius:12px;">0/0 đúng</span>
+                    </div>
                     <div id="grammar-exercise-list"></div>
-                    <button id="btn-submit-grammar-exercise" class="btn primary-btn" style="margin-top:10px;" disabled><i class="fas fa-check-circle"></i> Nộp bài</button>
                 </div>
-
-                <div id="grammar-result-box" class="content-box hidden" style="border-left: 4px solid #27ae60; margin-top: 15px;"></div>
             </div>
         </div>
 
