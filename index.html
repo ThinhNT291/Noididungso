@@ -428,6 +428,13 @@
                     <button id="btn-open-srs-review" class="btn" style="display:none; width:100%; background:#f39c12; color:white; align-items:center; justify-content:center; gap:6px; padding:14px;">
                         <i class="fas fa-brain"></i> Ôn tập lỗi sai (<span id="srs-due-count">0</span>)
                     </button>
+                    <!-- ĐÃ THÊM (Bước 4 — gom nhóm lỗi sai theo tag, xem Controller_ErrorLog.gs / SECTION 18
+                         app.js): nút mở popup tổng hợp các "tag" ngữ pháp người học hay sai nhất, kèm 2 lối
+                         "Xem lại"/"Học lại" tới đúng chuyên đề (khu "Học"). Khác #btn-open-srs-review (đó là
+                         ôn tập kiểu flashcard cho Speaking/Writing/Nghe/Đọc, còn đây là Ngữ pháp/trắc nghiệm). -->
+                    <button id="btn-open-weak-tags" class="btn" style="width:100%; background:#8e44ad; color:white; padding:14px;">
+                        <i class="fas fa-bullseye"></i> Điểm ngữ pháp cần ôn lại
+                    </button>
                     <button id="btn-open-progress" class="btn" style="width:100%; background:#2980b9; color:white; padding:14px;">
                         <i class="fas fa-chart-line"></i> Tiến độ học tập
                     </button>
@@ -492,6 +499,20 @@
                 <i class="fas fa-check-circle fa-2x"></i>
                 <p style="margin-top:10px;">Bạn đã ôn hết thẻ hôm nay! 🎉</p>
             </div>
+        </div>
+    </div>
+
+    <!-- ĐÃ THÊM (Bước 4 — gom nhóm lỗi sai theo tag): POPUP tổng hợp các "tag" ngữ pháp hay sai nhất
+         (get_error_summary, Controller_ErrorLog.gs), sắp sai nhiều nhất lên đầu. Mỗi dòng có 2 nút:
+         "Xem lại" (mở đúng chuyên đề rồi cuộn thẳng tới khối lý thuyết liên quan) và "Học lại" (mở lại
+         chuyên đề từ đầu) — xem weakTagOpenTopic_() ở app.js SECTION 18. Toàn bộ nội dung động dựng qua
+         textContent/createElement (không innerHTML với dữ liệu tự tổng hợp) để an toàn XSS. -->
+    <div id="weak-tags-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 620px;">
+            <span class="close-btn" id="weak-tags-close-x">&times;</span>
+            <h2 style="color:#2c3e50; margin-bottom:5px;"><i class="fas fa-bullseye"></i> Điểm ngữ pháp cần ôn lại</h2>
+            <p style="color:#7f8c8d; font-size:0.85em; margin-bottom:15px;">Tổng hợp từ các câu bạn từng làm sai trong khu "Học", xếp theo số lần sai nhiều nhất.</p>
+            <div id="weak-tags-body"></div>
         </div>
     </div>
 

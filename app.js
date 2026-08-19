@@ -2035,6 +2035,102 @@ btnOpenProgress?.addEventListener('click', openProgressModal);
 progressCloseX?.addEventListener('click', () => progressModal.classList.add('hidden'));
 
 // ==========================================
+// 13b. ĐIỂM NGỮ PHÁP CẦN ÔN LẠI (Bước 4 — gom nhóm lỗi sai theo tag, action get_error_summary,
+// Controller_ErrorLog.gs). Liệt kê các "tag" ngữ pháp hay sai nhất của người dùng hiện tại, sai nhiều
+// nhất xếp lên đầu. Mỗi dòng có 2 nút, cả 2 đều điều hướng sang khu "Học" rồi mở lại đúng chuyên đề
+// (tái dùng nguyên startGrammarTopicSession() có sẵn ở SECTION 17, không viết luồng tải chuyên đề
+// riêng), chỉ khác ở bước cuối:
+//  - "Xem lại": sau khi chuyên đề tải xong, cố cuộn tới ĐÚNG khối lý thuyết của tag đó (nếu tag map
+//    được 1 usage cụ thể — xem id="theory-usage-<tagId>" ở renderGrammarTopic()); tag "chéo chủ điểm"
+//    thì cuộn lên đầu khối lý thuyết thay thế.
+//  - "Học lại": mở chuyên đề từ đầu như bấm thẻ lộ trình bình thường, không cuộn riêng tới đâu cả.
+// Toàn bộ nội dung động dựng bằng textContent/createElement (không innerHTML với dữ liệu tổng hợp),
+// tự động an toàn XSS.
+// ==========================================
+const weakTagsModal = document.getElementById('weak-tags-modal');
+const weakTagsBody = document.getElementById('weak-tags-body');
+const weakTagsCloseX = document.getElementById('weak-tags-close-x');
+const btnOpenWeakTags = document.getElementById('btn-open-weak-tags');
+
+async function openWeakTagsModal() {
+    if (!weakTagsModal || !weakTagsBody) return;
+    weakTagsModal.classList.remove('hidden');
+    weakTagsBody.innerHTML = '<span class="placeholder-text"><i class="fas fa-spinner fa-spin"></i> Đang tải...</span>';
+
+    const payload = { action: 'get_error_summary', language: 'english', skill: 'grammar' };
+    const data = await callBackendAPI(payload, '', false);
+    if (!data) {
+        weakTagsBody.innerHTML = '<span style="color:red;">Không tải được dữ liệu, vui lòng thử lại.</span>';
+        return;
+    }
+    renderWeakTags(data.weakTags || []);
+}
+
+function renderWeakTags(weakTags) {
+    weakTagsBody.innerHTML = '';
+    if (!weakTags.length) {
+        weakTagsBody.innerHTML = '<span class="placeholder-text">Chưa ghi nhận lỗi sai nào ở khu "Học" — hoặc bạn đang làm rất tốt! 🎉</span>';
+        return;
+    }
+
+    weakTags.forEach(wt => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; margin-bottom:8px; background:#fdfdfd; border:1px solid #eee; border-radius:8px;';
+
+        const info = document.createElement('div');
+        info.style.cssText = 'flex:1; min-width:0;';
+        const labelEl = document.createElement('div');
+        labelEl.style.cssText = 'font-weight:bold; color:#2c3e50;';
+        labelEl.textContent = wt.label;
+        const metaEl = document.createElement('div');
+        metaEl.style.cssText = 'font-size:0.82em; color:#7f8c8d; margin-top:2px;';
+        metaEl.textContent = `${wt.topicTitle || ''} — sai ${wt.count} lần`;
+        info.appendChild(labelEl);
+        info.appendChild(metaEl);
+
+        const actions = document.createElement('div');
+        actions.style.cssText = 'display:flex; gap:6px; flex-shrink:0;';
+        const btnReview = document.createElement('button');
+        btnReview.className = 'btn';
+        btnReview.style.cssText = 'background:#f4f7f6; color:#2c3e50; border:1px solid #ddd; padding:6px 10px; font-size:0.82em;';
+        btnReview.innerHTML = '<i class="fas fa-eye"></i> Xem lại';
+        btnReview.addEventListener('click', () => openTopicFromWeakTag_(wt, true));
+        const btnRelearn = document.createElement('button');
+        btnRelearn.className = 'btn';
+        btnRelearn.style.cssText = 'background:#d35400; color:white; padding:6px 10px; font-size:0.82em;';
+        btnRelearn.innerHTML = '<i class="fas fa-redo"></i> Học lại';
+        btnRelearn.addEventListener('click', () => openTopicFromWeakTag_(wt, false));
+        actions.appendChild(btnReview);
+        actions.appendChild(btnRelearn);
+
+        row.appendChild(info);
+        row.appendChild(actions);
+        weakTagsBody.appendChild(row);
+    });
+}
+
+async function openTopicFromWeakTag_(weakTag, jumpToTag) {
+    weakTagsModal?.classList.add('hidden');
+    switchArea('hoc'); // tự gọi ensureGrammarRoadmapLoaded() nếu chưa tải (xem switchArea() ở trên)
+    await startGrammarTopicSession(weakTag.topicId);
+    if (!jumpToTag) return; // "Học lại": dừng ở đây, giống hệt bấm thẻ lộ trình bình thường
+
+    // Đợi 1 nhịp cho renderGrammarTopic() dựng xong DOM lý thuyết rồi mới tìm anchor để cuộn tới.
+    setTimeout(() => {
+        const anchor = document.getElementById('theory-usage-' + weakTag.tag);
+        const target = anchor || grammarTheoryBox;
+        target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (anchor) {
+            anchor.classList.add('grammar-usage-highlight');
+            setTimeout(() => anchor.classList.remove('grammar-usage-highlight'), 2000);
+        }
+    }, 50);
+}
+
+btnOpenWeakTags?.addEventListener('click', openWeakTagsModal);
+weakTagsCloseX?.addEventListener('click', () => weakTagsModal.classList.add('hidden'));
+
+// ==========================================
 // 14. NGHE HIỂU (Listening) + ĐỌC HIỂU (Reading)
 // ==========================================
 // 2 kỹ năng mới, đủ bộ 4 kỹ năng chuẩn (Nghe/Nói/Đọc/Viết), dùng CHUNG 1 workspace (chỉ khác cách
@@ -3116,11 +3212,18 @@ function buildCIAssessmentHTML(data) {
 // đề để chọn.
 //
 // ĐÃ THÊM (Bước 3): #grammar-roadmap-box + #grammar-roadmap-list — gọi list_grammar_topics 1 LẦN khi
-// vào khu "Học" lần đầu (xem hook trong switchArea() ở trên), nhóm chuyên đề theo cấp độ CEFR
-// (GRAMMAR_LEVEL_ORDER), bấm 1 thẻ là gọi get_grammar_topic với đúng topicId đó — TÁI DÙNG NGUYÊN
-// renderGrammarTopic()/selectGrammarAnswer() đã có ở Bước 2, chỉ đổi lối vào (trước đây hardcode 1 nút,
-// giờ nhiều thẻ). Chuyên đề nào chưa có nội dung trong GRAMMAR_TOPIC_BANK thì đơn giản là chưa xuất
-// hiện trên lộ trình — không cần sửa code Frontend mỗi lần thêm chuyên đề mới.
+// vào khu "Học" lần đầu (xem hook trong switchArea() ở trên), bấm 1 thẻ là gọi get_grammar_topic với
+// đúng topicId đó — TÁI DÙNG NGUYÊN renderGrammarTopic()/selectGrammarAnswer() đã có ở Bước 2, chỉ
+// đổi lối vào (trước đây hardcode 1 nút, giờ nhiều thẻ). Chuyên đề nào chưa có nội dung trong
+// GRAMMAR_TOPIC_BANK thì đơn giản là chưa xuất hiện trên lộ trình — không cần sửa code Frontend mỗi
+// lần thêm chuyên đề mới.
+//
+// ĐÃ SỬA (phản hồi "gán Level không chuẩn — 1 chuyên đề thường trải dài nhiều trình độ, không gói gọn
+// 1 cấp; nên sắp theo THỨ TỰ LỘ TRÌNH HỌC THỰC TẾ thay vì nhóm theo cấp độ CEFR"): BỎ việc nhóm theo
+// "Cấp độ..." — danh sách giờ là 1 DANH SÁCH THẲNG, đánh số "Bài 1, Bài 2..." theo field "order" server
+// trả về (xem Controller_GrammarTopic.gs/Data_GrammarTopicBank.gs), KHÔNG còn hiển thị nhãn cấp độ nào
+// trên thẻ/màn học chi tiết nữa (dễ gây hiểu nhầm 1 chuyên đề chỉ thuộc đúng 1 cấp, trong khi bài tập
+// bên trong đã được thiết kế tăng dần độ khó, trải dài qua nhiều cấp).
 //
 // ĐÃ SỬA (phản hồi "ngợp 1 trang chữ" + "muốn chấm tức thì"):
 //  - Lý thuyết hiện DẦN theo cuộn chuột: mỗi khối lý thuyết được bọc trong <div class="reveal-on-scroll">
@@ -3151,14 +3254,6 @@ let grammarAnsweredCount = 0;     // số câu đã bấm chọn (bất kể đ�
 let grammarCorrectCount = 0;      // số câu chọn đúng trong lượt học hiện tại
 let grammarRoadmapLoaded = false; // chỉ gọi list_grammar_topics 1 lần/phiên, không gọi lại mỗi lần chuyển tab qua lại
 
-// Thứ tự hiển thị các nhóm cấp độ trên lộ trình - cấp độ lạ (sách gán nhãn khác) rơi xuống cuối,
-// KHÔNG chặn hiển thị (vẫn hiện, chỉ xếp sau cùng theo thứ tự bảng chữ cái giữa các cấp độ lạ đó).
-const GRAMMAR_LEVEL_ORDER = ['A1', 'A2', 'A2/B1', 'B1', 'B1/B2', 'B2', 'B2/C1', 'C1', 'C1/C2', 'C2'];
-function grammarLevelRank_(level) {
-    const idx = GRAMMAR_LEVEL_ORDER.indexOf(level);
-    return idx === -1 ? 999 : idx;
-}
-
 async function ensureGrammarRoadmapLoaded() {
     if (grammarRoadmapLoaded) return; // đã tải rồi -> không gọi lại khi chuyển tab qua lại
     grammarRoadmapLoaded = true;
@@ -3180,29 +3275,21 @@ function renderGrammarRoadmap(topics) {
         return;
     }
 
-    // Nhóm theo cấp độ, mỗi nhóm giữ nguyên thứ tự chuyên đề trong ngân hàng (không sắp xếp lại bên
-    // trong 1 nhóm) - sắp xếp CÁC NHÓM theo GRAMMAR_LEVEL_ORDER.
-    const groups = {};
-    topics.forEach(t => {
-        const lvl = t.level || 'Khác';
-        (groups[lvl] = groups[lvl] || []).push(t);
-    });
-    const sortedLevels = Object.keys(groups).sort((a, b) => grammarLevelRank_(a) - grammarLevelRank_(b) || a.localeCompare(b));
+    // Danh sách THẲNG theo đúng thứ tự lộ trình học (field "order" từ Server, 1 = học đầu tiên) -
+    // KHÔNG còn nhóm theo cấp độ nữa (xem ghi chú đầu SECTION 17). "order" thiếu (chuyên đề cũ/lỗi
+    // dữ liệu) rơi xuống cuối danh sách thay vì làm hỏng cả sắp xếp.
+    const sorted = [...topics].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
 
-    let html = '';
-    sortedLevels.forEach(lvl => {
-        html += `<div style="font-size:0.85em; font-weight:bold; color:#7f8c8d; margin:12px 0 6px;">Cấp độ ${escapeHtml(lvl)}</div>`;
-        html += `<div style="display:flex; flex-direction:column; gap:8px;">`;
-        groups[lvl].forEach(t => {
-            html += `
-                <button class="btn grammar-topic-card" data-topic-id="${escapeHtml(t.id)}" style="text-align:left; justify-content:space-between; display:flex; align-items:center; background:white; color:#2c3e50; border:1px solid #ddd; padding:12px 14px;">
-                    <span><i class="fas fa-book-open" style="color:#d35400; margin-right:8px;"></i>${escapeHtml(t.title)}</span>
-                    <i class="fas fa-chevron-right" style="color:#bbb;"></i>
-                </button>
-            `;
-        });
-        html += `</div>`;
+    let html = `<div style="display:flex; flex-direction:column; gap:8px;">`;
+    sorted.forEach((t, i) => {
+        html += `
+            <button class="btn grammar-topic-card" data-topic-id="${escapeHtml(t.id)}" style="text-align:left; justify-content:space-between; display:flex; align-items:center; background:white; color:#2c3e50; border:1px solid #ddd; padding:12px 14px;">
+                <span><span style="display:inline-block; min-width:22px; height:22px; line-height:22px; text-align:center; background:#d35400; color:white; border-radius:50%; font-size:0.8em; margin-right:8px;">${i + 1}</span>${escapeHtml(t.title)}</span>
+                <i class="fas fa-chevron-right" style="color:#bbb;"></i>
+            </button>
+        `;
     });
+    html += `</div>`;
     grammarRoadmapList.innerHTML = html;
 
     // Event delegation trên cả list thay vì gắn từng nút - đỡ phải gỡ/gắn lại listener mỗi lần render.
@@ -3273,11 +3360,13 @@ function renderGrammarTopic(data) {
         let html = `
             <button id="btn-back-grammar-roadmap" class="btn" style="background:#f4f7f6; color:#7f8c8d; border:1px solid #ddd; margin-bottom:12px; padding:6px 12px; font-size:0.85em;"><i class="fas fa-arrow-left"></i> Quay lại lộ trình</button>
         `;
-        html += `<h3 style="color:#d35400; margin-top:0;"><i class="fas fa-book"></i> Lý thuyết: ${escapeHtml(data.title || '')} (${escapeHtml(data.level || '')})</h3>`;
+        // ĐÃ SỬA: bỏ hiển thị "(level)" cạnh tên chuyên đề - xem ghi chú đầu SECTION 17 (nhãn cấp độ dễ
+        // gây hiểu nhầm, bài tập trong CÙNG 1 chuyên đề đã trải dài nhiều mức khó khác nhau).
+        html += `<h3 style="color:#d35400; margin-top:0;"><i class="fas fa-book"></i> Lý thuyết: ${escapeHtml(data.title || '')}</h3>`;
 
         (theory.usages || []).forEach((u, i) => {
             html += `
-                <div class="reveal-on-scroll" style="margin-bottom:14px; padding:10px 12px; background:#fdfdfd; border:1px solid #eee; border-radius:8px;">
+                <div class="reveal-on-scroll" id="theory-usage-${escapeHtml(u.tagId || '')}" style="margin-bottom:14px; padding:10px 12px; background:#fdfdfd; border:1px solid #eee; border-radius:8px;">
                     <div style="font-weight:bold; color:#2c3e50; margin-bottom:4px;">${i + 1}. ${escapeHtml(u.label || '')}</div>
                     <div style="font-size:0.92em; color:#555; margin-bottom:6px;">${escapeHtml(u.explanationVi || '')}</div>
                     ${(u.examples || []).map(ex => `
@@ -3378,6 +3467,13 @@ function revealGrammarExerciseBox() {
 }
 
 // Chấm tức thì tại Client: ex đã có sẵn correctIndex/explanation (xem Controller_GrammarTopic.gs).
+// ĐÃ SỬA (Bước 4 — gom nhóm lỗi sai theo tag): khi trả lời SAI, thêm 2 việc, cả 2 đều KHÔNG chặn/làm
+// chậm UI chấm điểm tức thì đang có:
+//  1. Ghi 1 sự kiện lỗi sai (fire-and-forget, xem logGrammarWrongAnswer_) để sau này tổng hợp ở popup
+//     "Điểm ngữ pháp cần ôn lại" (khu "Ôn & Tiến bộ").
+//  2. Chèn link "Xem lại lý thuyết" ngay dưới giải thích — đây là "Xem lại" NHẸ NHẤT: chuyên đề đang
+//     mở sẵn trên màn hình nên chỉ cần cuộn lên đúng khối lý thuyết đã render, KHÔNG cần gọi lại mạng
+//     (xem addGrammarReviewLink_).
 function selectGrammarAnswer(ex, cIndex, choicesWrap, explanationBox) {
     if (choicesWrap.dataset.answered === '1') return; // câu này đã trả lời rồi, khoá không cho đổi
     choicesWrap.dataset.answered = '1';
@@ -3390,13 +3486,60 @@ function selectGrammarAnswer(ex, cIndex, choicesWrap, explanationBox) {
     });
 
     if (explanationBox) {
-        explanationBox.textContent = ex.explanation || '';
+        explanationBox.innerHTML = ''; // dọn sạch trước khi tự dựng lại bằng textContent/appendChild bên dưới (an toàn XSS)
+        const explanationText = document.createElement('span');
+        explanationText.textContent = ex.explanation || '';
+        explanationBox.appendChild(explanationText);
         explanationBox.classList.toggle('hidden', !ex.explanation);
     }
 
     grammarAnsweredCount++;
-    if (isCorrect) grammarCorrectCount++;
+    if (isCorrect) {
+        grammarCorrectCount++;
+    } else {
+        logGrammarWrongAnswer_(ex);
+        addGrammarReviewLink_(ex, explanationBox);
+    }
     updateGrammarScoreIndicator(grammarCurrentTopic ? grammarCurrentTopic.exercises.length : grammarAnsweredCount);
+}
+
+// Fire-and-forget: ghi 1 sự kiện trả lời sai (Controller_ErrorLog.gs, action log_wrong_answer). KHÔNG
+// await, KHÔNG chặn UI chấm điểm tức thì — lỗi mạng/hết phiên tự bị callBackendAPI nuốt/thử lại theo
+// cơ chế sẵn có, không cần xử lý gì thêm ở đây.
+function logGrammarWrongAnswer_(ex) {
+    if (!grammarCurrentTopic) return;
+    callBackendAPI({
+        action: 'log_wrong_answer',
+        skill: 'grammar',
+        language: 'english',
+        topicId: grammarCurrentTopic.id,
+        exerciseId: ex.id,
+        tags: ex.tags || []
+    }, '', false);
+}
+
+// Chèn link nhỏ "Xem lại lý thuyết" ngay dưới ô giải thích của 1 câu vừa trả lời sai — bấm là cuộn tới
+// ĐÚNG khối lý thuyết liên quan (dựa vào id="theory-usage-<tagId>" gắn ở renderGrammarTopic() phía
+// trên) nếu câu đó có tag map được 1 "usage" cụ thể; nếu chỉ có tag "chéo chủ điểm" (không có usage
+// riêng, vd phân biệt Hiện tại hoàn thành/Quá khứ đơn) thì cuộn lên đầu khối lý thuyết thay thế.
+function addGrammarReviewLink_(ex, explanationBox) {
+    if (!explanationBox || !(ex.tags || []).length || !grammarTheoryBox) return;
+    const anchor = ex.tags.map(t => document.getElementById('theory-usage-' + t)).find(el => el);
+    const target = anchor || grammarTheoryBox;
+
+    const link = document.createElement('button');
+    link.type = 'button';
+    link.className = 'btn';
+    link.style.cssText = 'margin-top:6px; background:none; border:none; color:#2980b9; text-decoration:underline; padding:0; font-size:0.85em; cursor:pointer; display:block;';
+    link.innerHTML = '<i class="fas fa-arrow-up"></i> Xem lại lý thuyết';
+    link.addEventListener('click', () => {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (anchor) {
+            anchor.classList.add('grammar-usage-highlight');
+            setTimeout(() => anchor.classList.remove('grammar-usage-highlight'), 2000);
+        }
+    });
+    explanationBox.appendChild(link);
 }
 
 function updateGrammarScoreIndicator(total) {
