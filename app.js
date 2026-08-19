@@ -3253,12 +3253,56 @@ const sidebarSettingsContent = document.getElementById('sidebar-settings-content
 const grammarSidebarToc = document.getElementById('grammar-sidebar-toc');
 const grammarSidebarTocList = document.getElementById('grammar-sidebar-toc-list');
 const btnSidebarBackRoadmap = document.getElementById('btn-sidebar-back-roadmap');
+// ĐÃ THÊM: chế độ "Nhức đầu" (xem SECTION 19 bên dưới, gần cuối file):
+const grammarLegendaryBox = document.getElementById('grammar-legendary-box');
+const grammarLegendaryTitleEl = document.getElementById('grammar-legendary-title');
+const grammarLegendaryScoreIndicator = document.getElementById('grammar-legendary-score-indicator');
+const grammarLegendaryExerciseList = document.getElementById('grammar-legendary-exercise-list');
+const legendaryResultModal = document.getElementById('legendary-result-modal');
+const legendaryResultTitle = document.getElementById('legendary-result-title');
+const legendaryResultBody = document.getElementById('legendary-result-body');
+const legendaryResultCloseX = document.getElementById('legendary-result-close-x');
+legendaryResultCloseX?.addEventListener('click', () => legendaryResultModal?.classList.add('hidden'));
 
 let grammarCurrentTopic = null;   // { id, title, level, theory, exercises:[{id,type,prompt,choices,correctIndex,explanation}] }
 let grammarAnsweredCount = 0;     // số câu đã bấm chọn (bất kể đúng/sai) trong lượt học hiện tại
 let grammarCorrectCount = 0;      // số câu chọn đúng trong lượt học hiện tại
 let grammarRoadmapLoaded = false; // chỉ gọi list_grammar_topics 1 lần/phiên, không gọi lại mỗi lần chuyển tab qua lại
 let grammarTopicsCache = [];      // ĐÃ THÊM: cache danh sách chuyên đề (từ list_grammar_topics) để mục lục sidebar dùng lại, khỏi gọi mạng thêm lần nữa
+
+// ĐÃ THÊM (nhóm "category" ở màn lộ trình + sidebar TOC — Thì/Cấu trúc câu/Từ loại, xem ghi chú đầu
+// Data_GrammarTopicBank.gs): nhãn tiếng Việt định nghĩa TĨNH ở đây (Backend chỉ trả slug thô), giống
+// cách làm với CROSS_CUTTING_TAG_LABELS bên khu lỗi sai. "null" (chuyên đề cũ/lỗi dữ liệu thiếu field)
+// dùng nhãn "Khác" để không crash khi nhóm.
+const GRAMMAR_CATEGORY_LABELS = {
+    'tenses': 'Thì',
+    'sentence-structure': 'Cấu trúc câu',
+    'word-classes': 'Từ loại',
+};
+const GRAMMAR_CATEGORY_FALLBACK_LABEL = 'Khác';
+
+// Gom danh sách chuyên đề (phẳng) thành các nhóm theo "category", XẾP NHÓM theo order NHỎ NHẤT trong
+// nhóm (không cần field "categoryOrder" riêng phải bảo trì tay — xem ghi chú Data_GrammarTopicBank.gs),
+// và xếp chuyên đề TRONG mỗi nhóm theo đúng "order". Trả mảng [{ categoryKey, categoryLabel, topics[] }].
+function groupGrammarTopicsByCategory_(topics) {
+    const groups = {};
+    topics.forEach(t => {
+        const key = t.category || '_none';
+        (groups[key] = groups[key] || []).push(t);
+    });
+    const result = Object.keys(groups).map(key => {
+        const groupTopics = [...groups[key]].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+        const minOrder = Math.min(...groupTopics.map(t => t.order ?? 999));
+        return {
+            categoryKey: key,
+            categoryLabel: GRAMMAR_CATEGORY_LABELS[key] || GRAMMAR_CATEGORY_FALLBACK_LABEL,
+            topics: groupTopics,
+            minOrder,
+        };
+    });
+    result.sort((a, b) => a.minOrder - b.minOrder);
+    return result;
+}
 
 async function ensureGrammarRoadmapLoaded() {
     if (grammarRoadmapLoaded) return; // đã tải rồi -> không gọi lại khi chuyển tab qua lại
@@ -3294,24 +3338,32 @@ function updateSidebarLeftVisibility_() {
 // nổi bật (tô đậm) chuyên đề đang mở, tự cuộn được nếu danh sách dài (xem CSS max-height ở index.html).
 function renderGrammarSidebarToc(activeTopicId) {
     if (!grammarSidebarTocList) return;
-    const sorted = [...grammarTopicsCache].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+    const groups = groupGrammarTopicsByCategory_(grammarTopicsCache);
     grammarSidebarTocList.innerHTML = '';
-    sorted.forEach((t, i) => {
-        const isActive = t.id === activeTopicId;
-        const item = document.createElement('button');
-        item.className = 'btn';
-        item.dataset.topicId = t.id;
-        item.style.cssText = `width:100%; text-align:left; justify-content:flex-start; gap:8px; padding:8px 10px; font-size:0.85em; border:1px solid ${isActive ? '#d35400' : '#eee'}; background:${isActive ? '#fdf2e9' : '#fff'}; color:${isActive ? '#d35400' : '#2c3e50'}; font-weight:${isActive ? 'bold' : 'normal'};`;
-        const badge = document.createElement('span');
-        badge.style.cssText = `display:inline-block; min-width:18px; height:18px; line-height:18px; text-align:center; border-radius:50%; font-size:0.75em; flex-shrink:0; background:${isActive ? '#d35400' : '#ddd'}; color:${isActive ? '#fff' : '#555'};`;
-        badge.textContent = i + 1;
-        const label = document.createElement('span');
-        label.textContent = t.title;
-        item.appendChild(badge);
-        item.appendChild(label);
-        if (!isActive) item.addEventListener('click', () => startGrammarTopicSession(t.id));
-        else item.disabled = true; // chuyên đề đang mở rồi -> khỏi cho bấm lại chính nó
-        grammarSidebarTocList.appendChild(item);
+    let counter = 0; // đánh số LIÊN TỤC qua các nhóm (không reset về 1 ở mỗi nhóm) - đỡ gây hiểu lầm 2 chuyên đề cùng mang số 1
+    groups.forEach(group => {
+        const header = document.createElement('div');
+        header.textContent = group.categoryLabel;
+        header.style.cssText = 'font-size:0.75em; font-weight:bold; text-transform:uppercase; color:#999; margin:10px 0 4px; padding:0 2px;';
+        grammarSidebarTocList.appendChild(header);
+        group.topics.forEach(t => {
+            counter++;
+            const isActive = t.id === activeTopicId;
+            const item = document.createElement('button');
+            item.className = 'btn';
+            item.dataset.topicId = t.id;
+            item.style.cssText = `width:100%; text-align:left; justify-content:flex-start; gap:8px; padding:8px 10px; font-size:0.85em; border:1px solid ${isActive ? '#d35400' : '#eee'}; background:${isActive ? '#fdf2e9' : '#fff'}; color:${isActive ? '#d35400' : '#2c3e50'}; font-weight:${isActive ? 'bold' : 'normal'};`;
+            const badge = document.createElement('span');
+            badge.style.cssText = `display:inline-block; min-width:18px; height:18px; line-height:18px; text-align:center; border-radius:50%; font-size:0.75em; flex-shrink:0; background:${isActive ? '#d35400' : '#ddd'}; color:${isActive ? '#fff' : '#555'};`;
+            badge.textContent = counter;
+            const label = document.createElement('span');
+            label.textContent = t.title;
+            item.appendChild(badge);
+            item.appendChild(label);
+            if (!isActive) item.addEventListener('click', () => startGrammarTopicSession(t.id));
+            else item.disabled = true; // chuyên đề đang mở rồi -> khỏi cho bấm lại chính nó
+            grammarSidebarTocList.appendChild(item);
+        });
     });
 }
 btnSidebarBackRoadmap?.addEventListener('click', backToGrammarRoadmap);
@@ -3323,19 +3375,24 @@ function renderGrammarRoadmap(topics) {
         return;
     }
 
-    // Danh sách THẲNG theo đúng thứ tự lộ trình học (field "order" từ Server, 1 = học đầu tiên) -
-    // KHÔNG còn nhóm theo cấp độ nữa (xem ghi chú đầu SECTION 17). "order" thiếu (chuyên đề cũ/lỗi
-    // dữ liệu) rơi xuống cuối danh sách thay vì làm hỏng cả sắp xếp.
-    const sorted = [...topics].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+    // ĐÃ SỬA (nhóm "category" — Thì/Cấu trúc câu/Từ loại): gom theo nhóm (mượn cách sách ngữ pháp kinh
+    // điển kiểu Murphy tổ chức mục lục), xếp nhóm theo order NHỎ NHẤT trong nhóm, xếp chuyên đề TRONG
+    // mỗi nhóm theo đúng "order" — xem groupGrammarTopicsByCategory_(). Đánh số LIÊN TỤC qua các nhóm.
+    const groups = groupGrammarTopicsByCategory_(topics);
 
     let html = `<div style="display:flex; flex-direction:column; gap:8px;">`;
-    sorted.forEach((t, i) => {
-        html += `
-            <button class="btn grammar-topic-card" data-topic-id="${escapeHtml(t.id)}" style="text-align:left; justify-content:space-between; display:flex; align-items:center; background:white; color:#2c3e50; border:1px solid #ddd; padding:12px 14px;">
-                <span><span style="display:inline-block; min-width:22px; height:22px; line-height:22px; text-align:center; background:#d35400; color:white; border-radius:50%; font-size:0.8em; margin-right:8px;">${i + 1}</span>${escapeHtml(t.title)}</span>
-                <i class="fas fa-chevron-right" style="color:#bbb;"></i>
-            </button>
-        `;
+    let counter = 0;
+    groups.forEach(group => {
+        html += `<div style="font-size:0.8em; font-weight:bold; text-transform:uppercase; color:#999; margin:${counter === 0 ? '0' : '10px'} 0 2px; padding:0 2px;">${escapeHtml(group.categoryLabel)}</div>`;
+        group.topics.forEach(t => {
+            counter++;
+            html += `
+                <button class="btn grammar-topic-card" data-topic-id="${escapeHtml(t.id)}" style="text-align:left; justify-content:space-between; display:flex; align-items:center; background:white; color:#2c3e50; border:1px solid #ddd; padding:12px 14px;">
+                    <span><span style="display:inline-block; min-width:22px; height:22px; line-height:22px; text-align:center; background:#d35400; color:white; border-radius:50%; font-size:0.8em; margin-right:8px;">${counter}</span>${escapeHtml(t.title)}</span>
+                    <i class="fas fa-chevron-right" style="color:#bbb;"></i>
+                </button>
+            `;
+        });
     });
     html += `</div>`;
     grammarRoadmapList.innerHTML = html;
@@ -3401,6 +3458,11 @@ function backToGrammarRoadmap() {
     grammarTheoryBox?.classList.add('hidden');
     grammarExerciseBox?.classList.add('hidden');
     grammarCurrentTopic = null;
+    // ĐÃ THÊM: dọn luôn trạng thái "Nhức đầu" nếu đang dở dang (vd bấm "Quay lại lộ trình" ở sidebar
+    // ngay giữa lượt Nhức đầu) - tránh còn sót state cũ khi mở lại 1 chuyên đề khác.
+    grammarLegendaryBox?.classList.add('hidden');
+    grammarLegendaryActive = false;
+    grammarLegendaryData = null;
     grammarRoadmapBox?.classList.remove('hidden');
     grammarRoadmapBox?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     updateSidebarLeftVisibility_();
@@ -3463,9 +3525,12 @@ function renderGrammarTopic(data) {
         }
 
         // Nút bật bài tập ẩn - đặt cuối lý thuyết, cũng hiện-dần theo cuộn như các khối phía trên.
+        // ĐÃ THÊM: nút chế độ "Nhức đầu" đặt cạnh - luôn sẵn có (KHÔNG khoá tới khi hoàn thành bình
+        // thường trước, đúng tinh thần "không khoá cứng" đã thống nhất) - xem startLegendaryRound().
         html += `
-            <div class="reveal-on-scroll" style="text-align:center; margin-top:10px;">
+            <div class="reveal-on-scroll" style="text-align:center; margin-top:10px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
                 <button id="btn-reveal-grammar-exercise" class="btn primary-btn"><i class="fas fa-dumbbell"></i> Luyện chủ điểm này</button>
+                <button id="btn-start-legendary" class="btn" style="background:#c0392b; color:#fff;"><i class="fas fa-fire"></i> Chế độ Nhức đầu</button>
             </div>
         `;
 
@@ -3473,6 +3538,7 @@ function renderGrammarTopic(data) {
         grammarTheoryBox.classList.remove('hidden');
         observeGrammarReveal(grammarTheoryBox);
         document.getElementById('btn-reveal-grammar-exercise')?.addEventListener('click', revealGrammarExerciseBox);
+        document.getElementById('btn-start-legendary')?.addEventListener('click', () => startLegendaryRound(data.id));
     }
 
     // ----- Bài tập: dựng sẵn nhưng vẫn giữ #grammar-exercise-box ẩn (class "hidden" có sẵn trong
@@ -3598,4 +3664,243 @@ function addGrammarReviewLink_(ex, explanationBox) {
 function updateGrammarScoreIndicator(total) {
     if (!grammarScoreIndicator) return;
     grammarScoreIndicator.textContent = `${grammarCorrectCount}/${total} đúng — đã làm ${grammarAnsweredCount}/${total}`;
+}
+
+// ==========================================================
+// SECTION 19: CHẾ ĐỘ "NHỨC ĐẦU" (mượn ý tưởng "Legendary Levels" của Duolingo — xem ghi chú đầu
+// handleGetGrammarTopic/handleSubmitLegendaryRound ở Controller_GrammarTopic.gs). Luôn sẵn có ngay từ
+// đầu (KHÔNG cần hoàn thành chế độ thường trước — không khoá cứng, đúng thống nhất trước đó), bốc
+// RIÊNG 10 câu difficulty=3 của đúng chuyên đề đang mở, hiện trong #grammar-legendary-box (thế chỗ lý
+// thuyết + bài tập thường trong lúc làm, giữ cảm giác tập trung/thử thách). Dùng lại NGUYÊN cơ chế chấm
+// tại Client (correctIndex/explanation có sẵn) như chế độ thường - chỉ khác là track riêng biến đếm +
+// thống kê theo tag để dựng bảng phân tích cuối lượt, KHÔNG lẫn với điểm số chế độ thường.
+// ==========================================================
+let grammarLegendaryActive = false;
+let grammarLegendaryData = null;       // { id, title, mode, theory, exercises } - từ get_grammar_topic mode='legendary'
+let grammarLegendaryAnswered = 0;
+let grammarLegendaryCorrect = 0;
+let grammarLegendaryTagStats = {};     // { tagId: { correct, wrong } } - dựng bảng phân tích cuối lượt
+
+// Nhãn tiếng Việt cho tag "chéo chủ điểm" (không có usage riêng để lấy label) - PHẢI khớp
+// CROSS_CUTTING_TAG_LABELS ở Controller_ErrorLog.gs (duy trì song song ở Frontend, giống cách làm với
+// GRAMMAR_CATEGORY_LABELS - tránh phải gọi thêm 1 lượt mạng chỉ để lấy nhãn).
+const GRAMMAR_CROSS_CUTTING_TAG_LABELS = {
+    'pp-vs-simple-past': 'Phân biệt Hiện tại hoàn thành và Quá khứ đơn',
+    'prep-since-for': 'Phân biệt giới từ Since và For',
+    'rc-reduced-clauses': 'Rút gọn mệnh đề quan hệ',
+    'cond-connectors': 'Liên từ điều kiện (unless, in case, as long as, even if...)',
+    'cond-inversion': 'Đảo ngữ trong câu điều kiện',
+};
+function resolveGrammarTagLabel_(theory, tagId) {
+    const usage = (theory?.usages || []).find(u => u.tagId === tagId);
+    if (usage) return usage.label;
+    return GRAMMAR_CROSS_CUTTING_TAG_LABELS[tagId] || tagId;
+}
+
+async function startLegendaryRound(topicId) {
+    const btn = document.getElementById('btn-start-legendary');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tải...'; }
+    const data = await callBackendAPI({ action: 'get_grammar_topic', language: 'english', topicId: topicId, mode: 'legendary' }, '', false);
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-fire"></i> Chế độ Nhức đầu'; }
+    if (!data) { alert('Không tải được bộ câu hỏi Nhức đầu, vui lòng thử lại.'); return; }
+
+    grammarLegendaryActive = true;
+    grammarLegendaryData = data;
+    grammarLegendaryAnswered = 0;
+    grammarLegendaryCorrect = 0;
+    grammarLegendaryTagStats = {};
+
+    // Ẩn lý thuyết + bài tập thường trong lúc làm Nhức đầu - giữ tập trung, không cuộn lẫn 2 khối.
+    grammarTheoryBox?.classList.add('hidden');
+    grammarExerciseBox?.classList.add('hidden');
+    renderLegendaryExercises(data);
+    grammarLegendaryBox?.classList.remove('hidden');
+    grammarLegendaryBox?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderLegendaryExercises(data) {
+    if (grammarLegendaryTitleEl) grammarLegendaryTitleEl.textContent = data.title || '';
+    if (!grammarLegendaryExerciseList) return;
+    grammarLegendaryExerciseList.innerHTML = '';
+    data.exercises.forEach((ex, exIndex) => {
+        const exBox = document.createElement('div');
+        exBox.style.cssText = 'margin-bottom:16px; padding:12px; background:#fff; border:1px solid #f5c6c6; border-radius:8px;';
+
+        const exText = document.createElement('div');
+        exText.style.cssText = 'font-weight:bold; margin-bottom:8px; color:#2c3e50;';
+        exText.textContent = `Câu ${exIndex + 1}. ${ex.prompt}`;
+        exBox.appendChild(exText);
+
+        const choicesWrap = document.createElement('div');
+        choicesWrap.style.cssText = 'display:grid; grid-template-columns:repeat(2, 1fr); gap:8px;';
+        choicesWrap.dataset.answered = '0';
+
+        const explanationBox = document.createElement('div');
+        explanationBox.className = 'hidden';
+        explanationBox.style.cssText = 'font-size:0.85em; color:#7f8c8d; margin-top:8px; padding-top:8px; border-top:1px dashed #ddd;';
+
+        ex.choices.forEach((choice, cIndex) => {
+            const cbtn = document.createElement('button');
+            cbtn.className = 'btn';
+            cbtn.style.cssText = 'width:100%; text-align:left; justify-content:flex-start; background:#f4f7f6; color:#2c3e50; border:1px solid #ccc; padding:9px 12px; font-size:0.92em;';
+            cbtn.textContent = String.fromCharCode(65 + cIndex) + '. ' + choice;
+            cbtn.onclick = () => selectLegendaryAnswer(ex, cIndex, choicesWrap, explanationBox);
+            choicesWrap.appendChild(cbtn);
+        });
+        exBox.appendChild(choicesWrap);
+        exBox.appendChild(explanationBox);
+
+        grammarLegendaryExerciseList.appendChild(exBox);
+    });
+    updateLegendaryScoreIndicator(data.exercises.length);
+}
+
+function selectLegendaryAnswer(ex, cIndex, choicesWrap, explanationBox) {
+    if (choicesWrap.dataset.answered === '1') return;
+    choicesWrap.dataset.answered = '1';
+
+    const isCorrect = cIndex === ex.correctIndex;
+    choicesWrap.querySelectorAll('button').forEach((b, i) => {
+        b.disabled = true;
+        if (i === ex.correctIndex) b.classList.add('grammar-choice-correct');
+        else if (i === cIndex) b.classList.add('grammar-choice-wrong');
+    });
+
+    if (explanationBox) {
+        explanationBox.innerHTML = '';
+        const explanationText = document.createElement('span');
+        explanationText.textContent = ex.explanation || '';
+        explanationBox.appendChild(explanationText);
+        explanationBox.classList.toggle('hidden', !ex.explanation);
+    }
+
+    grammarLegendaryAnswered++;
+    if (isCorrect) grammarLegendaryCorrect++;
+    (ex.tags || []).forEach(tag => {
+        const stat = (grammarLegendaryTagStats[tag] = grammarLegendaryTagStats[tag] || { correct: 0, wrong: 0 });
+        if (isCorrect) stat.correct++; else stat.wrong++;
+    });
+    // Vẫn ghi log_grammar_answer như chế độ thường - câu sai ở Nhức đầu vẫn là dữ liệu lỗi sai THẬT,
+    // vẫn nên vào WrongAnswerLog/tạo thẻ SRS/tính streak hoạt động như mọi câu khác.
+    logGrammarAnswer_(ex, isCorrect);
+    updateLegendaryScoreIndicator(grammarLegendaryData.exercises.length);
+
+    if (grammarLegendaryAnswered === grammarLegendaryData.exercises.length) {
+        finishLegendaryRound();
+    }
+}
+
+function updateLegendaryScoreIndicator(total) {
+    if (!grammarLegendaryScoreIndicator) return;
+    grammarLegendaryScoreIndicator.textContent = `${grammarLegendaryCorrect}/${total} đúng — đã làm ${grammarLegendaryAnswered}/${total}`;
+}
+
+// Hết 1 lượt Nhức đầu - nộp % đúng lên Server để log + tính chuỗi liên tiếp (cơ chế thưởng, xem
+// handleSubmitLegendaryRound), rồi dựng màn kết quả/phân tích.
+async function finishLegendaryRound() {
+    const total = grammarLegendaryData.exercises.length;
+    const scorePercent = total ? Math.round((grammarLegendaryCorrect / total) * 1000) / 10 : 0;
+
+    const streakResult = await callBackendAPI({
+        action: 'submit_legendary_round',
+        language: 'english',
+        topicId: grammarLegendaryData.id,
+        scorePercent: scorePercent
+    }, '', false);
+
+    renderLegendaryResult(scorePercent, streakResult);
+}
+
+// Dựng màn kết quả: điểm số, chuỗi liên tiếp (cơ chế thưởng - mục tiêu 3 lượt liên tiếp >=75%, xem
+// GRAMMAR_LEGENDARY_STREAK_TARGET ở Backend), và bảng phân tích theo tag TÍNH THẲNG Ở CLIENT (không gọi
+// AI chấm như Viết/Nói - trắc nghiệm đã tự chấm được, phân tích chỉ là tổng hợp lại, tức thì & miễn phí).
+function renderLegendaryResult(scorePercent, streakResult) {
+    if (!legendaryResultModal || !legendaryResultBody || !legendaryResultTitle) return;
+    const passed = scorePercent >= 75;
+    const streak = streakResult?.currentStreak ?? 0;
+    const target = streakResult?.streakTarget ?? 3;
+    const justHitTarget = !!streakResult?.justHitTarget;
+
+    legendaryResultTitle.innerHTML = justHitTarget
+        ? '<i class="fas fa-trophy" style="color:#f1c40f;"></i> Chúc mừng — Chinh phục Nhức đầu!'
+        : (passed ? '<i class="fas fa-fire" style="color:#c0392b;"></i> Vượt qua lượt Nhức đầu!' : '<i class="fas fa-redo" style="color:#7f8c8d;"></i> Chưa đạt, luyện lại nhé');
+
+    legendaryResultBody.innerHTML = ''; // dọn sạch - dựng lại bằng textContent/createElement bên dưới (an toàn XSS)
+
+    const scoreLine = document.createElement('div');
+    scoreLine.style.cssText = 'font-size:1.1em; font-weight:bold; margin-bottom:10px; color:' + (passed ? '#27ae60' : '#c0392b') + ';';
+    scoreLine.textContent = `Điểm: ${scorePercent}% (${passed ? 'ĐẠT — cần từ 75% trở lên' : 'chưa đạt 75%'})`;
+    legendaryResultBody.appendChild(scoreLine);
+
+    // ---- Chuỗi liên tiếp (cơ chế thưởng chính) ----
+    const streakLine = document.createElement('div');
+    streakLine.style.cssText = 'margin-bottom:14px; font-size:0.95em;';
+    let flames = '';
+    for (let i = 1; i <= target; i++) flames += (i <= streak ? '🔥' : '⚪') + ' ';
+    const streakLabel = document.createElement('strong');
+    streakLabel.textContent = 'Chuỗi liên tiếp đạt ≥75%: ';
+    streakLine.appendChild(streakLabel);
+    streakLine.appendChild(document.createTextNode(`${flames}(${Math.min(streak, target)}/${target})`));
+    legendaryResultBody.appendChild(streakLine);
+
+    if (justHitTarget) {
+        const congrats = document.createElement('div');
+        congrats.style.cssText = 'padding:12px; background:#fef9e7; border:1px solid #f9e79f; border-radius:8px; margin-bottom:14px; font-size:0.92em;';
+        congrats.textContent = `Bạn đã hoàn thành ${target} lượt Nhức đầu liên tiếp đạt từ 75% trở lên ở chuyên đề "${grammarLegendaryData?.title || ''}" — chủ điểm này coi như đã CHINH PHỤC! Gợi ý: chuyển sang 1 chủ điểm khác trong lộ trình để tiếp tục.`;
+        legendaryResultBody.appendChild(congrats);
+
+        const btnNext = document.createElement('button');
+        btnNext.className = 'btn primary-btn';
+        btnNext.style.cssText = 'width:100%; margin-bottom:10px;';
+        btnNext.innerHTML = '<i class="fas fa-arrow-right"></i> Chọn chủ điểm khác';
+        btnNext.addEventListener('click', () => { legendaryResultModal.classList.add('hidden'); backToGrammarRoadmap(); });
+        legendaryResultBody.appendChild(btnNext);
+    }
+
+    // ---- Phân tích theo tag (điểm mạnh/điểm yếu) ----
+    const tagIds = Object.keys(grammarLegendaryTagStats);
+    if (tagIds.length) {
+        const analysisHeader = document.createElement('div');
+        analysisHeader.style.cssText = 'font-weight:bold; margin:10px 0 6px; color:#2c3e50;';
+        analysisHeader.textContent = 'Phân tích theo điểm ngữ pháp:';
+        legendaryResultBody.appendChild(analysisHeader);
+
+        const table = document.createElement('div');
+        table.style.cssText = 'display:flex; flex-direction:column; gap:4px;';
+        tagIds.forEach(tag => {
+            const stat = grammarLegendaryTagStats[tag];
+            const label = resolveGrammarTagLabel_(grammarLegendaryData?.theory, tag);
+            const isWeak = stat.wrong > 0;
+            const row = document.createElement('div');
+            row.style.cssText = `display:flex; justify-content:space-between; gap:10px; padding:6px 10px; border-radius:6px; font-size:0.88em; background:${isWeak ? '#fdecea' : '#eafaf1'}; color:${isWeak ? '#c0392b' : '#1e8449'};`;
+            const labelSpan = document.createElement('span');
+            labelSpan.textContent = label;
+            const statSpan = document.createElement('span');
+            statSpan.style.cssText = 'white-space:nowrap;';
+            statSpan.textContent = `${stat.correct} đúng / ${stat.wrong} sai`;
+            row.appendChild(labelSpan);
+            row.appendChild(statSpan);
+            table.appendChild(row);
+        });
+        legendaryResultBody.appendChild(table);
+
+        if (tagIds.some(t => grammarLegendaryTagStats[t].wrong > 0)) {
+            const tip = document.createElement('div');
+            tip.style.cssText = 'margin-top:10px; font-size:0.85em; color:#7f8c8d;';
+            tip.textContent = 'Gợi ý: quay lại phần lý thuyết của các điểm còn sai ở trên trước khi luyện lại.';
+            legendaryResultBody.appendChild(tip);
+        }
+    }
+
+    const btnRetry = document.createElement('button');
+    btnRetry.className = 'btn';
+    btnRetry.style.cssText = 'margin-top:14px; width:100%;';
+    btnRetry.innerHTML = '<i class="fas fa-redo"></i> Luyện lại Nhức đầu';
+    btnRetry.addEventListener('click', () => {
+        legendaryResultModal.classList.add('hidden');
+        startLegendaryRound(grammarLegendaryData.id);
+    });
+    legendaryResultBody.appendChild(btnRetry);
+
+    legendaryResultModal.classList.remove('hidden');
 }

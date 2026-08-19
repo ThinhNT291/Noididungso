@@ -438,6 +438,22 @@
                     </div>
                     <div id="grammar-exercise-list"></div>
                 </div>
+
+                <!-- ĐÃ THÊM: chế độ "Nhức đầu" (mượn ý tưởng "Legendary Levels" của Duolingo, xem
+                     Controller_GrammarTopic.gs) — bốc riêng 10 câu difficulty=3 (khó nhất) của đúng
+                     chuyên đề đang mở, thay THẾ (ẩn) cả lý thuyết lẫn bài tập thường trong lúc làm, để
+                     giữ cảm giác "thử thách" tập trung. Nút bật ở cuối #grammar-theory-box (xem
+                     renderGrammarTopic ở app.js), gọi startLegendaryRound(). Kết quả + phân tích hiện ở
+                     #legendary-result-modal bên dưới, KHÔNG gọi AI chấm (khác Viết/Nói) vì trắc nghiệm
+                     đã tự chấm được tại Client - phân tích tính thẳng từ dữ liệu đã có, tức thì, miễn phí. -->
+                <div id="grammar-legendary-box" class="content-box hidden" style="border-left: 4px solid #c0392b; background:#fff8f7; margin-top: 15px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:8px;">
+                        <h4 style="color:#c0392b; margin:0;"><i class="fas fa-fire"></i> Nhức đầu — <span id="grammar-legendary-title"></span></h4>
+                        <span id="grammar-legendary-score-indicator" style="font-size:0.85em; font-weight:bold; color:#c0392b; background:#fdecea; padding:4px 10px; border-radius:12px;">0/0 đúng</span>
+                    </div>
+                    <p style="font-size:0.85em; color:#7f8c8d; margin-bottom:10px;">10 câu khó nhất của chuyên đề này, xáo ngẫu nhiên. Cần đạt từ 75% trở lên để tính là 1 lượt đạt.</p>
+                    <div id="grammar-legendary-exercise-list"></div>
+                </div>
             </div>
         </div>
 
@@ -536,6 +552,19 @@
             <h2 style="color:#2c3e50; margin-bottom:5px;"><i class="fas fa-bullseye"></i> Điểm ngữ pháp cần ôn lại</h2>
             <p style="color:#7f8c8d; font-size:0.85em; margin-bottom:15px;">Tổng hợp từ các câu bạn từng làm sai trong khu "Học", xếp theo số lần sai nhiều nhất.</p>
             <div id="weak-tags-body"></div>
+        </div>
+    </div>
+
+    <!-- ĐÃ THÊM: kết quả + phân tích chế độ "Nhức đầu" (xem renderLegendaryResult() ở app.js) - hiện
+         điểm số, chuỗi liên tiếp đạt (cơ chế thưởng, mục tiêu 3 lượt liên tiếp >=75%), và bảng phân tích
+         theo từng điểm ngữ pháp (đúng/sai) tính thẳng ở Client, không gọi AI. Toàn bộ nội dung động dựng
+         qua textContent/createElement (an toàn XSS), chỉ phần tiêu đề/thông báo chúc mừng dùng innerHTML
+         với chuỗi cố định (không chèn dữ liệu người dùng). -->
+    <div id="legendary-result-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 560px;">
+            <span class="close-btn" id="legendary-result-close-x">&times;</span>
+            <h2 id="legendary-result-title" style="color:#2c3e50; margin-bottom:12px;"></h2>
+            <div id="legendary-result-body"></div>
         </div>
     </div>
 
