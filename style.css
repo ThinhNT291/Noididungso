@@ -81,6 +81,16 @@ body {
     transition: all 0.3s ease;
 }
 
+/* ĐÃ THÊM (sửa lỗi khu Học/Ôn & Tiến bộ/Thử thách "trống trơn" ở màn hình rộng): khi #sidebar-left bị
+   ẩn bằng display:none (.hidden, dùng cho 3 khu này — xem switchArea() ở app.js), CSS Grid coi phần
+   tử đó KHÔNG TỒN TẠI và tự động dồn các ô lưới còn lại lên trước — khiến .main-content bị đẩy vào ô
+   cột 1 (chỉ rộng 250px, vốn dành cho sidebar trái) thay vì ô giữa (1fr) thật sự, còn .sidebar-right
+   bị đẩy vào ô giữa (1fr) thay vì ô phải (300px). Gán CỐ ĐỊNH grid-column cho từng cột để không phụ
+   thuộc thứ tự DOM/display:none của các phần tử khác — luôn đúng cột dù sidebar trái ẩn hay hiện. */
+.sidebar-left { grid-column: 1; }
+.main-content { grid-column: 2; }
+.sidebar-right { grid-column: 3; }
+
 /* Nút Thu/Phóng Cột (Desktop) */
 .toggle-btn {
     background-color: var(--primary-color);
