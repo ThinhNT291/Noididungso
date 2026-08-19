@@ -2853,12 +2853,28 @@ btnCIPlayAudio?.addEventListener('click', () => {
     });
 });
 
+// ĐÃ THÊM (phản hồi "tra chậm quá"): cache tra từ TRÊN TRÌNH DUYỆT theo (ngôn ngữ + từ, không phân
+// biệt hoa/thường) — chỉ áp dụng cho đường tra NHANH (quick_translate_word, dịch theo từ đơn nên kết
+// quả không đổi theo câu). Tra lại đúng từ đó lần 2 trong cùng phiên -> hiện NGAY từ cache, KHÔNG gửi
+// request nào lên Backend nữa. Chỉ là biến JS trong bộ nhớ (không dùng localStorage) -> mất khi tải
+// lại trang, chấp nhận được vì tra lại vốn đã rất nhanh.
+const ciTranslationCache = new Map();
+
 async function handleCIWordClick(word, contextSentence, spanEl) {
     if (ciLastActiveWordSpan) ciLastActiveWordSpan.classList.remove('ci-word-active');
     spanEl.classList.add('ci-word-active');
     ciLastActiveWordSpan = spanEl;
 
     if (!ciGlossResult) return;
+    const languageCode = langSelect.value;
+    const cacheKey = languageCode + '::' + word.toLowerCase();
+    const cached = ciTranslationCache.get(cacheKey);
+
+    if (cached) {
+        renderCIGlossResult(word, contextSentence, cached, true);
+        return; // ĐÃ CÓ trong cache -> không gọi Backend, không tạo thêm thẻ SRS (đã tạo lần tra đầu)
+    }
+
     ciGlossResult.classList.remove('hidden');
     ciGlossResult.innerHTML = '';
     const loadingEl = document.createElement('div');
@@ -2866,17 +2882,19 @@ async function handleCIWordClick(word, contextSentence, spanEl) {
     loadingEl.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Đang tra "${escapeHtml(word)}"...`;
     ciGlossResult.appendChild(loadingEl);
 
+    // Đường NHANH mặc định: Google Translate qua LanguageApp (Controller_CIVocab.gs), không qua
+    // Gemini -> gần như tức thì. Tự tạo thẻ SRS ngay ở Backend.
     const payload = {
-        action: 'translate_word_in_context',
+        action: 'quick_translate_word',
         word: word,
         contextSentence: contextSentence,
-        language: langSelect.value,
+        language: languageCode,
         skill: currentSkill
     };
     const result = await callBackendAPI(payload, '', false);
 
-    ciGlossResult.innerHTML = '';
     if (!result) {
+        ciGlossResult.innerHTML = '';
         const errEl = document.createElement('div');
         errEl.style.cssText = 'color:#e74c3c; font-size:0.9em;';
         errEl.textContent = 'Tra từ thất bại, thử lại nhé.';
@@ -2884,29 +2902,96 @@ async function handleCIWordClick(word, contextSentence, spanEl) {
         return;
     }
 
+    ciTranslationCache.set(cacheKey, result.translation);
+    renderCIGlossResult(word, contextSentence, result.translation, false);
+    refreshSrsDueCount(); // ĐÃ THÊM: cập nhật ngay badge số thẻ cần ôn (mỗi lần tra từ MỚI tạo thêm 1 thẻ)
+}
+
+// Dựng khung kết quả tra nhanh + nút "Giải thích theo ngữ cảnh" (đường chậm hơn, chỉ gọi khi bấm).
+// fromCache=true -> bỏ dòng "Đã thêm vào ôn tập SRS" (không tạo thẻ mới khi lấy từ cache).
+function renderCIGlossResult(word, contextSentence, translation, fromCache) {
+    if (!ciGlossResult) return;
+    ciGlossResult.classList.remove('hidden');
+    ciGlossResult.innerHTML = '';
+
     const wordLine = document.createElement('div');
     wordLine.style.cssText = 'font-weight:bold; color:#16a085; margin-bottom:4px;';
-    wordLine.textContent = word + (result.part_of_speech ? ' (' + result.part_of_speech + ')' : '');
+    wordLine.textContent = word;
     ciGlossResult.appendChild(wordLine);
 
     const translationLine = document.createElement('div');
-    translationLine.style.cssText = 'color:#2c3e50; margin-bottom:4px;';
-    translationLine.textContent = result.translation || '';
+    translationLine.style.cssText = 'color:#2c3e50; margin-bottom:6px;';
+    translationLine.textContent = translation || '';
     ciGlossResult.appendChild(translationLine);
+
+    const actionsRow = document.createElement('div');
+    actionsRow.style.cssText = 'display:flex; align-items:center; gap:10px; flex-wrap:wrap;';
+
+    if (!fromCache) {
+        const srsNote = document.createElement('span');
+        srsNote.style.cssText = 'color:#27ae60; font-size:0.8em;';
+        srsNote.innerHTML = '<i class="fas fa-check"></i> Đã thêm vào ôn tập SRS.';
+        actionsRow.appendChild(srsNote);
+    }
+
+    const explainBtn = document.createElement('button');
+    explainBtn.className = 'btn';
+    explainBtn.style.cssText = 'font-size:0.78em; padding:4px 9px; background:#f4ecf7; color:#8e44ad; border:1px solid #d7bde2;';
+    explainBtn.innerHTML = '<i class="fas fa-comment-dots"></i> Giải thích theo ngữ cảnh';
+    explainBtn.addEventListener('click', () => requestCIContextExplanation(word, contextSentence, explainBtn));
+    actionsRow.appendChild(explainBtn);
+
+    ciGlossResult.appendChild(actionsRow);
+
+    const explainBox = document.createElement('div');
+    explainBox.style.cssText = 'margin-top:6px;';
+    ciGlossResult.appendChild(explainBox);
+}
+
+// ĐÃ THÊM: đường CHẬM HƠN (vẫn dùng Gemini, model nhẹ gemini-3.5-flash-lite ở Backend) — chỉ gọi khi
+// người học chủ động bấm, dùng cho từ đa nghĩa cần phân biệt đúng nghĩa theo câu. KHÔNG tạo thêm thẻ
+// SRS (thẻ đã được tạo từ lần tra nhanh trước đó, tránh trùng).
+async function requestCIContextExplanation(word, contextSentence, btnEl) {
+    const originalHtml = btnEl.innerHTML;
+    btnEl.disabled = true;
+    btnEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang giải thích...';
+
+    const payload = {
+        action: 'explain_word_in_context',
+        word: word,
+        contextSentence: contextSentence,
+        language: langSelect.value,
+        skill: currentSkill
+    };
+    const result = await callBackendAPI(payload, '', false);
+
+    btnEl.disabled = false;
+    btnEl.innerHTML = originalHtml;
+    btnEl.style.display = 'none'; // đã giải thích xong, ẩn nút để tránh gọi lại nhiều lần không cần thiết
+
+    const explainBox = btnEl.parentElement?.nextElementSibling;
+    if (!explainBox) return;
+    explainBox.innerHTML = '';
+
+    if (!result) {
+        const errEl = document.createElement('div');
+        errEl.style.cssText = 'color:#e74c3c; font-size:0.85em;';
+        errEl.textContent = 'Giải thích thất bại, thử lại nhé.';
+        explainBox.appendChild(errEl);
+        return;
+    }
+
+    const posLine = document.createElement('div');
+    posLine.style.cssText = 'font-size:0.85em; color:#8e44ad;';
+    posLine.textContent = (result.part_of_speech ? '(' + result.part_of_speech + ') ' : '') + (result.translation || '');
+    explainBox.appendChild(posLine);
 
     if (result.note) {
         const noteLine = document.createElement('div');
-        noteLine.style.cssText = 'color:#7f8c8d; font-size:0.85em; font-style:italic; margin-bottom:6px;';
+        noteLine.style.cssText = 'color:#7f8c8d; font-size:0.82em; font-style:italic; margin-top:2px;';
         noteLine.textContent = result.note;
-        ciGlossResult.appendChild(noteLine);
+        explainBox.appendChild(noteLine);
     }
-
-    const srsNote = document.createElement('div');
-    srsNote.style.cssText = 'color:#27ae60; font-size:0.8em;';
-    srsNote.innerHTML = '<i class="fas fa-check"></i> Đã thêm vào ôn tập SRS.';
-    ciGlossResult.appendChild(srsNote);
-
-    refreshSrsDueCount(); // ĐÃ THÊM: cập nhật ngay badge số thẻ cần ôn (mỗi lần tra từ tạo thêm 1 thẻ)
 }
 
 // ĐÃ THÊM: "Xong bài này" — lưu 1 bản ghi TỐI GIẢN vào Lịch sử (không có điểm số/assessment chấm
