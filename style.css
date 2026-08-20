@@ -13,8 +13,11 @@
        "--bg-color" GIỮ NGUYÊN #f4f7f6 y hệt trước đây, topbar (#area-nav dùng --panel-bg + .area-nav-btn
        dùng --bg-color) không đổi gì — vẫn nổi bật/tách bạch nhờ nền trắng + viền dưới như cũ. Từng panel
        (sidebar-left/main-content/sidebar-right) vẫn giữ khung trắng (--panel-bg) + box-shadow như cũ để
-       phân biệt với nhau, CHỈ có khoảng nền phía sau chúng là đổi từ xám sang trắng. */
-    --page-bg: #ffffff;
+       phân biệt với nhau, CHỈ có khoảng nền phía sau chúng là đổi từ xám sang trắng.
+       ĐÃ SỬA (phản hồi "muốn 1 texture kiểu trang giấy vở học sinh — caro/dòng kẻ mờ mờ, hơi xám, đỡ
+       mỏi mắt hơn nền đơn sắc"): "--page-bg" đổi từ trắng tinh (#ffffff) sang trắng ngà rất nhạt
+       (#fbfbfa, gần như không nhận ra bằng mắt thường) — nền cơ sở dưới texture, xem "body" bên dưới. */
+    --page-bg: #fbfbfa;
 }
 
 * {
@@ -24,8 +27,15 @@
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
+/* ĐÃ THÊM (texture "trang giấy vở học sinh" — phương án 3/4 người dùng chọn: lưới chấm bi/dot grid,
+   vẽ thuần bằng CSS radial-gradient, không cần file ảnh nào). Chấm rất nhỏ (1px, độ đậm 11%) lặp lại
+   mỗi 20px — đủ mờ để không cạnh tranh với chữ/nội dung, nhưng vẫn tạo cảm giác "trang giấy" đỡ đơn điệu
+   hơn hẳn màu phẳng 1 khối trước đây. Khung panel trắng (--panel-bg, sidebar-left/main-content/
+   sidebar-right) đè lên trên texture này nên vẫn đọc rõ ràng, không bị chấm bi làm rối. */
 body {
     background-color: var(--page-bg);
+    background-image: radial-gradient(rgba(0, 0, 0, 0.11) 1px, transparent 1.4px);
+    background-size: 20px 20px;
     color: var(--text-color);
 }
 
