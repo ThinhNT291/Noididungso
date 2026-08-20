@@ -807,19 +807,25 @@
         verifyAndStartSession(response.credential);
     }
 
-    function initGsiButton() {
+      function initGsiButton() {
         if (!window.google || !google.accounts || !google.accounts.id) {
             // Script GSI (thẻ <script> ở <head>) có thể chưa tải kịp — thử lại sau 300ms
             setTimeout(initGsiButton, 300);
             return;
         }
-           });
-           });
-        google.accounts.id.prompt();
+        google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            callback: handleGoogleCredentialResponse,
+            auto_select: true
+        });
+        google.accounts.id.renderButton(document.getElementById('g_id_signin'), {
+            theme: 'outline', size: 'large', text: 'signin_with', shape: 'pill'
+        });
     }
 
     document.addEventListener('DOMContentLoaded', () => {
         initGsiButton();
+
 
         // Thử khôi phục phiên cũ trong sessionStorage (cùng tab, chưa đóng trình duyệt) —
         // vẫn phải xác thực lại với Backend vì idToken có thể đã hết hạn.
