@@ -5,6 +5,16 @@
     --record-color: #e74c3c;
     --text-color: #333333;
     --border-color: #e0e0e0;
+    /* ĐÃ THÊM (phản hồi "bỏ background cho phần bên dưới, topbar vẫn giữ nền để tách bạch"): tách
+       riêng màu nền TRANG (phần dưới #area-nav — bao gồm khoảng trống quanh 3 cột sidebar-left/
+       main-content/sidebar-right) ra khỏi "--bg-color" cũ, vì "--bg-color" còn đang được dùng làm màu
+       nền nghỉ (resting) của .area-nav-btn (topbar) — nếu đổi thẳng "--bg-color" thì nút topbar cũng bị
+       đổi theo ngoài ý muốn. "--page-bg" = trắng (bỏ hẳn sắc xám #f4f7f6 cũ) để phần dưới phẳng hơn;
+       "--bg-color" GIỮ NGUYÊN #f4f7f6 y hệt trước đây, topbar (#area-nav dùng --panel-bg + .area-nav-btn
+       dùng --bg-color) không đổi gì — vẫn nổi bật/tách bạch nhờ nền trắng + viền dưới như cũ. Từng panel
+       (sidebar-left/main-content/sidebar-right) vẫn giữ khung trắng (--panel-bg) + box-shadow như cũ để
+       phân biệt với nhau, CHỈ có khoảng nền phía sau chúng là đổi từ xám sang trắng. */
+    --page-bg: #ffffff;
 }
 
 * {
@@ -15,7 +25,7 @@
 }
 
 body {
-    background-color: var(--bg-color);
+    background-color: var(--page-bg);
     color: var(--text-color);
 }
 
@@ -492,3 +502,46 @@ h4 { font-size: 1.05em; }
    trong app nên KHÔNG đụng tới rule chung đó). Cursor vẫn "not-allowed" (thừa hưởng từ rule chung) để
    vẫn còn tín hiệu là đã khoá, chỉ bỏ phần làm mờ màu. */
 #grammar-exercise-list button:disabled { opacity: 1; }
+
+/* ĐÃ THÊM (khu "Học" — Lý thuyết chia 2 cột "Cách dùng" | "Ví dụ"): nghiên cứu đọc-hiểu cho thấy đoạn
+   văn quá rộng (measure quá dài) làm giảm khả năng duy trì đọc — chia cột giúp mỗi đoạn giải thích/ví
+   dụ có bề rộng vừa phải hơn. CHỈ áp dụng cho khối "usages" (cách dùng) — từ Công thức trở xuống
+   (formulas/signalWords/commonMistakes) GIỮ NGUYÊN bố cục 1 cột như cũ (xem renderGrammarTopic() ở
+   app.js), vì các khối đó vốn đã ngắn/dạng danh sách, không có vấn đề "đoạn văn quá rộng". Tự động gộp
+   về 1 cột trên điện thoại/tablet (viewport <= 820px, ngưỡng tablet portrait phổ biến) — xem media query
+   bên dưới. */
+.grammar-usage-block {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 4px 20px;
+}
+.grammar-usage-col-left { min-width: 0; }
+.grammar-usage-col-right { min-width: 0; border-left: 1px solid #eee; padding-left: 16px; }
+@media (max-width: 820px) {
+    .grammar-usage-block { grid-template-columns: 1fr; gap: 8px; }
+    .grammar-usage-col-right { border-left: none; padding-left: 0; padding-top: 8px; border-top: 1px dashed #eee; }
+}
+
+/* ĐÃ THÊM (khu "Học" — Công thức + Lỗi thường gặp dùng markdown/bullet cho dễ đọc): tái dùng đúng
+   safeMarkdown() (marked.js + DOMPurify) đã có sẵn trong app cho các chỗ khác — xem renderGrammarTopic()
+   ở app.js. Style lại các thẻ chuẩn marked.js sinh ra (ul/li/strong/code/p) cho khớp cỡ chữ/màu sắc nhỏ
+   gọn của khối lý thuyết (mặc định marked.js dùng cỡ chữ to hơn, margin rộng hơn kiểu bài viết dài, không
+   hợp với khối lý thuyết nhỏ gọn này). */
+.grammar-markdown-block p { font-size: 0.9em; margin-bottom: 6px; }
+.grammar-markdown-block p:last-child { margin-bottom: 0; }
+.grammar-markdown-block ul, .grammar-markdown-block ol { font-size: 0.9em; padding-left: 1.3em; margin: 0; }
+.grammar-markdown-block li { margin-bottom: 6px; }
+.grammar-markdown-block li:last-child { margin-bottom: 0; }
+.grammar-markdown-block code { background: rgba(0,0,0,0.06); padding: 1px 5px; border-radius: 4px; font-size: 0.95em; }
+.grammar-markdown-block strong { color: inherit; }
+
+/* ĐÃ THÊM (khu "Học" — giải thích riêng từng đáp án A/B/C/D trong Quick Quiz, ÁP DỤNG TỪ CHUYÊN ĐỀ 12
+   TRỞ ĐI — xem ghi chú "choiceExplanations" đầu Data_GrammarTopicBank.gs): mỗi dòng giải thích 1 đáp án,
+   tô đậm/đổi màu nhẹ dòng đáp án ĐÚNG để dễ phân biệt giữa 4 dòng liền nhau. Bài tập cũ (11 chuyên đề
+   hiện có) KHÔNG có field này nên vẫn hiện 1 đoạn giải thích chung như trước (xem selectGrammarAnswer()/
+   selectLegendaryAnswer() ở app.js — có kiểm tra tồn tại choiceExplanations trước khi dùng layout này). */
+.grammar-choice-explanations { display: flex; flex-direction: column; gap: 6px; }
+.grammar-choice-explain-row { font-size: 0.85em; color: #555; padding: 6px 8px; border-radius: 6px; background: #f8f9fa; }
+.grammar-choice-explain-row .choice-letter { font-weight: bold; margin-right: 4px; }
+.grammar-choice-explain-row.is-correct { background: #eafaf1; color: #1e6b3c; }
+.grammar-choice-explain-row.is-correct .choice-letter { color: #1e8449; }

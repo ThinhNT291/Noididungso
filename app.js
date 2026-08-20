@@ -3480,28 +3480,49 @@ function renderGrammarTopic(data) {
         // (nhãn cấp độ dễ gây hiểu nhầm, bài tập trong CÙNG 1 chuyên đề đã trải dài nhiều mức khó khác nhau).
         let html = `<h3 style="color:#d35400; margin-top:0;"><i class="fas fa-book"></i> Lý thuyết: ${escapeHtml(data.title || '')}</h3>`;
 
+        // ĐÃ SỬA (phản hồi "chia 2 cột cho khối cách dùng — trái lý thuyết, phải ví dụ, tự gộp 1 cột ở
+        // điện thoại/tablet"): dùng class .grammar-usage-block (grid 2 cột, xem style.css) thay vì 1
+        // khối dọc như trước. CHỈ áp dụng cho "usages" — từ Công thức trở xuống vẫn 1 cột như cũ.
         (theory.usages || []).forEach((u, i) => {
             html += `
-                <div class="reveal-on-scroll" id="theory-usage-${escapeHtml(u.tagId || '')}" style="margin-bottom:14px; padding:10px 12px; background:#fdfdfd; border:1px solid #eee; border-radius:8px;">
-                    <div style="font-weight:bold; color:#2c3e50; margin-bottom:4px;">${i + 1}. ${escapeHtml(u.label || '')}</div>
-                    <div style="font-size:0.92em; color:#555; margin-bottom:6px;">${escapeHtml(u.explanationVi || '')}</div>
-                    ${(u.examples || []).map(ex => `
-                        <div style="font-size:0.9em; margin-bottom:3px;">
-                            <span style="color:#2980b9;">${escapeHtml(ex.en || '')}</span>
-                            <span style="color:#7f8c8d;"> — ${escapeHtml(ex.vi || '')}</span>
-                        </div>
-                    `).join('')}
+                <div class="reveal-on-scroll grammar-usage-block" id="theory-usage-${escapeHtml(u.tagId || '')}" style="margin-bottom:14px; padding:10px 12px; background:#fdfdfd; border:1px solid #eee; border-radius:8px;">
+                    <div class="grammar-usage-col-left">
+                        <div style="font-weight:bold; color:#2c3e50; margin-bottom:4px;">${i + 1}. ${escapeHtml(u.label || '')}</div>
+                        <div style="font-size:0.92em; color:#555;">${escapeHtml(u.explanationVi || '')}</div>
+                    </div>
+                    <div class="grammar-usage-col-right">
+                        ${(u.examples || []).map(ex => `
+                            <div style="font-size:0.9em; margin-bottom:3px;">
+                                <span style="color:#2980b9;">${escapeHtml(ex.en || '')}</span>
+                                <span style="color:#7f8c8d;"> — ${escapeHtml(ex.vi || '')}</span>
+                            </div>
+                        `).join('')}
+                    </div>
                 </div>
             `;
         });
+
+        // ĐÃ SỬA (phản hồi "bổ sung markdown, bullet cho Công thức/Lỗi thường gặp dễ đọc hơn"): tái dùng
+        // safeMarkdown() (marked.js + DOMPurify, xem ghi chú đầu file) thay vì escapeHtml() thô như trước
+        // — cho phép hiện bullet/đậm/code thật (thẻ ul/li/strong/code chuẩn), không phải giả lập bằng
+        // nhiều <div> xếp chồng như cũ. Với "formulas": các chuyên đề CŨ có field chứa nhiều biến thể nối
+        // bằng " | " (vd "I/You/We/They + V | He/She/It + V-s/es...") — tự tách thành list "- " trước khi
+        // đưa qua safeMarkdown() để mỗi biến thể ra 1 dòng <li> riêng (không cần sửa dữ liệu cũ); field
+        // không có " | " thì giữ nguyên render như 1 đoạn văn (không đổi so với trước). Chuyên đề MỚI
+        // (từ đợt sau) có thể tự viết cú pháp markdown thật (**đậm**, `code`, dòng bắt đầu "- ") ngay
+        // trong nội dung để chủ động định dạng đẹp hơn.
+        const grammarFormulaToMarkdown_ = (text) => {
+            if (!text) return '';
+            return text.includes(' | ') ? text.split(' | ').map(part => '- ' + part).join('\n') : text;
+        };
 
         if (theory.formulas) {
             html += `
                 <div class="reveal-on-scroll" style="margin-bottom:14px; padding:10px 12px; background:#fff8f0; border:1px solid #fde3cf; border-radius:8px;">
                     <div style="font-weight:bold; color:#d35400; margin-bottom:6px;"><i class="fas fa-calculator"></i> Công thức</div>
-                    <div style="font-size:0.9em; margin-bottom:3px;">Khẳng định: <code>${escapeHtml(theory.formulas.affirmative || '')}</code></div>
-                    <div style="font-size:0.9em; margin-bottom:3px;">Phủ định: <code>${escapeHtml(theory.formulas.negative || '')}</code></div>
-                    <div style="font-size:0.9em;">Nghi vấn: <code>${escapeHtml(theory.formulas.question || '')}</code></div>
+                    <div class="grammar-markdown-block" style="margin-bottom:4px;"><strong style="font-size:0.9em;">Khẳng định:</strong> ${safeMarkdown(grammarFormulaToMarkdown_(theory.formulas.affirmative))}</div>
+                    <div class="grammar-markdown-block" style="margin-bottom:4px;"><strong style="font-size:0.9em;">Phủ định:</strong> ${safeMarkdown(grammarFormulaToMarkdown_(theory.formulas.negative))}</div>
+                    <div class="grammar-markdown-block"><strong style="font-size:0.9em;">Nghi vấn:</strong> ${safeMarkdown(grammarFormulaToMarkdown_(theory.formulas.question))}</div>
                 </div>
             `;
         }
@@ -3519,7 +3540,7 @@ function renderGrammarTopic(data) {
             html += `
                 <div class="reveal-on-scroll" style="padding:10px 12px; background:#fdecea; border:1px solid #f5b7b1; border-radius:8px;">
                     <div style="font-weight:bold; color:#c0392b; margin-bottom:6px;"><i class="fas fa-exclamation-triangle"></i> Lỗi thường gặp</div>
-                    ${theory.commonMistakes.map(m => `<div style="font-size:0.88em; margin-bottom:6px;">${escapeHtml(m)}</div>`).join('')}
+                    <div class="grammar-markdown-block">${safeMarkdown(theory.commonMistakes.map(m => '- ' + m).join('\n'))}</div>
                 </div>
             `;
         }
@@ -3588,6 +3609,42 @@ function revealGrammarExerciseBox() {
     grammarExerciseBox?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+// ĐÃ THÊM (phản hồi "giải thích riêng từng đáp án A/B/C/D thay vì 1 đoạn giải thích chung", ÁP DỤNG TỪ
+// CHUYÊN ĐỀ 12 TRỞ ĐI — xem ghi chú "choiceExplanations" đầu Data_GrammarTopicBank.gs): dùng CHUNG cho
+// cả 2 chế độ (thường lẫn "Nhức đầu") vì cùng 1 cách hiện. Field mới "ex.choiceExplanations" (mảng cùng
+// độ dài với "ex.choices", mỗi phần tử là lời giải thích cho ĐÚNG đáp án ở vị trí đó — vì sao đúng/vì
+// sao sai) là OPTIONAL: 330 bài tập của 11 chuyên đề hiện có KHÔNG có field này (chưa retrofit — xem ghi
+// chú đầu Data_GrammarTopicBank.gs) nên tự động rơi về nhánh cũ (1 đoạn "ex.explanation" chung như trước
+// giờ, không đổi gì với người học đang luyện 11 chuyên đề đó).
+function renderGrammarExplanationBox_(ex, explanationBox) {
+    explanationBox.innerHTML = ''; // dọn sạch trước khi tự dựng lại (an toàn XSS)
+    const hasPerChoice = Array.isArray(ex.choiceExplanations) && ex.choiceExplanations.length === (ex.choices || []).length;
+
+    if (hasPerChoice) {
+        const wrap = document.createElement('div');
+        wrap.className = 'grammar-choice-explanations';
+        ex.choiceExplanations.forEach((text, i) => {
+            const row = document.createElement('div');
+            row.className = 'grammar-choice-explain-row' + (i === ex.correctIndex ? ' is-correct' : '');
+            const letter = document.createElement('span');
+            letter.className = 'choice-letter';
+            letter.textContent = String.fromCharCode(65 + i) + '.';
+            row.appendChild(letter);
+            const body = document.createElement('span');
+            body.textContent = text || '';
+            row.appendChild(body);
+            wrap.appendChild(row);
+        });
+        explanationBox.appendChild(wrap);
+        explanationBox.classList.remove('hidden');
+    } else {
+        const explanationText = document.createElement('span');
+        explanationText.textContent = ex.explanation || '';
+        explanationBox.appendChild(explanationText);
+        explanationBox.classList.toggle('hidden', !ex.explanation);
+    }
+}
+
 // Chấm tức thì tại Client: ex đã có sẵn correctIndex/explanation (xem Controller_GrammarTopic.gs).
 // ĐÃ SỬA (Bước 4 — gom nhóm lỗi sai theo tag): ghi 1 sự kiện trả lời cho MỌI câu (đúng lẫn sai, xem
 // logGrammarAnswer_) để streak/heatmap khu "Học" tính đủ mọi lượt luyện tập, không chỉ lúc sai như đợt
@@ -3606,11 +3663,7 @@ function selectGrammarAnswer(ex, cIndex, choicesWrap, explanationBox) {
     });
 
     if (explanationBox) {
-        explanationBox.innerHTML = ''; // dọn sạch trước khi tự dựng lại bằng textContent/appendChild bên dưới (an toàn XSS)
-        const explanationText = document.createElement('span');
-        explanationText.textContent = ex.explanation || '';
-        explanationBox.appendChild(explanationText);
-        explanationBox.classList.toggle('hidden', !ex.explanation);
+        renderGrammarExplanationBox_(ex, explanationBox);
     }
 
     grammarAnsweredCount++;
@@ -3767,11 +3820,7 @@ function selectLegendaryAnswer(ex, cIndex, choicesWrap, explanationBox) {
     });
 
     if (explanationBox) {
-        explanationBox.innerHTML = '';
-        const explanationText = document.createElement('span');
-        explanationText.textContent = ex.explanation || '';
-        explanationBox.appendChild(explanationText);
-        explanationBox.classList.toggle('hidden', !ex.explanation);
+        renderGrammarExplanationBox_(ex, explanationBox);
     }
 
     grammarLegendaryAnswered++;

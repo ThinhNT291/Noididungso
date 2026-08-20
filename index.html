@@ -25,12 +25,6 @@
             <p style="color:#7f8c8d; margin-bottom: 20px;">Đăng nhập để sử dụng công cụ.</p>
             <div id="login-gate-message" style="min-height: 20px; margin-bottom: 15px; font-weight: bold; color:#e74c3c;"></div>
             <div style="display:flex; justify-content:center; align-items:center; gap:14px; flex-wrap:wrap;">
-                <div id="g_id_onload"
-     data-client_id="311965248456-01ts8h9g6tuj0slob58n8vrfm091c4u7.apps.googleusercontent.com"
-     data-callback="handleGoogleCredentialResponse"
-     data-auto_select="true">
-</div>
-<div id="g_id_signin" style="display: inline-flex; justify-content: center;"></div>
                 <div id="g_id_signin" style="display: inline-flex; justify-content: center;"></div>
                 <!-- ĐÃ THÊM: nút "Request access" — dành cho tài khoản Google chưa nằm trong whitelist,
                      bấm vào sẽ mở lại hộp thoại chọn tài khoản Google rồi gửi yêu cầu cấp quyền lên Backend. -->
@@ -807,7 +801,7 @@
         verifyAndStartSession(response.credential);
     }
 
-      function initGsiButton() {
+    function initGsiButton() {
         if (!window.google || !google.accounts || !google.accounts.id) {
             // Script GSI (thẻ <script> ở <head>) có thể chưa tải kịp — thử lại sau 300ms
             setTimeout(initGsiButton, 300);
@@ -825,7 +819,6 @@
 
     document.addEventListener('DOMContentLoaded', () => {
         initGsiButton();
-
 
         // Thử khôi phục phiên cũ trong sessionStorage (cùng tab, chưa đóng trình duyệt) —
         // vẫn phải xác thực lại với Backend vì idToken có thể đã hết hạn.
