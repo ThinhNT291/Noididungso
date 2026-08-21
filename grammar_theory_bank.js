@@ -1,24 +1,20 @@
 /**
  * =================================================================
  * BUNDLE TĨNH: LÝ THUYẾT NGỮ PHÁP (khu "Học") — sinh TỰ ĐỘNG, KHÔNG sửa tay file này (mọi thay đổi sẽ
- * mất khi sinh lại). Kể từ đợt migration Drive JSON, nguồn build KHÔNG còn là Data_GrammarTopicBank.gs
- * (file đó giờ chỉ còn GRAMMAR_TOPIC_INDEX — metadata, không còn theory/exercises) — nguồn build giờ là:
- * (1) theory của các chuyên đề ĐÃ CÓ TRƯỚC migration (giữ nguyên, không đổi nội dung), gộp với (2) theory
- * của MỖI ĐỢT chuyên đề mới soạn thẳng theo kiến trúc Drive (vd lô 5: Present Perfect Continuous/Tag
- * Questions/Mệnh đề trạng ngữ — xem Seed_GrammarBatch5.gs). Từ nay mỗi đợt thêm chuyên đề mới PHẢI cập
- * nhật lại bundle này (gộp thêm theory chuyên đề mới) rồi deploy lại lên GitHub Pages CÙNG LÚC với
- * app.js — nếu quên, chuyên đề đó rơi về đường dự phòng (gọi mạng qua get_grammar_topic như cũ, xem
- * startGrammarTopicSession() trong app.js), KHÔNG vỡ tính năng, chỉ mất tác dụng "nhanh hơn" cho đúng
- * chuyên đề bị thiếu.
+ * mất khi sinh lại). Nguồn build: (1) theory của các chuyên đề ĐÃ CÓ TRƯỚC migration Drive JSON (giữ
+ * nguyên), gộp với (2) theory của MỖI ĐỢT chuyên đề mới soạn thẳng theo kiến trúc Drive (lô 5: Present
+ * Perfect Continuous/Tag Questions/Mệnh đề trạng ngữ; lô 6: Subjunctive/Pronouns & Determiners/Adjective
+ * & Adverb Order — xem Seed_GrammarBatch5.gs/Seed_GrammarBatch6.gs). Từ nay mỗi đợt thêm chuyên đề mới
+ * PHẢI cập nhật lại bundle này rồi deploy lại lên GitHub Pages CÙNG LÚC với app.js — nếu quên, chuyên đề
+ * đó rơi về đường dự phòng (gọi mạng qua get_grammar_topic như cũ), KHÔNG vỡ tính năng, chỉ mất tác dụng
+ * "nhanh hơn" cho đúng chuyên đề bị thiếu.
  *
  * LÝ DO CÓ FILE NÀY (phản hồi người dùng "lý thuyết giống hệt mỗi lần mở, sao không cache offline cho
- * nhanh, chỉ bài tập cần request để bốc ngẫu nhiên"): theory không hề đổi giữa các lần mở (chỉ đổi khi
- * sửa nội dung + deploy lại), nên phần chờ mạng cho theory là lãng phí. File này là 1 bản sao TĨNH của
- * field "theory" (+ id/title/level/order/category) của TOÀN BỘ chuyên đề, nạp cùng lúc với app.js (KHÔNG
- * qua mạng) — Frontend đọc thẳng từ đây, hiện lý thuyết GẦN NHƯ TỨC THÌ khi bấm vào 1 chuyên đề. Field
- * "exercises" bị CỐ Ý bỏ khỏi bundle này — bài tập vẫn phải gọi mạng qua get_grammar_exercises để Server
- * bốc ngẫu nhiên 10/30 câu mỗi lượt (giữ cơ chế "chống học vẹt") — nếu gộp cả 30 câu (kèm correctIndex)
- * vào bundle tĩnh này thì lộ hết đáp án qua DevTools/Network tab.
+ * nhanh, chỉ bài tập cần request để bốc ngẫu nhiên"): theory không hề đổi giữa các lần mở, nên phần chờ
+ * mạng cho theory là lãng phí. File này là 1 bản sao TĨNH của field "theory" (+ id/title/level/order/
+ * category) của TOÀN BỘ chuyên đề, nạp cùng lúc với app.js (KHÔNG qua mạng) — Frontend đọc thẳng từ đây.
+ * Field "exercises" bị CỐ Ý bỏ khỏi bundle này — bài tập vẫn phải gọi mạng qua get_grammar_exercises để
+ * Server bốc ngẫu nhiên 10/30 câu mỗi lượt (giữ cơ chế "chống học vẹt"), tránh lộ đáp án qua DevTools.
  * =================================================================
  */
 const GRAMMAR_THEORY_BANK = {
@@ -2701,6 +2697,512 @@ const GRAMMAR_THEORY_BANK = {
           "Muốn dùng 'despite/in spite of' trước một mệnh đề đầy đủ nhưng quên thêm cụm nối 'the fact that'. Sai: `In spite of she had no experience, she got the job.` **ĐÚNG**: `In spite of the fact that she had no experience, she got the job.` (hoặc đơn giản hơn: `Although she had no experience, she got the job.`)",
           "Nhầm lẫn giữa 'so' (đứng trước tính từ/trạng từ đơn thuần) và 'such' (đứng trước cụm danh từ, có thể kèm mạo từ). Sai: `It was so an interesting movie that we watched it twice.` **ĐÚNG**: `It was such an interesting movie that we watched it twice.` (hoặc nếu bỏ danh từ: `The movie was so interesting that we watched it twice.`)",
           "Dùng động từ nguyên mẫu 'to' để diễn tả mục đích dù chủ ngữ của hai mệnh đề khác nhau. Sai: `I turned on the fan to my brother could cool down.` **ĐÚNG**: `I turned on the fan so that my brother could cool down.`"
+        ]
+      }
+    },
+    "subjunctive": {
+      "id": "subjunctive",
+      "title": "Câu giả định (Subjunctive: wish, if only, would rather, it's time...)",
+      "level": "B2",
+      "order": 21,
+      "category": "sentence-structure",
+      "theory": {
+        "usages": [
+          {
+            "label": "Wish + quá khứ đơn (ước về hiện tại)",
+            "explanationVi": "\"Wish + S + quá khứ đơn\" diễn tả ước muốn về một điều KHÔNG CÓ THẬT ở HIỆN TẠI, cấu trúc này chính là \"bản sao\" của mệnh đề if trong câu điều kiện loại 2 (unreal present: if + quá khứ đơn), chỉ khác là đặt sau \"wish\" thay vì \"if\". Ví dụ: \"If I had more time, I would travel more\" (điều kiện) ~ \"I wish I had more time\" (ước muốn). Vì diễn tả điều trái với thực tế hiện tại, động từ TO BE nên dùng \"were\" cho mọi ngôi (kể cả I/he/she) trong văn phong trang trọng, chuẩn mực: \"I wish I were taller\" chứ không phải \"I wish I was taller\" (dù \"was\" vẫn được chấp nhận trong văn nói thân mật). Cấu trúc này KHÔNG dùng để phàn nàn về hành vi của người khác (xem usage \"wish + would\" bên dưới) và cũng không dùng để diễn tả tiếc nuối về quá khứ (xem usage tiếp theo).",
+            "examples": [
+              {
+                "en": "I wish I had a bigger apartment.",
+                "vi": "Tôi ước gì mình có một căn hộ rộng hơn."
+              },
+              {
+                "en": "He wishes he spoke Japanese.",
+                "vi": "Anh ấy ước gì mình biết nói tiếng Nhật."
+              },
+              {
+                "en": "I wish I were on a beach right now instead of sitting in this office.",
+                "vi": "Tôi ước gì bây giờ mình đang ở trên bãi biển thay vì ngồi trong văn phòng này."
+              }
+            ],
+            "tagId": "subjunctive-u1-wish-present"
+          },
+          {
+            "label": "Wish + quá khứ hoàn thành (tiếc nuối quá khứ)",
+            "explanationVi": "\"Wish + S + quá khứ hoàn thành\" (had + V3/ed) diễn tả sự tiếc nuối về một điều đã KHÔNG XẢY RA (hoặc đã xảy ra không như mong muốn) trong QUÁ KHỨ — điều này không thể thay đổi được nữa. Cấu trúc song song hoàn toàn với mệnh đề if của câu điều kiện loại 3 (unreal past: if + had + V3): \"If I had studied harder, I would have passed\" ~ \"I wish I had studied harder.\" Điểm khác biệt cốt lõi với usage \"wish + quá khứ đơn\" ở trên là MỐC THỜI GIAN của điều được ước: quá khứ đơn dùng cho việc ước về HIỆN TẠI, còn quá khứ hoàn thành dùng cho việc ước về một thời điểm ĐÃ QUA, thường đi kèm các mốc thời gian như \"last month\", \"back then\", \"yesterday\". Thể phủ định \"hadn't\" thường xuất hiện khi diễn tả tiếc nuối về việc đã LÀM một điều gì đó mà giờ đây ước gì đừng làm.",
+            "examples": [
+              {
+                "en": "I wish I had listened to my parents' advice when I was younger.",
+                "vi": "Tôi ước gì mình đã nghe lời khuyên của bố mẹ khi còn trẻ."
+              },
+              {
+                "en": "She wishes she hadn't quit her job so suddenly.",
+                "vi": "Cô ấy ước gì mình đã không nghỉ việc một cách đột ngột như vậy."
+              }
+            ],
+            "tagId": "subjunctive-u2-wish-past"
+          },
+          {
+            "label": "Wish + would (phàn nàn về người/vật khác)",
+            "explanationVi": "\"Wish + S + would\" dùng để phàn nàn/khó chịu về hành vi hay thói quen LẶP LẠI của NGƯỜI KHÁC hoặc SỰ VẬT (thời tiết, máy móc...) ở hiện tại mà người nói muốn nó THAY ĐỔI hoặc DỪNG LẠI, thể hiện cảm xúc bực bội, sốt ruột — HOẶC để bày tỏ sự sốt ruột/mong đợi một SỰ KIỆN CỤ THỂ, chỉ xảy ra một lần, mà người nói không kiểm soát được (vd mong xe buýt mau đến), miễn chủ thể vẫn là người/vật KHÁC người nói. Ba giới hạn quan trọng cần nhớ (đây là điểm hay bị hỏi trong đề thi): (1) KHÔNG dùng \"wish + would\" cho chính hành động hay khả năng của NGƯỜI NÓI — chủ ngữ \"I\" không thể tự ước bản thân mình bằng \"would\", phải dùng \"wish + could\" (khả năng) hoặc \"wish + quá khứ đơn\" (trạng thái); (2) KHÔNG dùng cho các ĐỘNG TỪ TRẠNG THÁI (stative verbs: be, know, like, love, understand...) hay sự thật/tình trạng chung chung — trường hợp này quay lại dùng \"wish + quá khứ đơn\"; (3) chủ thể được nhắc tới sau \"would\" phải khác với người nói — đây luôn là lời phàn nàn hướng RA NGOÀI, không hướng vào bản thân.",
+            "examples": [
+              {
+                "en": "I wish you would stop interrupting me when I'm talking.",
+                "vi": "Tôi ước gì bạn ngừng ngắt lời tôi khi tôi đang nói."
+              },
+              {
+                "en": "I wish it would stop raining so we could go outside.",
+                "vi": "Tôi ước gì trời ngừng mưa để chúng ta có thể ra ngoài."
+              }
+            ],
+            "tagId": "subjunctive-u3-wish-would"
+          },
+          {
+            "label": "If only (nhấn mạnh hơn wish)",
+            "explanationVi": "\"If only\" mang cùng ba cấu trúc như \"wish\" (S + quá khứ đơn cho hiện tại, S + quá khứ hoàn thành cho quá khứ, S + would cho sự khó chịu/mong thay đổi) nhưng mang SẮC THÁI CẢM XÚC MẠNH HƠN, thể hiện sự tiếc nuối hoặc khao khát tha thiết hơn \"wish\" — thường dùng trong văn nói giàu cảm xúc hoặc văn viết trang trọng. Một điểm khác biệt về CÚ PHÁP đáng chú ý: \"if only\" có thể ĐỨNG MỘT MÌNH tạo thành câu cảm thán hoàn chỉnh (thường kết thúc bằng dấu chấm than), không cần mệnh đề chính đi kèm, trong khi \"wish\" luôn cần một mệnh đề chính \"S + wish\" phía trước để câu có nghĩa trọn vẹn. Ví dụ: \"If only I had more money!\" là một câu hoàn chỉnh, tự nhiên; còn muốn diễn đạt tương tự bằng wish thì bắt buộc phải có \"I wish I had more money.\"",
+            "examples": [
+              {
+                "en": "If only I hadn't lost my temper at the meeting.",
+                "vi": "Giá như tôi đã không nổi nóng trong cuộc họp đó."
+              },
+              {
+                "en": "If only she would answer her phone!",
+                "vi": "Giá như cô ấy chịu nghe điện thoại!"
+              },
+              {
+                "en": "If only I knew the answer to this question.",
+                "vi": "Giá như tôi biết câu trả lời cho câu hỏi này."
+              }
+            ],
+            "tagId": "subjunctive-u4-if-only"
+          },
+          {
+            "label": "Would rather (sở thích bản thân vs mong muốn ở người khác)",
+            "explanationVi": "\"Would rather\" (thường viết tắt 'd rather) diễn tả sự ưa thích/lựa chọn hơn giữa hai điều, và có HAI cấu trúc cần phân biệt rõ ràng tùy vào chủ thể của hành động được nói tới. (1) Khi nói về sở thích của CHÍNH NGƯỜI NÓI (chủ ngữ ngầm định giống nhau ở cả hai vế), dùng \"would rather + V nguyên mẫu không to\": \"I would rather stay home tonight.\" (2) Khi người nói bày tỏ mong muốn về hành động của MỘT NGƯỜI KHÁC (chủ ngữ khác nhau), dùng \"would rather + S + quá khứ đơn\" để nói về hiện tại/tương lai gần (\"I would rather you left now\" = ý muốn ngay bây giờ, KHÔNG mang nghĩa quá khứ thực), hoặc \"would rather + S + quá khứ hoàn thành\" để nói về một việc đã xảy ra trong quá khứ (\"I would rather you hadn't told him\"). Đây chính là điểm gây nhầm lẫn nhất: quá khứ đơn ở cấu trúc thứ hai KHÔNG mang nghĩa quá khứ, giống hệt logic của \"wish + quá khứ đơn\". Phủ định của dạng nguyên mẫu là \"would rather not + V\".",
+            "examples": [
+              {
+                "en": "I would rather eat at home than go to a restaurant tonight.",
+                "vi": "Tôi thà ăn ở nhà còn hơn là đi ăn nhà hàng tối nay."
+              },
+              {
+                "en": "I would rather you didn't smoke in the house.",
+                "vi": "Tôi mong bạn đừng hút thuốc trong nhà."
+              },
+              {
+                "en": "I would rather you had told me the truth from the start.",
+                "vi": "Tôi ước gì bạn đã nói thật với tôi ngay từ đầu."
+              }
+            ],
+            "tagId": "subjunctive-u5-would-rather"
+          },
+          {
+            "label": "It's (high/about) time + quá khứ đơn",
+            "explanationVi": "Cấu trúc \"It's (about/high) time + S + quá khứ đơn\" dùng để PHÊ PHÁN hoặc nhấn mạnh rằng một việc ĐÁNG LẼ ĐÃ PHẢI xảy ra rồi nhưng vẫn CHƯA xảy ra, thể hiện sự sốt ruột hoặc trách móc nhẹ nhàng. Về mặt thời gian, cấu trúc này nói về HIỆN TẠI/TƯƠNG LAI GẦN dù động từ ở dạng QUÁ KHỨ ĐƠN — đây là một dạng \"giả định\" tương tự logic của wish và would rather, không phải quá khứ thực. Thêm \"about\" hoặc \"high\" trước \"time\" làm tăng mức độ nhấn mạnh, thể hiện cảm xúc bực bội mạnh hơn \"it's time\" đơn thuần. Cần phân biệt rõ với cấu trúc trung tính, không mang sắc thái phê phán: \"It's time to + V nguyên mẫu\" hoặc \"It's time for + N\", chỉ đơn thuần báo hiệu đã đến giờ làm gì đó — ví dụ \"It's time to go\" chỉ báo giờ giấc, còn \"It's time we went\" ngụ ý lẽ ra phải đi từ trước rồi.",
+            "examples": [
+              {
+                "en": "It's time you started taking your studies more seriously.",
+                "vi": "Đã đến lúc bạn phải nghiêm túc hơn với việc học rồi."
+              },
+              {
+                "en": "It's high time the government did something about traffic congestion.",
+                "vi": "Đã đến lúc chính phủ phải làm gì đó về tình trạng tắc nghẽn giao thông."
+              }
+            ],
+            "tagId": "subjunctive-u6-its-time"
+          },
+          {
+            "label": "Giả định mệnh lệnh trang trọng (mandative subjunctive)",
+            "explanationVi": "Đây là nhóm cấu trúc giả định HOÀN TOÀN KHÁC về bản chất so với các usage wish/would rather/it's time ở trên — không diễn tả ước muốn hay tiếc nuối, mà diễn tả một ĐỀ NGHỊ, KHUYẾN NGHỊ, YÊU CẦU hay MỆNH LỆNH mang tính TRANG TRỌNG, thường gặp trong văn phong học thuật, báo chí, văn bản hành chính — rất hay xuất hiện trong bài thi VSTEP phần đọc/viết học thuật. Sau các động từ như suggest, recommend, insist, demand, require, request, propose (hoặc các cụm \"it is essential/important/vital that\") + \"that\" + S + V, động từ trong mệnh đề \"that\" luôn ở DẠNG NGUYÊN MẪU KHÔNG \"TO\" (base form): giữ NGUYÊN, không chia theo ngôi (không thêm -s ở ngôi ba số ít) và KHÔNG lùi thì dù mệnh đề chính ở thì quá khứ — đây là điểm khác biệt lớn so với reported speech thông thường. Ở dạng phủ định, \"not\" đặt trực tiếp trước động từ nguyên mẫu: \"...that he not attend the meeting.\" Với động từ \"to be\", dạng nguyên mẫu là \"be\" (không phải is/was/are): \"The committee insisted that the policy be reviewed.\"",
+            "examples": [
+              {
+                "en": "The teacher suggested that every student submit the assignment by Friday.",
+                "vi": "Giáo viên đề nghị mọi sinh viên nộp bài tập trước thứ Sáu."
+              },
+              {
+                "en": "The board demanded that the CEO resign immediately.",
+                "vi": "Hội đồng quản trị yêu cầu CEO từ chức ngay lập tức."
+              },
+              {
+                "en": "The committee recommended that the proposal not be approved without further review.",
+                "vi": "Ủy ban khuyến nghị rằng đề xuất không nên được thông qua nếu chưa xem xét thêm."
+              }
+            ],
+            "tagId": "subjunctive-u7-mandative"
+          }
+        ],
+        "formulas": null,
+        "signalWords": [
+          {
+            "word": "wish",
+            "meaningVi": "ước gì, mong muốn điều trái thực tế (ở hiện tại hoặc quá khứ)"
+          },
+          {
+            "word": "if only",
+            "meaningVi": "giá như, ước gì (nhấn mạnh, cảm xúc mạnh hơn wish, có thể đứng một mình)"
+          },
+          {
+            "word": "would rather",
+            "meaningVi": "thà..., muốn... hơn (thể hiện lựa chọn ưu tiên của bản thân hoặc mong muốn ở người khác)"
+          },
+          {
+            "word": "it's (high/about) time",
+            "meaningVi": "đã đến lúc (phải)... — phê phán việc đáng lẽ đã xảy ra nhưng chưa xảy ra"
+          },
+          {
+            "word": "wish/if only + would",
+            "meaningVi": "phàn nàn, mong người khác hoặc sự vật thay đổi một hành vi khó chịu lặp lại ở hiện tại"
+          },
+          {
+            "word": "suggest/recommend/insist/demand/require/propose",
+            "meaningVi": "nhóm động từ đi với \"that + S + V nguyên mẫu\" (giả định mệnh lệnh trang trọng)"
+          },
+          {
+            "word": "were",
+            "meaningVi": "dạng giả định của \"to be\" dùng cho mọi ngôi trong câu ước/giả định trang trọng (I wish I were...)"
+          },
+          {
+            "word": "that",
+            "meaningVi": "từ nối dẫn mệnh đề chứa động từ nguyên mẫu sau các động từ đề nghị/yêu cầu/khuyến nghị"
+          }
+        ],
+        "commonMistakes": [
+          "Sai: `I wish I would be taller.` **ĐÚNG**: `I wish I were taller.` — ước về tính trạng của chính người nói ở hiện tại dùng quá khứ đơn (were), không dùng \"would\" vì \"would\" chỉ dành cho hành vi của người/vật KHÁC.",
+          "Sai: `It's so annoying that it never stops raining. I wish it stops raining right now.` **ĐÚNG**: `I wish it would stop raining right now.` — phàn nàn về sự việc gây khó chịu lặp lại ở hiện tại (mưa) phải dùng \"wish + would\", không dùng hiện tại đơn.",
+          "Sai: `She wishes she can speak French fluently.` **ĐÚNG**: `She wishes she could speak French fluently.` — ước về khả năng ở hiện tại phải lùi về quá khứ đơn/could, không giữ nguyên hiện tại đơn.",
+          "Sai: `I would rather you stay here tonight.` (khi muốn nói về mong muốn với hành động của NGƯỜI KHÁC ở hiện tại) **ĐÚNG**: `I would rather you stayed here tonight.` — \"would rather + S + quá khứ đơn\" mang nghĩa hiện tại/tương lai khi nói về mong muốn đối với hành động của người khác, không dùng V nguyên mẫu trong trường hợp này.",
+          "Sai: `The manager insisted that the report is finished by Friday.` **ĐÚNG**: `The manager insisted that the report be finished by Friday.` — động từ trong mệnh đề \"that\" sau insist/demand/require/recommend/suggest luôn ở dạng nguyên mẫu (be), không chia theo thì hay ngôi.",
+          "Sai: `The doctor recommended that he sees a specialist.` **ĐÚNG**: `The doctor recommended that he see a specialist.` — dù chủ ngữ là \"he\" (ngôi ba số ít), động từ trong mandative subjunctive vẫn giữ nguyên dạng gốc \"see\", không thêm \"-s\".",
+          "Sai: `It's time we go to bed.` **ĐÚNG**: `It's time we went to bed.` — sau \"it's (high) time + S\", động từ chia quá khứ đơn dù mang nghĩa hiện tại/tương lai gần, thể hiện ý phê phán việc chưa xảy ra."
+        ]
+      }
+    },
+    "pronouns-determiners": {
+      "id": "pronouns-determiners",
+      "title": "Đại từ & Từ hạn định (Pronouns & Determiners)",
+      "level": "A2/B1",
+      "order": 22,
+      "category": "word-classes",
+      "theory": {
+        "usages": [
+          {
+            "label": "Some / Any (và các từ ghép)",
+            "explanationVi": "Quy tắc cơ bản: 'some' dùng trong câu khẳng định, còn 'any' dùng trong câu phủ định và câu nghi vấn. Quy tắc này áp dụng tương tự cho các từ ghép: somebody/someone/something/somewhere đi với 'some', và anybody/anyone/anything/anywhere đi với 'any'. Tuy nhiên có hai ngoại lệ quan trọng hay bị bỏ qua. Thứ nhất, 'some' vẫn xuất hiện trong câu hỏi khi đó là một lời mời, đề nghị, hoặc yêu cầu lịch sự — người hỏi mong đợi câu trả lời 'có', ví dụ 'Would you like some tea?' hay 'Could I have some help?'. Thứ hai, 'any' có thể xuất hiện trong câu khẳng định khi mang nghĩa 'bất kỳ, không quan trọng là cái nào' (no matter which), ví dụ 'Take any book you like' hay 'Come and see me any time'. Phân biệt được hai ngoại lệ này là chìa khóa để dùng đúng some/any trong giao tiếp tự nhiên, không chỉ máy móc theo công thức khẳng định/phủ định.",
+            "examples": [
+              {
+                "en": "Would you like some cake? I made too much.",
+                "vi": "Bạn có muốn ăn chút bánh không? Tôi làm hơi nhiều."
+              },
+              {
+                "en": "I don't have any money left after paying the rent.",
+                "vi": "Tôi không còn tiền nào sau khi trả tiền thuê nhà."
+              },
+              {
+                "en": "You can call me any time you need help — I don't mind.",
+                "vi": "Bạn có thể gọi tôi bất cứ lúc nào bạn cần giúp đỡ — tôi không phiền đâu."
+              }
+            ],
+            "tagId": "pronouns-determiners-u1-some-any"
+          },
+          {
+            "label": "Much / Many / A lot of / Lots of",
+            "explanationVi": "'Much' dùng với danh từ không đếm được (much time, much money), còn 'many' dùng với danh từ đếm được số nhiều (many books, many people). Cả hai đều tự nhiên và phổ biến nhất trong câu phủ định và câu hỏi, ví dụ 'I don't have much time' hay 'Do you have many friends here?'. Ngược lại, 'a lot of' và 'lots of' dùng được với CẢ HAI loại danh từ, và tự nhiên hơn hẳn trong câu khẳng định, đặc biệt trong văn phong nói/thân mật — nói 'I have much money' nghe khá trang trọng, cứng và ít dùng, trong khi 'I have a lot of money' hoặc 'lots of money' mới là cách người bản ngữ thường nói. Vì vậy, khi gặp câu khẳng định thông thường, ưu tiên 'a lot of/lots of'; khi gặp câu phủ định hoặc câu hỏi, 'much/many' là lựa chọn tự nhiên hơn — dù về mặt ngữ pháp cả hai nhóm đều có thể chấp nhận được trong nhiều trường hợp.",
+            "examples": [
+              {
+                "en": "Do you have much time before the exam starts?",
+                "vi": "Bạn có nhiều thời gian trước khi kỳ thi bắt đầu không?"
+              },
+              {
+                "en": "There are lots of students in the library today.",
+                "vi": "Hôm nay có rất nhiều sinh viên trong thư viện."
+              },
+              {
+                "en": "She doesn't have many close friends in this city.",
+                "vi": "Cô ấy không có nhiều bạn thân ở thành phố này."
+              }
+            ],
+            "tagId": "pronouns-determiners-u2-much-many-alotof"
+          },
+          {
+            "label": "Few/A few và Little/A little",
+            "explanationVi": "'Few' và 'a few' dùng với danh từ đếm được số nhiều; 'little' và 'a little' dùng với danh từ không đếm được. Nhưng điểm quan trọng và dễ gây nhầm lẫn nhất của cả chủ điểm này nằm ở NGHĨA: khi có mạo từ 'a' (a few / a little), câu mang nghĩa TÍCH CỰC — 'có một ít, đủ dùng, có một số' — người nói coi số lượng đó là đáng kể hoặc chấp nhận được. Ngược lại, khi KHÔNG có mạo từ (few / little), câu mang nghĩa TIÊU CỰC — 'hầu như không có, quá ít, không đủ' — người nói coi số lượng đó là thiếu hụt, đáng lo ngại. So sánh: 'I have a few friends here' (tích cực — có một số bạn, không cô đơn) và 'I have few friends here' (tiêu cực — hầu như không có bạn, cô đơn). Muốn xác định đúng, phải đọc kỹ toàn bộ ngữ cảnh câu (các từ như 'don't worry', 'enough', 'hurry up', 'unfortunately' là tín hiệu quan trọng) chứ không chỉ nhìn vào danh từ đi kèm.",
+            "examples": [
+              {
+                "en": "Don't worry, we still have a few minutes before the bus leaves.",
+                "vi": "Đừng lo, chúng ta vẫn còn vài phút trước khi xe buýt khởi hành."
+              },
+              {
+                "en": "Hurry up! We have little time left to finish this test.",
+                "vi": "Nhanh lên! Chúng ta còn rất ít thời gian để hoàn thành bài kiểm tra này."
+              },
+              {
+                "en": "She speaks little English, so it's hard for her to communicate here.",
+                "vi": "Cô ấy biết rất ít tiếng Anh nên khó giao tiếp ở đây."
+              }
+            ],
+            "tagId": "pronouns-determiners-u3-few-little"
+          },
+          {
+            "label": "Đại từ phản thân (Reflexive) và đại từ tương hỗ (Reciprocal)",
+            "explanationVi": "Đại từ phản thân (myself, yourself, himself, herself, itself, ourselves, yourselves, themselves) được dùng khi chủ ngữ và tân ngữ của hành động là CÙNG MỘT người/vật — hành động 'quay ngược lại' chính chủ thể thực hiện nó, ví dụ 'She taught herself' (chính cô ấy tự học cho chính mình). Đại từ tương hỗ 'each other' (thường dùng cho hai người/vật) và 'one another' (thường dùng cho từ ba trở lên, dù trong tiếng Anh hiện đại hai từ này hay được dùng thay thế cho nhau) diễn tả một hành động QUA LẠI giữa hai hoặc nhiều chủ thể — người này làm gì đó với người kia và ngược lại. So sánh rõ: 'They blamed themselves' (mỗi người trong nhóm tự trách bản thân mình) khác hoàn toàn với 'They blamed each other' (người này đổ lỗi cho người kia, và người kia cũng đổ lỗi ngược lại). Nhầm lẫn hai loại này là lỗi rất phổ biến của người học.",
+            "examples": [
+              {
+                "en": "He looked at himself in the mirror before the interview.",
+                "vi": "Anh ấy tự nhìn mình trong gương trước buổi phỏng vấn."
+              },
+              {
+                "en": "After the argument, they refused to talk to each other for weeks.",
+                "vi": "Sau cuộc cãi vã, họ từ chối nói chuyện với nhau trong nhiều tuần."
+              },
+              {
+                "en": "The three roommates always help one another with the housework.",
+                "vi": "Ba người bạn cùng phòng luôn giúp đỡ lẫn nhau việc nhà."
+              }
+            ],
+            "tagId": "pronouns-determiners-u4-reflexive-reciprocal"
+          },
+          {
+            "label": "Tính từ sở hữu và Đại từ sở hữu",
+            "explanationVi": "Tính từ sở hữu (my, your, his, her, its, our, their) LUÔN đứng trước một danh từ để bổ nghĩa cho danh từ đó, không bao giờ đứng một mình — ví dụ 'my car', 'their house'. Đại từ sở hữu (mine, yours, his, hers, its, ours, theirs) đứng MỘT MÌNH, thay thế cho toàn bộ cụm 'tính từ sở hữu + danh từ' đã được nhắc đến hoặc ngụ ý trước đó, và KHÔNG bao giờ theo sau bởi danh từ — ví dụ 'This car is mine' (= my car). Lưu ý 'his' và 'its' có hình thức giống nhau ở cả hai vai trò (his book / this book is his), nhưng 'its' với vai trò đại từ sở hữu đứng một mình khá hiếm gặp trong tiếng Anh tự nhiên. Một lỗi rất phổ biến là dùng đại từ sở hữu ngay trước danh từ (ví dụ 'This is mine car' — sai), trong khi đúng ra phải dùng tính từ sở hữu ('This is my car') hoặc để đại từ sở hữu đứng một mình ('This car is mine').",
+            "examples": [
+              {
+                "en": "Is this your umbrella, or is it mine?",
+                "vi": "Đây là ô của bạn hay của tôi?"
+              },
+              {
+                "en": "Their house is much bigger than ours.",
+                "vi": "Nhà của họ lớn hơn nhà của chúng tôi nhiều."
+              },
+              {
+                "en": "The dog wagged its tail happily when its owner came home.",
+                "vi": "Con chó vẫy đuôi vui vẻ khi chủ nó về nhà."
+              }
+            ],
+            "tagId": "pronouns-determiners-u5-possessive"
+          },
+          {
+            "label": "No / None / Neither / Either",
+            "explanationVi": "'No' luôn đứng trực tiếp trước một danh từ để phủ định hoàn toàn, ví dụ 'There is no milk left'. 'None' đứng MỘT MÌNH, thường đi với 'of + danh từ/đại từ' (none of the students, none of them) và dùng cho từ BA đối tượng trở lên, mang nghĩa phủ định hoàn toàn ('không ai/không cái nào cả'). 'Neither' và 'either' chỉ dùng khi nói về đúng HAI đối tượng/lựa chọn: 'neither...nor' mang nghĩa phủ định ('không cái nào trong hai, cả hai đều không'), còn 'either...or' mang nghĩa khẳng định về sự lựa chọn ('một trong hai, cái nào cũng được'). Điểm mấu chốt cần phân biệt: số lượng đối tượng được nói đến (hai hay từ ba trở lên) sẽ quyết định dùng neither/either hay none, còn việc danh từ có xuất hiện trực tiếp sau từ hạn định hay không sẽ quyết định dùng 'no' hay 'none'.",
+            "examples": [
+              {
+                "en": "There is no milk in the fridge; we need to buy some.",
+                "vi": "Không còn sữa nào trong tủ lạnh; chúng ta cần mua thêm."
+              },
+              {
+                "en": "None of the students passed the final exam this year.",
+                "vi": "Không ai trong số học sinh vượt qua kỳ thi cuối kỳ năm nay."
+              },
+              {
+                "en": "Neither of us wants to go out in this heavy rain.",
+                "vi": "Không ai trong hai chúng tôi muốn ra ngoài trong cơn mưa lớn này."
+              }
+            ],
+            "tagId": "pronouns-determiners-u6-no-none-neither-either"
+          }
+        ],
+        "formulas": null,
+        "signalWords": [
+          {
+            "word": "some",
+            "meaningVi": "một số, một ít — dùng trong câu khẳng định, hoặc trong câu hỏi mang tính mời/đề nghị"
+          },
+          {
+            "word": "any",
+            "meaningVi": "bất kỳ — dùng trong câu phủ định, câu hỏi thông thường, hoặc câu khẳng định mang nghĩa 'không quan trọng cái nào'"
+          },
+          {
+            "word": "much / many",
+            "meaningVi": "nhiều — much với danh từ không đếm được, many với danh từ đếm được, tự nhiên trong câu phủ định/nghi vấn"
+          },
+          {
+            "word": "a lot of / lots of",
+            "meaningVi": "nhiều — dùng được với cả danh từ đếm được và không đếm được, tự nhiên trong câu khẳng định"
+          },
+          {
+            "word": "a few / a little",
+            "meaningVi": "một ít, đủ dùng — mang nghĩa tích cực (a few + danh từ đếm được, a little + danh từ không đếm được)"
+          },
+          {
+            "word": "few / little",
+            "meaningVi": "rất ít, hầu như không có — mang nghĩa tiêu cực (few + danh từ đếm được, little + danh từ không đếm được)"
+          },
+          {
+            "word": "each other / one another",
+            "meaningVi": "nhau — each other thường dùng cho HAI người/vật, one another thường dùng cho BA trở lên (dù tiếng Anh hiện đại nhiều người dùng thay thế nhau, phân biệt này vẫn hay được hỏi trong bài tập)."
+          },
+          {
+            "word": "none / neither / either",
+            "meaningVi": "không ai/không cái nào cả (none dùng cho từ ba trở lên; neither/either chỉ dùng cho đúng hai)"
+          }
+        ],
+        "commonMistakes": [
+          "Sai: `I'm not lonely — I have few close friends who I trust completely.` / **ĐÚNG**: `I'm not lonely — I have a few close friends who I trust completely.` (ý muốn nói tích cực 'có một số bạn' nên phải dùng 'a few' có mạo từ, không dùng 'few' mang nghĩa tiêu cực 'hầu như không có').",
+          "Sai: `How much people came to the party last night?` / **ĐÚNG**: `How many people came to the party last night?` ('people' là danh từ đếm được số nhiều nên phải dùng 'many', không dùng 'much').",
+          "Sai: `She doesn't have many information about the new policy.` / **ĐÚNG**: `She doesn't have much information about the new policy.` ('information' là danh từ không đếm được nên phải dùng 'much', không dùng 'many').",
+          "Sai: `Tom and Mary looked at themselves and smiled when they met at the station.` / **ĐÚNG**: `Tom and Mary looked at each other and smiled when they met at the station.` (hai người nhìn NHAU — hành động qua lại — nên phải dùng đại từ tương hỗ 'each other', không dùng đại từ phản thân 'themselves' vốn chỉ mỗi người tự nhìn chính mình).",
+          "Sai: `This is mine car; yours is over there.` / **ĐÚNG**: `This is my car; yours is over there.` (đứng trước danh từ 'car' phải dùng tính từ sở hữu 'my', không dùng đại từ sở hữu 'mine' vốn chỉ đứng một mình, không theo sau bởi danh từ).",
+          "Sai: `I don't have some time to help you today, sorry.` / **ĐÚNG**: `I don't have any time to help you today, sorry.` (câu phủ định thông thường cần dùng 'any', không dùng 'some' trừ khi là lời mời/đề nghị).",
+          "Sai: `None students came to class because of the storm.` / **ĐÚNG**: `No students came to class because of the storm.` hoặc `None of the students came to class.` ('none' không đứng trực tiếp trước danh từ như 'students'; phải dùng 'no + danh từ' hoặc 'none of + danh từ')."
+        ]
+      }
+    },
+    "adjective-adverb-order": {
+      "id": "adjective-adverb-order",
+      "title": "Tính từ & Trạng từ — vị trí, thứ tự (Adjective & Adverb Order)",
+      "level": "B1",
+      "order": 23,
+      "category": "word-classes",
+      "theory": {
+        "usages": [
+          {
+            "label": "Thứ tự tính từ trước danh từ (OSASCOMP)",
+            "explanationVi": "Khi nhiều tính từ đứng trước một danh từ, chúng phải theo một thứ tự cố định, gọi tắt là OSASCOMP: Ý kiến (Opinion) → Kích thước (Size) → Tuổi/độ mới (Age) → Hình dáng (Shape) → Màu sắc (Color) → Nguồn gốc (Origin) → Chất liệu (Material) → Mục đích/công dụng (Purpose) → Danh từ. Ví dụ: 'a beautiful small old round black Italian leather handbag' đi đúng theo tám nhóm này. Tuy nhiên, người bản ngữ hiếm khi xếp chồng quá 3-4 tính từ một lúc vì câu sẽ trở nên nặng nề; tự nhiên nhất là 2-3 tính từ. Nhưng dù chỉ dùng một tập hợp con (ví dụ chỉ 'kích thước + màu sắc' hay 'ý kiến + chất liệu'), thứ tự tương đối giữa các nhóm đó vẫn phải tuân theo OSASCOMP. Đây là lỗi rất phổ biến của người Việt vì tiếng Việt không có quy tắc thứ tự tính từ chặt chẽ như vậy.",
+            "examples": [
+              {
+                "en": "She bought a gorgeous small antique wooden jewelry box.",
+                "vi": "Cô ấy đã mua một chiếc hộp trang sức gỗ cổ nhỏ xinh."
+              },
+              {
+                "en": "He was wearing a pair of old blue jeans.",
+                "vi": "Anh ấy đang mặc một chiếc quần jean xanh cũ."
+              }
+            ],
+            "tagId": "adjective-adverb-order-u1-adj-order"
+          },
+          {
+            "label": "Vị trí trạng từ chỉ tần suất",
+            "explanationVi": "Các trạng từ chỉ tần suất như always, usually, often, sometimes, rarely, never, hardly ever thường đứng NGAY TRƯỚC động từ chính (động từ thường), nhưng lại đứng SAU động từ 'to be' và sau trợ động từ/động từ khiếm khuyết (auxiliary/modal). So sánh: 'She always arrives on time' (trước động từ thường 'arrives') với 'She is always late' (sau 'to be') và 'He has never been to Japan' (sau trợ động từ 'has'). Với câu có nhiều trợ động từ (ví dụ thì hoàn thành tiếp diễn hay bị động), trạng từ tần suất đứng ngay sau trợ động từ đầu tiên: 'She has usually been working late.' Người học tiếng Việt hay đặt nhầm các trạng từ này ở đầu câu hoặc sau động từ chính, vì trong tiếng Việt trạng từ tần suất thường đứng trước cả cụm động từ mà không phân biệt loại động từ.",
+            "examples": [
+              {
+                "en": "My brother rarely eats breakfast before school.",
+                "vi": "Em trai tôi hiếm khi ăn sáng trước khi đi học."
+              },
+              {
+                "en": "The trains are usually crowded during rush hour.",
+                "vi": "Tàu điện thường đông đúc vào giờ cao điểm."
+              },
+              {
+                "en": "We have never seen such a beautiful sunset.",
+                "vi": "Chúng tôi chưa bao giờ thấy cảnh hoàng hôn đẹp như vậy."
+              }
+            ],
+            "tagId": "adjective-adverb-order-u2-freq-adverbs"
+          },
+          {
+            "label": "Thứ tự trạng từ Cách thức - Nơi chốn - Thời gian",
+            "explanationVi": "Khi một câu có nhiều trạng ngữ (adverbials) chỉ cách thức (manner), nơi chốn (place) và thời gian (time) cùng xuất hiện, thứ tự chuẩn trong tiếng Anh là: Cách thức → Nơi chốn → Thời gian (Manner - Place - Time), viết tắt M-P-T. Ví dụ: 'She sang beautifully (cách thức) at the concert (nơi chốn) last night (thời gian).' Đây gần như ngược với trật tự quen thuộc trong tiếng Việt, nơi trạng ngữ thời gian thường đứng ở đầu câu. Lưu ý là trạng ngữ thời gian trong tiếng Anh cũng có thể di chuyển lên đầu câu để nhấn mạnh: 'Last night, she sang beautifully at the concert.' — nhưng nếu để ở cuối câu thì bắt buộc phải theo đúng thứ tự M-P-T, không được đảo lộn tùy ý.",
+            "examples": [
+              {
+                "en": "The children played happily in the garden all afternoon.",
+                "vi": "Bọn trẻ chơi vui vẻ trong vườn suốt cả buổi chiều."
+              },
+              {
+                "en": "He drove carefully through the city center this morning.",
+                "vi": "Sáng nay anh ấy đã lái xe cẩn thận qua trung tâm thành phố."
+              },
+              {
+                "en": "Last summer, we traveled slowly across the country by train.",
+                "vi": "Mùa hè năm ngoái, chúng tôi đã đi chậm rãi khắp đất nước bằng tàu hỏa."
+              }
+            ],
+            "tagId": "adjective-adverb-order-u3-manner-place-time"
+          },
+          {
+            "label": "'Enough' và 'too' — vị trí trái ngược nhau",
+            "explanationVi": "'Enough' (đủ) đứng SAU tính từ hoặc trạng từ mà nó bổ nghĩa: 'big enough', 'quickly enough', trong khi 'too' (quá) đứng TRƯỚC tính từ/trạng từ: 'too big', 'too quickly'. Đây là một trong những lỗi trật tự từ phổ biến nhất với người Việt vì tiếng Việt không có ràng buộc vị trí kiểu này — 'đủ lớn' và 'quá lớn' đều đặt từ chỉ mức độ trước tính từ, khiến người học dễ nói nhầm 'enough big' thay vì 'big enough'. Cấu trúc đầy đủ thường là: 'adj/adv + enough + (for sb) + to do sth' (ví dụ: 'old enough to drive') và 'too + adj/adv + (for sb) + to do sth' (ví dụ: 'too tired to walk'). Ngoài ra 'enough' còn có thể đứng TRƯỚC danh từ với vai trò định lượng ('enough time'), nhưng khi bổ nghĩa cho tính từ/trạng từ thì luôn đứng sau.",
+            "examples": [
+              {
+                "en": "This box isn't strong enough to hold all these books.",
+                "vi": "Chiếc hộp này không đủ chắc để đựng hết số sách này."
+              },
+              {
+                "en": "He was too nervous to give the presentation clearly.",
+                "vi": "Anh ấy quá lo lắng nên không thể thuyết trình rõ ràng."
+              },
+              {
+                "en": "Is she old enough to get a driver's license?",
+                "vi": "Cô ấy đã đủ tuổi để lấy bằng lái xe chưa?"
+              }
+            ],
+            "tagId": "adjective-adverb-order-u4-enough-too"
+          },
+          {
+            "label": "Chọn dạng tính từ -ing hay -ed (cảm giác/nguyên nhân)",
+            "explanationVi": "Đây không phải là quy tắc về vị trí mà là quy tắc về việc CHỌN ĐÚNG DẠNG tính từ. Tính từ đuôi -ing (boring, interesting, exciting, tiring...) dùng để mô tả một SỰ VẬT/SỰ VIỆC/NGƯỜI gây ra cảm giác đó — nó mang tính chủ động, 'nguyên nhân'. Tính từ đuôi -ed (bored, interested, excited, tired...) dùng để mô tả CẢM GIÁC mà một người trải qua — mang tính bị động, 'kết quả'. So sánh: 'The movie was boring' (bộ phim [là thứ] gây nhàm chán) với 'I was bored' (tôi [là người] cảm thấy nhàm chán). Lỗi cực kỳ phổ biến là người học nói 'I am boring' khi thực ra muốn nói 'tôi cảm thấy chán' (phải là 'I am bored'); 'I am boring' lại có nghĩa 'tôi là người nhàm chán, tẻ nhạt' — hoàn toàn khác nghĩa và có thể gây hiểu lầm tai hại.",
+            "examples": [
+              {
+                "en": "I found the lecture really confusing, so I was confused by the end.",
+                "vi": "Tôi thấy bài giảng thực sự khó hiểu, nên đến cuối tôi đã bị rối."
+              },
+              {
+                "en": "The children were amazed by the amazing fireworks display.",
+                "vi": "Bọn trẻ đã kinh ngạc trước màn pháo hoa tuyệt vời."
+              }
+            ],
+            "tagId": "adjective-adverb-order-u5-ing-ed"
+          },
+          {
+            "label": "Tính từ sau đại từ bất định -thing/-body/-one",
+            "explanationVi": "Với các đại từ bất định kết thúc bằng -thing, -body, -one (something, nothing, anything, everything, somebody, nobody, everyone, anyone...), tính từ bổ nghĩa phải đứng SAU đại từ đó, ngược hoàn toàn với quy tắc thông thường là tính từ đứng trước danh từ. Ví dụ: 'something interesting' (không phải 'an interesting something'), 'nobody special' (không phải 'a special nobody'). Nếu có thêm mệnh đề động từ nguyên thể (to-infinitive), thứ tự sẽ là: đại từ bất định + tính từ + to-infinitive, ví dụ 'something cold to drink'. Đây là điểm học sinh Việt Nam hay quên vì phản xạ tự nhiên là đặt tính từ trước danh từ/đại từ như thông lệ. Cùng quy tắc \"đứng SAU\" này còn áp dụng cho từ 'else' (nghĩa \"khác\") khi đi cùng các đại từ bất định — 'else' cũng luôn đứng NGAY SAU đại từ, không phải trước, ví dụ 'everybody else' (không phải 'else everybody'), 'something else', 'anyone else'. Nếu câu có cả tính từ lẫn 'else', thứ tự là: đại từ bất định + tính từ + else, ví dụ 'something nice else' hiếm gặp hơn, thực tế phổ biến nhất vẫn là 'else' đứng một mình ngay sau đại từ.",
+            "examples": [
+              {
+                "en": "Did anything unusual happen at the meeting yesterday?",
+                "vi": "Có chuyện gì bất thường xảy ra trong cuộc họp hôm qua không?"
+              },
+              {
+                "en": "I want to eat something spicy for dinner tonight.",
+                "vi": "Tối nay tôi muốn ăn món gì đó cay cay."
+              },
+              {
+                "en": "There's nobody available to help you right now.",
+                "vi": "Hiện không có ai rảnh để giúp bạn cả."
+              }
+            ],
+            "tagId": "adjective-adverb-order-u6-indefinite-pronouns"
+          }
+        ],
+        "formulas": null,
+        "signalWords": [
+          {
+            "word": "opinion (ý kiến)",
+            "meaningVi": "Nhóm đầu tiên trong OSASCOMP — tính từ thể hiện đánh giá chủ quan (beautiful, nice, terrible), luôn đứng đầu tiên trong chuỗi tính từ."
+          },
+          {
+            "word": "size (kích thước)",
+            "meaningVi": "Tính từ chỉ độ lớn/nhỏ (small, big, huge, long) — đứng sau opinion, trước age."
+          },
+          {
+            "word": "age (tuổi/độ mới)",
+            "meaningVi": "Tính từ chỉ tuổi tác hoặc độ mới/cũ (old, new, young, ancient) — đứng sau size, trước shape."
+          },
+          {
+            "word": "always / usually / often",
+            "meaningVi": "Trạng từ tần suất cao — đứng trước động từ thường, sau 'to be'/trợ động từ."
+          },
+          {
+            "word": "rarely / never / hardly ever",
+            "meaningVi": "Trạng từ tần suất thấp hoặc mang nghĩa phủ định — vị trí giống always/usually nhưng không dùng thêm 'not' trong câu."
+          },
+          {
+            "word": "enough",
+            "meaningVi": "Đứng SAU tính từ/trạng từ mà nó bổ nghĩa: 'big enough', 'fast enough'."
+          },
+          {
+            "word": "too",
+            "meaningVi": "Đứng TRƯỚC tính từ/trạng từ mà nó bổ nghĩa: 'too big', 'too fast'."
+          },
+          {
+            "word": "-ing / -ed",
+            "meaningVi": "-ing mô tả vật/việc gây ra cảm giác (boring, tiring); -ed mô tả người trải qua cảm giác (bored, tired)."
+          }
+        ],
+        "commonMistakes": [
+          "Sai: `a red small old car`. **ĐÚNG**: `a small old red car` (thứ tự OSASCOMP: Kích thước → Tuổi → Màu sắc).",
+          "Sai: `She arrives always on time.` **ĐÚNG**: `She always arrives on time.` (trạng từ tần suất đứng trước động từ thường).",
+          "Sai: `She is late always.` **ĐÚNG**: `She is always late.` (trạng từ tần suất đứng sau động từ 'to be').",
+          "Sai: `The bag is enough big to carry all my books.` **ĐÚNG**: `The bag is big enough to carry all my books.` ('enough' đứng sau tính từ, không đứng trước).",
+          "Sai: `I am boring with this lecture.` **ĐÚNG**: `I am bored with this lecture.` (dùng dạng '-ed' để diễn tả cảm giác của bản thân, không phải '-ing').",
+          "Sai: `an interesting something to read` **ĐÚNG**: `something interesting to read` (tính từ đứng sau đại từ bất định -thing/-body/-one, không đứng trước).",
+          "Sai: `He walks too fast enough to catch the bus.` **ĐÚNG**: `He walks fast enough to catch the bus.` (không trộn lẫn 'too' và 'enough' trong cùng một cụm bổ nghĩa)."
         ]
       }
     }
