@@ -3426,6 +3426,18 @@ function observeGrammarReveal(container) {
     }
 }
 
+// ĐÃ SỬA (cache lý thuyết offline — phản hồi người dùng "lý thuyết giống hệt mỗi lần mở, nên tải về/lưu
+// offline, chỉ bài tập cần request để bốc ngẫu nhiên"): trước đây hàm này gọi 1 lượt duy nhất
+// get_grammar_topic (trả CẢ theory lẫn exercises) rồi mới render. Giờ tách 2 đường:
+//  - ĐƯỜNG NHANH (bình thường): theory đọc THẲNG từ bundle tĩnh GRAMMAR_THEORY_BANK (grammar_theory_bank.js,
+//    nạp sẵn cùng app.js, KHÔNG qua mạng) -> render lý thuyết GẦN NHƯ TỨC THÌ, không cần chờ GAS. Song
+//    song gọi action MỚI get_grammar_exercises (nhẹ hơn, chỉ trả exercises) để lấy 10 câu bốc ngẫu
+//    nhiên — Server vẫn giữ nguyên vai trò bốc ngẫu nhiên (Client không giữ đủ 30 câu/chủ điểm nên không
+//    tự bốc được, cũng tránh lộ hết đáp án qua Network tab). Nút "Luyện chủ điểm này" bị khoá tạm (hiện
+//    icon đang tải) tới khi bài tập về xong.
+//  - ĐƯỜNG DỰ PHÒNG: nếu bundle tĩnh CHƯA có đúng chuyên đề này (vd Backend vừa thêm chuyên đề mới nhưng
+//    quên deploy lại bundle tĩnh) -> tự động rơi về gọi get_grammar_topic ĐẦY ĐỦ như hành vi cũ, không
+//    vỡ tính năng.
 async function startGrammarTopicSession(topicId) {
     if (!grammarRoadmapList) return;
     // Khoá tạm cả danh sách lộ trình trong lúc tải, tránh bấm trùng nhiều thẻ 1 lúc.
@@ -3434,11 +3446,33 @@ async function startGrammarTopicSession(topicId) {
     const originalHtml = clickedBtn ? clickedBtn.innerHTML : '';
     if (clickedBtn) clickedBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tải...';
 
-    const payload = { action: 'get_grammar_topic', language: 'english', topicId: topicId };
-    const data = await callBackendAPI(payload, '', false);
+    const localTheoryTopic = (typeof GRAMMAR_THEORY_BANK !== 'undefined' && GRAMMAR_THEORY_BANK.english)
+        ? GRAMMAR_THEORY_BANK.english[topicId]
+        : null;
 
     grammarRoadmapList.querySelectorAll('.grammar-topic-card').forEach(b => b.disabled = false);
     if (clickedBtn) clickedBtn.innerHTML = originalHtml;
+
+    if (localTheoryTopic) {
+        grammarCurrentTopic = { ...localTheoryTopic, mode: 'normal', exercises: [], exercisesPending: true };
+        grammarAnsweredCount = 0;
+        grammarCorrectCount = 0;
+        renderGrammarTheory_(grammarCurrentTopic);
+        updateSidebarLeftVisibility_();
+        renderGrammarSidebarToc(topicId);
+
+        const exData = await callBackendAPI({ action: 'get_grammar_exercises', language: 'english', topicId: topicId }, '', false);
+        if (!exData) { alert('Không tải được bài tập, vui lòng thử lại.'); return; }
+        // Người học có thể đã bấm sang chuyên đề khác trong lúc chờ - chỉ render nếu vẫn đang mở đúng
+        // chuyên đề này, tránh bài tập chuyên đề A hiện nhầm dưới lý thuyết chuyên đề B.
+        if (!grammarCurrentTopic || grammarCurrentTopic.id !== topicId) return;
+        grammarCurrentTopic = { ...localTheoryTopic, ...exData };
+        renderGrammarExercises_(grammarCurrentTopic);
+        return;
+    }
+
+    const payload = { action: 'get_grammar_topic', language: 'english', topicId: topicId };
+    const data = await callBackendAPI(payload, '', false);
     if (!data) { alert('Không tải được chuyên đề, vui lòng thử lại.'); return; }
 
     grammarCurrentTopic = data;
@@ -3468,7 +3502,17 @@ function backToGrammarRoadmap() {
     updateSidebarLeftVisibility_();
 }
 
+// ĐÃ SỬA (cache lý thuyết offline — xem ghi chú đầu startGrammarTopicSession()): renderGrammarTopic()
+// giờ chỉ còn là hàm gộp gọi renderGrammarTheory_() + renderGrammarExercises_() theo đúng thứ tự cũ —
+// GIỮ NGUYÊN cho đường dự phòng (get_grammar_topic đầy đủ, xem startGrammarTopicSession) không cần đổi
+// gì thêm. Đường nhanh (bundle tĩnh) gọi trực tiếp 2 hàm con tách rời, không qua hàm gộp này, vì theory
+// và exercises giờ về ở 2 THỜI ĐIỂM khác nhau (theory tức thì, exercises chờ mạng).
 function renderGrammarTopic(data) {
+    renderGrammarTheory_(data);
+    renderGrammarExercises_(data);
+}
+
+function renderGrammarTheory_(data) {
     grammarRoadmapBox?.classList.add('hidden');
 
     // ----- Lý thuyết (hiện dần theo cuộn chuột) -----
@@ -3558,12 +3602,26 @@ function renderGrammarTopic(data) {
         grammarTheoryBox.innerHTML = html;
         grammarTheoryBox.classList.remove('hidden');
         observeGrammarReveal(grammarTheoryBox);
-        document.getElementById('btn-reveal-grammar-exercise')?.addEventListener('click', revealGrammarExerciseBox);
+        const revealBtn = document.getElementById('btn-reveal-grammar-exercise');
+        if (revealBtn) {
+            revealBtn.addEventListener('click', revealGrammarExerciseBox);
+            // ĐÃ THÊM (cache lý thuyết offline — đường nhanh): nếu bài tập CHƯA về kịp (đang tách riêng
+            // request get_grammar_exercises, xem startGrammarTopicSession), khoá tạm nút này + hiện icon
+            // đang tải — renderGrammarExercises_() sẽ mở khoá lại khi bài tập về xong. Đường dự phòng
+            // (get_grammar_topic đầy đủ) không set exercisesPending nên nút vẫn hoạt động bình thường.
+            if (data.exercisesPending) {
+                revealBtn.disabled = true;
+                revealBtn.dataset.pendingExercises = '1';
+                revealBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tải bài tập...';
+            }
+        }
         document.getElementById('btn-start-legendary')?.addEventListener('click', () => startLegendaryRound(data.id));
     }
+}
 
-    // ----- Bài tập: dựng sẵn nhưng vẫn giữ #grammar-exercise-box ẩn (class "hidden" có sẵn trong
-    // index.html) - bấm "Luyện chủ điểm này" ở trên chỉ gỡ class "hidden", KHÔNG gọi mạng lại. -----
+// ----- Bài tập: dựng sẵn nhưng vẫn giữ #grammar-exercise-box ẩn (class "hidden" có sẵn trong
+// index.html) - bấm "Luyện chủ điểm này" ở trên chỉ gỡ class "hidden", KHÔNG gọi mạng lại. -----
+function renderGrammarExercises_(data) {
     if (grammarExerciseList) {
         grammarExerciseList.innerHTML = '';
         data.exercises.forEach((ex, exIndex) => {
@@ -3602,6 +3660,16 @@ function renderGrammarTopic(data) {
 
     updateGrammarScoreIndicator(data.exercises.length);
     grammarExerciseBox?.classList.add('hidden'); // ẩn tới khi bấm nút "Luyện chủ điểm này"
+
+    // ĐÃ THÊM (cache lý thuyết offline — đường nhanh): bài tập đã về xong, mở khoá lại nút "Luyện chủ
+    // điểm này" nếu trước đó bị khoá tạm chờ (xem renderGrammarTheory_()). Đường dự phòng không khoá nút
+    // này nên đoạn dưới không có gì để gỡ, an toàn bỏ qua.
+    const revealBtn = document.getElementById('btn-reveal-grammar-exercise');
+    if (revealBtn && revealBtn.dataset.pendingExercises === '1') {
+        revealBtn.disabled = false;
+        revealBtn.innerHTML = '<i class="fas fa-dumbbell"></i> Luyện chủ điểm này';
+        delete revealBtn.dataset.pendingExercises;
+    }
 }
 
 function revealGrammarExerciseBox() {
@@ -3750,12 +3818,29 @@ function resolveGrammarTagLabel_(theory, tagId) {
     return GRAMMAR_CROSS_CUTTING_TAG_LABELS[tagId] || tagId;
 }
 
+// ĐÃ SỬA (cache lý thuyết offline — xem ghi chú đầu startGrammarTopicSession()): "Nhức đầu" không hiện
+// khối lý thuyết trong lúc làm nên không có lợi ích "hiện tức thì", nhưng vẫn tận dụng bundle tĩnh để
+// giảm payload mạng (get_grammar_exercises nhẹ hơn get_grammar_topic vì không kèm theory) và tái dùng
+// đúng theory local cho bảng phân tích cuối lượt (resolveGrammarTagLabel_ cần grammarLegendaryData.theory).
 async function startLegendaryRound(topicId) {
     const btn = document.getElementById('btn-start-legendary');
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tải...'; }
-    const data = await callBackendAPI({ action: 'get_grammar_topic', language: 'english', topicId: topicId, mode: 'legendary' }, '', false);
-    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-fire"></i> Chế độ Nhức đầu'; }
-    if (!data) { alert('Không tải được bộ câu hỏi Nhức đầu, vui lòng thử lại.'); return; }
+
+    const localTheoryTopic = (typeof GRAMMAR_THEORY_BANK !== 'undefined' && GRAMMAR_THEORY_BANK.english)
+        ? GRAMMAR_THEORY_BANK.english[topicId]
+        : null;
+
+    let data;
+    if (localTheoryTopic) {
+        const exData = await callBackendAPI({ action: 'get_grammar_exercises', language: 'english', topicId: topicId, mode: 'legendary' }, '', false);
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-fire"></i> Chế độ Nhức đầu'; }
+        if (!exData) { alert('Không tải được bộ câu hỏi Nhức đầu, vui lòng thử lại.'); return; }
+        data = { ...localTheoryTopic, ...exData };
+    } else {
+        data = await callBackendAPI({ action: 'get_grammar_topic', language: 'english', topicId: topicId, mode: 'legendary' }, '', false);
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-fire"></i> Chế độ Nhức đầu'; }
+        if (!data) { alert('Không tải được bộ câu hỏi Nhức đầu, vui lòng thử lại.'); return; }
+    }
 
     grammarLegendaryActive = true;
     grammarLegendaryData = data;
