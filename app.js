@@ -3601,6 +3601,14 @@ function renderGrammarTheory_(data) {
 
         grammarTheoryBox.innerHTML = html;
         grammarTheoryBox.classList.remove('hidden');
+        // ĐÃ SỬA (lỗi người dùng báo: "bấm vào 1 chuyên đề thì trang vẫn đứng nguyên ở vị trí đã cuộn tới
+        // lúc còn ở màn lộ trình, không tự cuộn lên đầu lý thuyết") — lỗi này CÓ TỪ TRƯỚC (không phải do
+        // đợt tách request lý thuyết/bài tập vừa rồi gây ra): hàm render lý thuyết trước giờ chưa từng có
+        // dòng cuộn màn hình nào, chỉ gỡ class "hidden" nên nội dung mới nằm nguyên tại vị trí cuộn cũ,
+        // dễ bị hiểu lầm là "nhảy lung tung". Thêm scrollIntoView giống hệt cách đã dùng ở mọi chỗ chuyển
+        // màn khác trong khu "Học" (quay lại lộ trình/mở bài tập/Nhức đầu, xem backToGrammarRoadmap() và
+        // các hàm lân cận) để nhất quán.
+        grammarTheoryBox.scrollIntoView({ behavior: 'smooth', block: 'start' });
         observeGrammarReveal(grammarTheoryBox);
         const revealBtn = document.getElementById('btn-reveal-grammar-exercise');
         if (revealBtn) {
